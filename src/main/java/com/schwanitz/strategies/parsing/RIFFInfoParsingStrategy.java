@@ -23,38 +23,46 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
     private static final Map<String, String> INFO_CHUNKS = new HashMap<>();
 
     static {
-        // Standard RIFF INFO Chunks
-        INFO_CHUNKS.put("INAM", "Title");        // Name/Title
-        INFO_CHUNKS.put("IART", "Artist");       // Artist
-        INFO_CHUNKS.put("IPRD", "Album");        // Product (Album)
-        INFO_CHUNKS.put("ICRD", "Date");         // Creation Date
-        INFO_CHUNKS.put("IGNR", "Genre");        // Genre
-        INFO_CHUNKS.put("ICMT", "Comment");      // Comment
-        INFO_CHUNKS.put("ICOP", "Copyright");    // Copyright
-        INFO_CHUNKS.put("IENG", "Engineer");     // Engineer
-        INFO_CHUNKS.put("ITCH", "Technician");   // Technician
-        INFO_CHUNKS.put("ISFT", "Software");     // Software
-        INFO_CHUNKS.put("IMED", "Medium");       // Medium
-        INFO_CHUNKS.put("ISRC", "Source");       // Source
-        INFO_CHUNKS.put("ISRF", "SourceForm");   // Source Form
-        INFO_CHUNKS.put("ISBJ", "Subject");      // Subject
-        INFO_CHUNKS.put("IKEY", "Keywords");     // Keywords
-        INFO_CHUNKS.put("IPRT", "Part");         // Part
-        INFO_CHUNKS.put("ITRK", "Track");        // Track Number
-        INFO_CHUNKS.put("IFRM", "TotalFrames");  // Total Frames
-        INFO_CHUNKS.put("IMUS", "Music");        // Music
-        INFO_CHUNKS.put("IPRO", "Producer");     // Producer
-        INFO_CHUNKS.put("ICMS", "Commissioned"); // Commissioned
-        INFO_CHUNKS.put("ISTR", "Starring");     // Starring
-        INFO_CHUNKS.put("IDOS", "DOSName");      // DOS Name
-        INFO_CHUNKS.put("IARL", "Archival");     // Archival Location
-        INFO_CHUNKS.put("ILGT", "Lightness");    // Lightness
-        INFO_CHUNKS.put("ICMS", "Commission");   // Commission
-        INFO_CHUNKS.put("ISHP", "Sharpness");    // Sharpness
-        INFO_CHUNKS.put("ICRP", "Cropped");      // Cropped
-        INFO_CHUNKS.put("IDIM", "Dimensions");   // Dimensions
-        INFO_CHUNKS.put("IDPI", "DotsPerInch");  // Dots Per Inch
-        INFO_CHUNKS.put("IPLT", "Palette");      // Palette Setting
+        // Audio-relevante Kern-Metadaten
+        INFO_CHUNKS.put("INAM", "Title");            // Name/Title
+        INFO_CHUNKS.put("IART", "Artist");           // Artist
+        INFO_CHUNKS.put("IPRD", "Album");            // Product (Album)
+        INFO_CHUNKS.put("ICRD", "Date");             // Creation Date
+        INFO_CHUNKS.put("IGNR", "Genre");            // Genre
+        INFO_CHUNKS.put("ICMT", "Comment");          // Comment
+        INFO_CHUNKS.put("ICOP", "Copyright");        // Copyright
+
+        // Produktions-Metadaten
+        INFO_CHUNKS.put("IENG", "Engineer");         // Engineer
+        INFO_CHUNKS.put("ITCH", "Technician");       // Technician
+        INFO_CHUNKS.put("ISFT", "Software");         // Software
+        INFO_CHUNKS.put("IPRO", "Producer");         // Producer
+        INFO_CHUNKS.put("ICMS", "Commissioned");     // Commissioned
+
+        // Quelle/Medium
+        INFO_CHUNKS.put("IMED", "Medium");           // Medium
+        INFO_CHUNKS.put("ISRC", "Source");           // Source
+        INFO_CHUNKS.put("ISRF", "SourceForm");       // Source Form
+        INFO_CHUNKS.put("IARL", "Archival");         // Archival Location
+
+        // Inhalt/Beschreibung
+        INFO_CHUNKS.put("ISBJ", "Subject");          // Subject
+        INFO_CHUNKS.put("IKEY", "Keywords");         // Keywords
+        INFO_CHUNKS.put("ISTR", "Starring");         // Starring
+        INFO_CHUNKS.put("IPRT", "Part");             // Part
+
+        // Technische Daten
+        INFO_CHUNKS.put("ITRK", "TrackNumber");      // Track Number
+        INFO_CHUNKS.put("IFRM", "TotalFrames");      // Total Frames
+        INFO_CHUNKS.put("IMUS", "Musician");         // Musician
+
+        // Erweiterte Chunks
+        INFO_CHUNKS.put("ISMP", "SMPTETimeCode");    // SMPTE Time Code
+        INFO_CHUNKS.put("IDIT", "DigitizationDate"); // Digitization Date
+        INFO_CHUNKS.put("IWRI", "WrittenBy");        // Written By
+
+        // Veraltete Chunks (für Kompatibilität beibehalten)
+        INFO_CHUNKS.put("IDOS", "DOSName");          // DOS Name (veraltet)
     }
 
     private final Map<String, FieldHandler<?>> handlers;

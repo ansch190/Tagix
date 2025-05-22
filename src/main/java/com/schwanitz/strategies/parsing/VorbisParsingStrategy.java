@@ -26,7 +26,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
     }
 
     private void initializeDefaultHandlers() {
-        // Standard Vorbis Comment Felder (case-insensitive laut Spec)
+        // Kern-Metadaten
         handlers.put("TITLE", new TextFieldHandler("TITLE"));
         handlers.put("ARTIST", new TextFieldHandler("ARTIST"));
         handlers.put("ALBUM", new TextFieldHandler("ALBUM"));
@@ -34,6 +34,8 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         handlers.put("TRACKNUMBER", new TextFieldHandler("TRACKNUMBER"));
         handlers.put("GENRE", new TextFieldHandler("GENRE"));
         handlers.put("COMMENT", new TextFieldHandler("COMMENT"));
+
+        // Erweiterte Metadaten
         handlers.put("DESCRIPTION", new TextFieldHandler("DESCRIPTION"));
         handlers.put("ALBUMARTIST", new TextFieldHandler("ALBUMARTIST"));
         handlers.put("COMPOSER", new TextFieldHandler("COMPOSER"));
@@ -43,19 +45,68 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         handlers.put("ORGANIZATION", new TextFieldHandler("ORGANIZATION"));
         handlers.put("LOCATION", new TextFieldHandler("LOCATION"));
         handlers.put("CONTACT", new TextFieldHandler("CONTACT"));
+
+        // Technische Metadaten
         handlers.put("ISRC", new TextFieldHandler("ISRC"));
         handlers.put("DISCNUMBER", new TextFieldHandler("DISCNUMBER"));
         handlers.put("TOTALTRACKS", new TextFieldHandler("TOTALTRACKS"));
         handlers.put("TOTALDISCS", new TextFieldHandler("TOTALDISCS"));
 
-        // Erweiterte Felder
+        // Encoder-Metadaten (beide Varianten für Kompatibilität)
         handlers.put("ENCODER", new TextFieldHandler("ENCODER"));
         handlers.put("ENCODED-BY", new TextFieldHandler("ENCODED-BY"));
+        handlers.put("ENCODEDBY", new TextFieldHandler("ENCODEDBY"));
         handlers.put("VERSION", new TextFieldHandler("VERSION"));
+        handlers.put("VENDOR", new TextFieldHandler("VENDOR"));
+
+        // ReplayGain
         handlers.put("REPLAYGAIN_TRACK_GAIN", new TextFieldHandler("REPLAYGAIN_TRACK_GAIN"));
         handlers.put("REPLAYGAIN_TRACK_PEAK", new TextFieldHandler("REPLAYGAIN_TRACK_PEAK"));
         handlers.put("REPLAYGAIN_ALBUM_GAIN", new TextFieldHandler("REPLAYGAIN_ALBUM_GAIN"));
         handlers.put("REPLAYGAIN_ALBUM_PEAK", new TextFieldHandler("REPLAYGAIN_ALBUM_PEAK"));
+
+        // Erweiterte Standard-Felder
+        handlers.put("ORIGINALDATE", new TextFieldHandler("ORIGINALDATE"));
+        handlers.put("ORIGINALYEAR", new TextFieldHandler("ORIGINALYEAR"));
+        handlers.put("RELEASESTATUS", new TextFieldHandler("RELEASESTATUS"));
+        handlers.put("RELEASETYPE", new TextFieldHandler("RELEASETYPE"));
+
+        // MusicBrainz IDs
+        handlers.put("MUSICBRAINZ_TRACKID", new TextFieldHandler("MUSICBRAINZ_TRACKID"));
+        handlers.put("MUSICBRAINZ_ALBUMID", new TextFieldHandler("MUSICBRAINZ_ALBUMID"));
+        handlers.put("MUSICBRAINZ_ARTISTID", new TextFieldHandler("MUSICBRAINZ_ARTISTID"));
+        handlers.put("MUSICBRAINZ_ALBUMARTISTID", new TextFieldHandler("MUSICBRAINZ_ALBUMARTISTID"));
+        handlers.put("MUSICBRAINZ_RELEASEGROUPID", new TextFieldHandler("MUSICBRAINZ_RELEASEGROUPID"));
+        handlers.put("MUSICBRAINZ_WORKID", new TextFieldHandler("MUSICBRAINZ_WORKID"));
+
+        // Sort-Felder
+        handlers.put("ALBUMARTISTSORT", new TextFieldHandler("ALBUMARTISTSORT"));
+        handlers.put("ARTISTSORT", new TextFieldHandler("ARTISTSORT"));
+        handlers.put("ALBUMSORT", new TextFieldHandler("ALBUMSORT"));
+        handlers.put("TITLESORT", new TextFieldHandler("TITLESORT"));
+        handlers.put("COMPOSERSORT", new TextFieldHandler("COMPOSERSORT"));
+
+        // Audio-Eigenschaften
+        handlers.put("BPM", new TextFieldHandler("BPM"));
+        handlers.put("KEY", new TextFieldHandler("KEY"));
+        handlers.put("MOOD", new TextFieldHandler("MOOD"));
+        handlers.put("COMPILATION", new TextFieldHandler("COMPILATION"));
+
+        // Weitere wichtige Felder
+        handlers.put("LANGUAGE", new TextFieldHandler("LANGUAGE"));
+        handlers.put("SCRIPT", new TextFieldHandler("SCRIPT"));
+        handlers.put("MEDIA", new TextFieldHandler("MEDIA"));
+        handlers.put("BARCODE", new TextFieldHandler("BARCODE"));
+        handlers.put("CATALOGNUMBER", new TextFieldHandler("CATALOGNUMBER"));
+        handlers.put("LABEL", new TextFieldHandler("LABEL"));
+        handlers.put("LABELNO", new TextFieldHandler("LABELNO"));
+        handlers.put("ASIN", new TextFieldHandler("ASIN"));
+
+        // Podcast/Audio-spezifisch
+        handlers.put("PODCAST", new TextFieldHandler("PODCAST"));
+        handlers.put("PODCASTURL", new TextFieldHandler("PODCASTURL"));
+        handlers.put("SUBTITLE", new TextFieldHandler("SUBTITLE"));
+        handlers.put("GROUPING", new TextFieldHandler("GROUPING"));
     }
 
     @Override
@@ -74,7 +125,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
             throws IOException {
         file.seek(offset);
 
-        // Für OGG: Packet Type Byte überspringen falls vorhanden
+        // Für OGG: Packet Type Byte überspringen, falls vorhanden
         byte[] firstByte = new byte[1];
         file.read(firstByte);
         long currentOffset = offset + 1;
@@ -98,6 +149,11 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         String vendor = readVendorString(file);
         LOGGER.fine("Vorbis Comment Vendor: " + vendor);
         currentOffset += 4 + vendor.getBytes(StandardCharsets.UTF_8).length;
+
+        // Vendor String als Metadatum speichern falls vorhanden
+        if (!vendor.isEmpty()) {
+            addField(metadata, "VENDOR", vendor);
+        }
 
         // User Comment Count lesen (32-bit little-endian)
         long userCommentCount = readLittleEndianUInt32(file);
@@ -136,7 +192,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
             try {
                 byte framingBit = file.readByte();
                 if (framingBit != 1) {
-                    LOGGER.fine("Invalid framing bit: " + framingBit);
+                    LOGGER.fine("Invalid framing bit: " + framingBit + " (expected 1, normal for FLAC)");
                 }
             } catch (IOException e) {
                 // Framing bit fehlt - kann bei FLAC vorkommen
@@ -225,10 +281,29 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
             return;
         }
 
+        // Multi-Value Support: Prüfe ob Feld bereits existiert
+        String existingValue = getExistingFieldValue(metadata, fieldName);
+        if (existingValue != null && !existingValue.equals(fieldValue)) {
+            // Werte mit Separator verbinden (Vorbis Comment Standard)
+            fieldValue = existingValue + "; " + fieldValue;
+            LOGGER.fine("Multi-value field detected: " + fieldName + " = " + fieldValue);
+        }
+
         addField(metadata, fieldName, fieldValue);
 
         LOGGER.fine("Parsed comment: " + fieldName + " = " +
                 (fieldValue.length() > 50 ? fieldValue.substring(0, 50) + "..." : fieldValue));
+    }
+
+    private String getExistingFieldValue(VorbisMetadata metadata, String fieldName) {
+        // Suche nach existierendem Feld mit gleichem Namen
+        for (MetadataField<?> field : metadata.getFields()) {
+            if (field.getKey().equals(fieldName)) {
+                Object value = field.getValue();
+                return value != null ? value.toString() : null;
+            }
+        }
+        return null;
     }
 
     private boolean isValidFieldName(String fieldName) {
@@ -244,6 +319,9 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
     private void addField(VorbisMetadata metadata, String key, String value) {
         // Normalisiere Feldnamen (case-insensitive)
         String normalizedKey = key.toUpperCase();
+
+        // Bei Multi-Value: Entferne existierendes Feld zuerst
+        metadata.getFields().removeIf(field -> field.getKey().equals(normalizedKey));
 
         FieldHandler<?> handler = handlers.get(normalizedKey);
         if (handler != null) {
