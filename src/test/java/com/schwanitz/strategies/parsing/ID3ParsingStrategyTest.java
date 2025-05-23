@@ -14,10 +14,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("unit")
+@Tag("id3")
+@Tag("parsing")
 class ID3ParsingStrategyTest {
 
     private ID3ParsingStrategy strategy;

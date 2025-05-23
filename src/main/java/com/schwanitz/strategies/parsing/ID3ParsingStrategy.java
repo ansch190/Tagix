@@ -924,7 +924,6 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
         // "(13)Rock" -> Numeric + Text
         // "Rock" -> Pure text
         // "(RX)(CR)" -> Refinements
-
         StringBuilder result = new StringBuilder();
         Pattern pattern = Pattern.compile("\\((\\d+)\\)");
         Matcher matcher = pattern.matcher(genre);
@@ -934,8 +933,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
             // Text vor der Nummer hinzufügen
             if (matcher.start() > lastEnd) {
                 String textBefore = genre.substring(lastEnd, matcher.start()).trim();
-                if (!textBefore.isEmpty()) {
-                    if (result.length() > 0) result.append("; ");
+                if (!textBefore.isEmpty() && result.length() == 0) { // Änderung: Nur hinzufügen, wenn result leer
                     result.append(textBefore);
                 }
             }
@@ -944,8 +942,9 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
             try {
                 int genreNum = Integer.parseInt(matcher.group(1));
                 if (genreNum >= 0 && genreNum < ID3V1_GENRES.length) {
-                    if (result.length() > 0) result.append("; ");
-                    result.append(ID3V1_GENRES[genreNum]);
+                    if (result.length() == 0) { // Änderung: Nur hinzufügen, wenn result leer
+                        result.append(ID3V1_GENRES[genreNum]);
+                    }
                 }
             } catch (NumberFormatException e) {
                 // Ungültige Nummer, ignorieren
@@ -955,10 +954,9 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
         }
 
         // Restlichen Text hinzufügen
-        if (lastEnd < genre.length()) {
+        if (lastEnd < genre.length() && result.length() == 0) { // Änderung: Nur hinzufügen, wenn result leer
             String textAfter = genre.substring(lastEnd).trim();
             if (!textAfter.isEmpty()) {
-                if (result.length() > 0) result.append("; ");
                 result.append(textAfter);
             }
         }
