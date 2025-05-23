@@ -109,17 +109,17 @@ public class APEParsingStrategy implements TagParsingStrategy {
             throw new IOException("Unsupported APE version: " + version);
         }
 
-        // Tag Size (bytes 12-15, little-endian) - Größe ohne Footer
+        // KORRIGIERT: Tag Size (bytes 12-15) - Größe ohne Header, inklusive Footer
         int tagSize = readLittleEndianInt32(header, 12);
 
         // Item Count (bytes 16-19, little-endian)
         int itemCount = readLittleEndianInt32(header, 16);
 
-        // Tag Flags (bytes 20-23, little-endian)
+        // KORRIGIERT: Tag Flags (bytes 20-23, little-endian)
         int tagFlags = readLittleEndianInt32(header, 20);
 
         boolean hasHeader = (tagFlags & 0x80000000) != 0;
-        boolean hasFooter = (tagFlags & 0x40000000) == 0; // Footer ist default
+        boolean hasFooter = (tagFlags & 0x40000000) != 0;  // KORRIGIERT: != 0 statt == 0
         boolean isHeader = (tagFlags & 0x20000000) != 0;
 
         LOGGER.fine("APE Tag: version=" + version + ", size=" + tagSize + ", items=" + itemCount +
@@ -134,25 +134,45 @@ public class APEParsingStrategy implements TagParsingStrategy {
             throw new IOException("Invalid APE tag size: " + tagSize);
         }
 
-        // Bestimme Start-Position der Items
+        // KORRIGIERTE Item Position Berechnung
         long itemsStart;
+        long itemsEnd;
+
         if (isHeader) {
             // Wir sind am Header - Items folgen direkt
             itemsStart = offset + 32;
+            if (hasFooter) {
+                itemsEnd = offset + tagSize - 32;  // Vor dem Footer
+            } else {
+                itemsEnd = offset + tagSize;
+            }
         } else {
-            // Wir sind am Footer - Items sind davor
-            itemsStart = offset - tagSize;
-            file.seek(itemsStart);
+            // Wir sind am Footer
+            if (hasHeader) {
+                // Header + Items + Footer Konfiguration
+                itemsStart = offset - tagSize + 32;
+                itemsEnd = offset;
+            } else {
+                // Nur Items + Footer Konfiguration
+                itemsStart = offset - tagSize;
+                itemsEnd = offset;
+            }
         }
+
+        LOGGER.fine("Items range: " + itemsStart + " to " + itemsEnd + " (size: " + (itemsEnd - itemsStart) + ")");
 
         // Items parsen
         long currentPos = itemsStart;
         for (int i = 0; i < itemCount; i++) {
             try {
-                currentPos = parseAPEItem(file, metadata, currentPos, version);
+                if (currentPos >= itemsEnd - 8) {
+                    LOGGER.warning("Not enough space for item " + (i + 1));
+                    break;
+                }
 
-                // Boundary check
-                if (currentPos > offset + size) {
+                currentPos = parseAPEItem(file, metadata, currentPos, version, itemsEnd);
+
+                if (currentPos > itemsEnd) {
                     LOGGER.warning("APE item parsing exceeded tag boundary");
                     break;
                 }
@@ -166,11 +186,11 @@ public class APEParsingStrategy implements TagParsingStrategy {
         LOGGER.fine("Successfully parsed APE tag with " + itemCount + " items");
     }
 
-    private long parseAPEItem(RandomAccessFile file, APEMetadata metadata, long position, int version)
+    private long parseAPEItem(RandomAccessFile file, APEMetadata metadata, long position, int version, long maxPos)
             throws IOException {
         file.seek(position);
 
-        // Item Header lesen (8 oder 12 Bytes je nach Version)
+        // Item Header lesen (8 Bytes)
         byte[] itemHeader = new byte[8];
         file.read(itemHeader);
 
@@ -186,9 +206,9 @@ public class APEParsingStrategy implements TagParsingStrategy {
 
         long currentPos = position + 8;
 
-        // Key lesen (null-terminated UTF-8)
-        StringBuilder keyBuilder = new StringBuilder();
-        while (true) {
+        // KORRIGIERT: Key-Lesung mit korrekter UTF-8 Behandlung
+        List<Byte> keyBytes = new ArrayList<>();
+        while (currentPos < maxPos) {
             byte b = file.readByte();
             currentPos++;
 
@@ -196,19 +216,29 @@ public class APEParsingStrategy implements TagParsingStrategy {
                 break; // Null-Terminator gefunden
             }
 
-            if (currentPos > position + 256) { // Sanity check für Key-Länge
+            keyBytes.add(b);
+
+            if (keyBytes.size() > 255) { // Sanity check für Key-Länge
                 throw new IOException("APE item key too long");
             }
-
-            keyBuilder.append((char) (b & 0xFF));
         }
 
-        String key = keyBuilder.toString();
-        if (key.isEmpty()) {
+        if (keyBytes.isEmpty()) {
             throw new IOException("Empty APE item key");
         }
 
+        // KORRIGIERT: Direkte UTF-8 Dekodierung der gesammelten Bytes
+        byte[] keyByteArray = new byte[keyBytes.size()];
+        for (int i = 0; i < keyBytes.size(); i++) {
+            keyByteArray[i] = keyBytes.get(i);
+        }
+        String key = new String(keyByteArray, StandardCharsets.UTF_8);
+
         // Value lesen
+        if (currentPos + valueSize > maxPos) {
+            throw new IOException("APE item value extends beyond tag boundary");
+        }
+
         byte[] valueData = new byte[valueSize];
         if (valueSize > 0) {
             int bytesRead = file.read(valueData);
@@ -231,7 +261,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
                 break;
 
             case APE_ITEM_TYPE_BINARY:
-                // Binäre Daten - als Base64 oder Hex darstellen (vereinfacht als "[BINARY]")
+                // Binäre Daten - als Beschreibung darstellen
                 value = "[BINARY:" + valueSize + " bytes]";
                 LOGGER.fine("Binary APE item: " + key + " (" + valueSize + " bytes)");
                 break;
@@ -247,12 +277,16 @@ public class APEParsingStrategy implements TagParsingStrategy {
                 break;
         }
 
-        // Feld hinzufügen (nur UTF-8 Textfelder)
+        // Feld hinzufügen (nur UTF-8 Textfelder werden als normale Metadaten behandelt)
         if (itemType == APE_ITEM_TYPE_UTF8 && !value.isEmpty()) {
             addField(metadata, key, value);
             LOGGER.fine("Parsed APE item: " + key + " = " +
                     (value.length() > 50 ? value.substring(0, 50) + "..." : value) +
-                    (isReadOnly ? " [READ-only]" : ""));
+                    (isReadOnly ? " [read-only]" : ""));
+        } else if (itemType != APE_ITEM_TYPE_UTF8 && !value.isEmpty()) {
+            // Nicht-Text Items trotzdem hinzufügen für Vollständigkeit
+            addField(metadata, key, value);
+            LOGGER.fine("Parsed non-text APE item: " + key + " = " + value);
         }
 
         return currentPos;
