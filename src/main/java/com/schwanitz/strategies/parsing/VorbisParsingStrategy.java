@@ -227,8 +227,11 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
     private String readUserComment(RandomAccessFile file) throws IOException {
         long commentLength = readLittleEndianUInt32(file);
 
-        if (commentLength < 0 || commentLength > 65536) { // Sanity check
-            throw new IOException("Invalid comment length: " + commentLength);
+        final long MAX_REALISTIC_COMMENT_LENGTH = 16 * 1024 * 1024; // 16 MB
+
+        if (commentLength < 0 || commentLength > MAX_REALISTIC_COMMENT_LENGTH) {
+            throw new IOException("Invalid comment length: " + commentLength +
+                    " (exceeds realistic limit of " + MAX_REALISTIC_COMMENT_LENGTH + " bytes or is negative)");
         }
 
         if (commentLength == 0) {
@@ -236,11 +239,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         }
 
         byte[] commentBytes = new byte[(int) commentLength];
-        int bytesRead = file.read(commentBytes);
-
-        if (bytesRead != commentLength) {
-            throw new IOException("Could not read complete comment");
-        }
+        file.readFully(commentBytes); // Diese Methode wirft IOException, wenn nicht alle Bytes gelesen werden können
 
         return new String(commentBytes, StandardCharsets.UTF_8);
     }
