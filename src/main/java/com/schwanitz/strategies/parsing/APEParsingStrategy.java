@@ -11,9 +11,11 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class APEParsingStrategy implements TagParsingStrategy {
@@ -28,11 +30,17 @@ public class APEParsingStrategy implements TagParsingStrategy {
 
     private static final int APE_ITEM_READ_ONLY = 0x01;
 
+    // Performance-Optimierung
+    private static final int READ_BUFFER_SIZE = 8192;
+
     private final Map<String, FieldHandler<?>> handlers;
+    private final Map<String, String> keyNormalizations;
 
     public APEParsingStrategy() {
         this.handlers = new HashMap<>();
+        this.keyNormalizations = new HashMap<>();
         initializeDefaultHandlers();
+        initializeKeyNormalizations();
     }
 
     private void initializeDefaultHandlers() {
@@ -62,6 +70,41 @@ public class APEParsingStrategy implements TagParsingStrategy {
         handlers.put("Publicationright", new TextFieldHandler("Publicationright"));
         handlers.put("File", new TextFieldHandler("File"));
 
+        // Erweiterte Metadaten
+        handlers.put("Subtitle", new TextFieldHandler("Subtitle"));
+        handlers.put("Publisher", new TextFieldHandler("Publisher"));
+        handlers.put("CatalogNumber", new TextFieldHandler("CatalogNumber"));
+        handlers.put("EAN/UPN", new TextFieldHandler("EAN/UPN"));
+        handlers.put("ISBN", new TextFieldHandler("ISBN"));
+        handlers.put("LC", new TextFieldHandler("LC"));
+        handlers.put("RecordLocation", new TextFieldHandler("RecordLocation"));
+        handlers.put("RecordDate", new TextFieldHandler("RecordDate"));
+        handlers.put("PurchaseDate", new TextFieldHandler("PurchaseDate"));
+        handlers.put("PurchaseOwner", new TextFieldHandler("PurchaseOwner"));
+        handlers.put("PurchasePrice", new TextFieldHandler("PurchasePrice"));
+        handlers.put("PurchaseCurrency", new TextFieldHandler("PurchaseCurrency"));
+
+        // MusicBrainz IDs (wichtig für Musikdatenbanken)
+        handlers.put("MUSICBRAINZ_TRACKID", new TextFieldHandler("MUSICBRAINZ_TRACKID"));
+        handlers.put("MUSICBRAINZ_ALBUMID", new TextFieldHandler("MUSICBRAINZ_ALBUMID"));
+        handlers.put("MUSICBRAINZ_ARTISTID", new TextFieldHandler("MUSICBRAINZ_ARTISTID"));
+        handlers.put("MUSICBRAINZ_ALBUMARTISTID", new TextFieldHandler("MUSICBRAINZ_ALBUMARTISTID"));
+        handlers.put("MUSICBRAINZ_RELEASEGROUPID", new TextFieldHandler("MUSICBRAINZ_RELEASEGROUPID"));
+
+        // Sortierfelder
+        handlers.put("ALBUMSORT", new TextFieldHandler("ALBUMSORT"));
+        handlers.put("ALBUMARTISTSORT", new TextFieldHandler("ALBUMARTISTSORT"));
+        handlers.put("ARTISTSORT", new TextFieldHandler("ARTISTSORT"));
+        handlers.put("TITLESORT", new TextFieldHandler("TITLESORT"));
+
+        // Technische Audio-Eigenschaften
+        handlers.put("BPM", new TextFieldHandler("BPM"));
+        handlers.put("InitialKey", new TextFieldHandler("InitialKey"));
+        handlers.put("Mood", new TextFieldHandler("Mood"));
+        handlers.put("Occasion", new TextFieldHandler("Occasion"));
+        handlers.put("Quality", new TextFieldHandler("Quality"));
+        handlers.put("Tempo", new TextFieldHandler("Tempo"));
+
         // ReplayGain Felder
         handlers.put("REPLAYGAIN_TRACK_GAIN", new TextFieldHandler("REPLAYGAIN_TRACK_GAIN"));
         handlers.put("REPLAYGAIN_TRACK_PEAK", new TextFieldHandler("REPLAYGAIN_TRACK_PEAK"));
@@ -71,6 +114,22 @@ public class APEParsingStrategy implements TagParsingStrategy {
         // Technische Felder
         handlers.put("Tool", new TextFieldHandler("Tool"));
         handlers.put("Encoder", new TextFieldHandler("Encoder"));
+    }
+
+    private void initializeKeyNormalizations() {
+        // Bekannte Varianten normalisieren
+        keyNormalizations.put("album artist", "AlbumArtist");
+        keyNormalizations.put("albumartist", "AlbumArtist");
+        keyNormalizations.put("ALBUMARTIST", "AlbumArtist");
+        keyNormalizations.put("replaygain_track_gain", "REPLAYGAIN_TRACK_GAIN");
+        keyNormalizations.put("replaygain_album_gain", "REPLAYGAIN_ALBUM_GAIN");
+        keyNormalizations.put("replaygain_track_peak", "REPLAYGAIN_TRACK_PEAK");
+        keyNormalizations.put("replaygain_album_peak", "REPLAYGAIN_ALBUM_PEAK");
+        keyNormalizations.put("musicbrainz_trackid", "MUSICBRAINZ_TRACKID");
+        keyNormalizations.put("musicbrainz_albumid", "MUSICBRAINZ_ALBUMID");
+        keyNormalizations.put("musicbrainz_artistid", "MUSICBRAINZ_ARTISTID");
+        keyNormalizations.put("musicbrainz_albumartistid", "MUSICBRAINZ_ALBUMARTISTID");
+        keyNormalizations.put("musicbrainz_releasegroupid", "MUSICBRAINZ_RELEASEGROUPID");
     }
 
     @Override
@@ -109,21 +168,27 @@ public class APEParsingStrategy implements TagParsingStrategy {
             throw new IOException("Unsupported APE version: " + version);
         }
 
-        // KORRIGIERT: Tag Size (bytes 12-15) - Größe ohne Header, inklusive Footer
+        // Tag Size (bytes 12-15) - Größe ohne Header, inklusive Footer
         int tagSize = readLittleEndianInt32(header, 12);
 
         // Item Count (bytes 16-19, little-endian)
         int itemCount = readLittleEndianInt32(header, 16);
 
-        // KORRIGIERT: Tag Flags (bytes 20-23, little-endian)
+        // Tag Flags (bytes 20-23, little-endian)
         int tagFlags = readLittleEndianInt32(header, 20);
 
         boolean hasHeader = (tagFlags & 0x80000000) != 0;
-        boolean hasFooter = (tagFlags & 0x40000000) != 0;  // KORRIGIERT: != 0 statt == 0
+        boolean hasFooter = (tagFlags & 0x40000000) != 0;
         boolean isHeader = (tagFlags & 0x20000000) != 0;
+        boolean isReadOnly = (tagFlags & 0x00000001) != 0;
 
-        LOGGER.fine("APE Tag: version=" + version + ", size=" + tagSize + ", items=" + itemCount +
-                ", hasHeader=" + hasHeader + ", hasFooter=" + hasFooter + ", isHeader=" + isHeader);
+        // Erweiterte Logging-Informationen
+        LOGGER.fine(String.format(
+                "APE Tag Details: Version=%d, Size=%d bytes, Items=%d, " +
+                        "Flags=0x%08X (Header:%b, Footer:%b, IsHeader:%b, ReadOnly:%b)",
+                version, tagSize, itemCount, tagFlags,
+                hasHeader, hasFooter, isHeader, isReadOnly
+        ));
 
         // Sanity checks
         if (itemCount < 0 || itemCount > 1000) {
@@ -134,7 +199,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
             throw new IOException("Invalid APE tag size: " + tagSize);
         }
 
-        // KORRIGIERTE Item Position Berechnung
+        // Item Position Berechnung
         long itemsStart;
         long itemsEnd;
 
@@ -177,6 +242,17 @@ public class APEParsingStrategy implements TagParsingStrategy {
                     break;
                 }
 
+                // Padding überspringen
+                if (currentPos < itemsEnd) {
+                    file.seek(currentPos);
+                    while (currentPos < itemsEnd && file.readByte() == 0) {
+                        currentPos++;
+                    }
+                    if (currentPos < itemsEnd) {
+                        file.seek(currentPos);
+                    }
+                }
+
             } catch (IOException e) {
                 LOGGER.warning("Error parsing APE item " + (i + 1) + ": " + e.getMessage());
                 break;
@@ -206,7 +282,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
 
         long currentPos = position + 8;
 
-        // KORRIGIERT: Key-Lesung mit korrekter UTF-8 Behandlung
+        // Key-Lesung mit korrekter UTF-8 Behandlung
         List<Byte> keyBytes = new ArrayList<>();
         while (currentPos < maxPos) {
             byte b = file.readByte();
@@ -227,43 +303,53 @@ public class APEParsingStrategy implements TagParsingStrategy {
             throw new IOException("Empty APE item key");
         }
 
-        // KORRIGIERT: Direkte UTF-8 Dekodierung der gesammelten Bytes
+        // Direkte UTF-8 Dekodierung der gesammelten Bytes
         byte[] keyByteArray = new byte[keyBytes.size()];
         for (int i = 0; i < keyBytes.size(); i++) {
             keyByteArray[i] = keyBytes.get(i);
         }
         String key = new String(keyByteArray, StandardCharsets.UTF_8);
 
+        // Key-Validierung
+        if (!isValidAPEKey(key)) {
+            LOGGER.warning("Invalid APE key detected: " + key);
+            return currentPos + valueSize;
+        }
+
+        // Key normalisieren für bessere Kompatibilität
+        String normalizedKey = normalizeAPEKey(key);
+
         // Value lesen
         if (currentPos + valueSize > maxPos) {
             throw new IOException("APE item value extends beyond tag boundary");
         }
 
-        byte[] valueData = new byte[valueSize];
-        if (valueSize > 0) {
-            int bytesRead = file.read(valueData);
-            if (bytesRead != valueSize) {
-                throw new IOException("Could not read complete APE item value");
-            }
-        }
+        byte[] valueData = readBytes(file, valueSize);
         currentPos += valueSize;
 
         // Item Type bestimmen
         int itemType = itemFlags & APE_ITEM_TYPE_MASK;
         boolean isReadOnly = (itemFlags & APE_ITEM_READ_ONLY) != 0;
 
+        // Erweiterte Logging
+        if (LOGGER.isLoggable(Level.FINEST)) {
+            LOGGER.finest(String.format(
+                    "APE Item: Key='%s' (normalized: '%s'), Type=%d, Size=%d, ReadOnly=%b",
+                    key, normalizedKey, itemType, valueSize, isReadOnly
+            ));
+        }
+
         String value;
         switch (itemType) {
             case APE_ITEM_TYPE_UTF8:
-                value = new String(valueData, StandardCharsets.UTF_8).trim();
-                // Null-Terminatoren entfernen
-                value = value.replace("\0", "");
+                // Multi-Value Support für UTF-8 Text
+                value = parseMultiValueField(valueData);
                 break;
 
             case APE_ITEM_TYPE_BINARY:
-                // Binäre Daten - als Beschreibung darstellen
-                value = "[BINARY:" + valueSize + " bytes]";
-                LOGGER.fine("Binary APE item: " + key + " (" + valueSize + " bytes)");
+                // Binäre Daten - verbesserte Behandlung
+                value = processBinaryItem(normalizedKey, valueData);
+                LOGGER.fine("Binary APE item: " + normalizedKey + " (" + valueSize + " bytes)");
                 break;
 
             case APE_ITEM_TYPE_EXTERNAL:
@@ -272,24 +358,146 @@ public class APEParsingStrategy implements TagParsingStrategy {
                 break;
 
             default:
-                LOGGER.warning("Unknown APE item type: " + itemType + " for key: " + key);
+                LOGGER.warning("Unknown APE item type: " + itemType + " for key: " + normalizedKey);
                 value = "[UNKNOWN:" + valueSize + " bytes]";
                 break;
         }
 
-        // Feld hinzufügen (nur UTF-8 Textfelder werden als normale Metadaten behandelt)
-        if (itemType == APE_ITEM_TYPE_UTF8 && !value.isEmpty()) {
-            addField(metadata, key, value);
-            LOGGER.fine("Parsed APE item: " + key + " = " +
+        // Feld hinzufügen (nur wenn nicht leer)
+        if (!value.isEmpty()) {
+            addField(metadata, normalizedKey, value);
+            LOGGER.fine("Parsed APE item: " + normalizedKey + " = " +
                     (value.length() > 50 ? value.substring(0, 50) + "..." : value) +
                     (isReadOnly ? " [read-only]" : ""));
-        } else if (itemType != APE_ITEM_TYPE_UTF8 && !value.isEmpty()) {
-            // Nicht-Text Items trotzdem hinzufügen für Vollständigkeit
-            addField(metadata, key, value);
-            LOGGER.fine("Parsed non-text APE item: " + key + " = " + value);
         }
 
         return currentPos;
+    }
+
+    private String parseMultiValueField(byte[] valueData) {
+        List<String> values = new ArrayList<>();
+        int start = 0;
+
+        for (int i = 0; i < valueData.length; i++) {
+            if (valueData[i] == 0) {
+                if (i > start) {
+                    String value = new String(valueData, start, i - start, StandardCharsets.UTF_8).trim();
+                    if (!value.isEmpty()) {
+                        values.add(value);
+                    }
+                }
+                start = i + 1;
+            }
+        }
+
+        // Letzter Wert (falls kein abschließender Null-Terminator)
+        if (start < valueData.length) {
+            String value = new String(valueData, start, valueData.length - start, StandardCharsets.UTF_8).trim();
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        }
+
+        return values.isEmpty() ? "" : String.join("; ", values);
+    }
+
+    private String processBinaryItem(String key, byte[] valueData) {
+        // Spezielle Behandlung für bekannte Binary-Felder
+        if ("Cover Art (Front)".equalsIgnoreCase(key) ||
+                "Cover Art (Back)".equalsIgnoreCase(key) ||
+                key.toLowerCase().contains("cover")) {
+
+            // Bildformat erkennen
+            String format = detectImageFormat(valueData);
+            String preview = "";
+
+            if (valueData.length > 0) {
+                // Base64 Preview für kleine Bilder
+                int previewSize = Math.min(valueData.length, 100);
+                byte[] previewData = new byte[previewSize];
+                System.arraycopy(valueData, 0, previewData, 0, previewSize);
+                preview = Base64.getEncoder().encodeToString(previewData);
+            }
+
+            return String.format("[IMAGE:%s,%d bytes,preview:%s%s]",
+                    format, valueData.length, preview,
+                    valueData.length > 100 ? "..." : "");
+        }
+
+        return "[BINARY:" + valueData.length + " bytes]";
+    }
+
+    private String detectImageFormat(byte[] data) {
+        if (data.length < 4) return "unknown";
+
+        // JPEG
+        if (data[0] == (byte)0xFF && data[1] == (byte)0xD8) {
+            return "JPEG";
+        }
+        // PNG
+        if (data[0] == (byte)0x89 && data[1] == 'P' &&
+                data[2] == 'N' && data[3] == 'G') {
+            return "PNG";
+        }
+        // GIF
+        if (data[0] == 'G' && data[1] == 'I' && data[2] == 'F') {
+            return "GIF";
+        }
+        // BMP
+        if (data[0] == 'B' && data[1] == 'M') {
+            return "BMP";
+        }
+
+        return "unknown";
+    }
+
+    private boolean isValidAPEKey(String key) {
+        if (key == null || key.isEmpty() || key.length() > 255) {
+            return false;
+        }
+
+        // APE Keys: ASCII 0x20-0x7E, außer bestimmte Zeichen
+        for (char c : key.toCharArray()) {
+            if (c < 0x20 || c > 0x7E) {
+                return false;
+            }
+            // Verbotene Zeichen in APE Keys
+            if (c == '[' || c == ']' || c == '=' || c == '\0') {
+                return false;
+            }
+        }
+
+        // Reservierte Keys prüfen
+        if (key.equalsIgnoreCase("ID3") || key.equalsIgnoreCase("TAG") ||
+                key.equalsIgnoreCase("OggS") || key.equalsIgnoreCase("MP+")) {
+            LOGGER.warning("Reserved APE key detected: " + key);
+            return false;
+        }
+
+        return true;
+    }
+
+    private String normalizeAPEKey(String key) {
+        String lowerKey = key.toLowerCase();
+        return keyNormalizations.getOrDefault(lowerKey, key);
+    }
+
+    private byte[] readBytes(RandomAccessFile file, int size) throws IOException {
+        if (size <= 0) return new byte[0];
+
+        byte[] data = new byte[size];
+        int totalRead = 0;
+
+        while (totalRead < size) {
+            int toRead = Math.min(READ_BUFFER_SIZE, size - totalRead);
+            int read = file.read(data, totalRead, toRead);
+            if (read < 0) {
+                throw new IOException("Unexpected end of file");
+            }
+            totalRead += read;
+        }
+
+        return data;
     }
 
     private int readLittleEndianInt32(byte[] data, int offset) {
