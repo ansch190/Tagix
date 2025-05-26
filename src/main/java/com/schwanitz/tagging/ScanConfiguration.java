@@ -9,13 +9,14 @@ import java.util.List;
  * Konfigurationsklasse für verschiedene Scan-Modi
  */
 public class ScanConfiguration {
+
     private final ScanMode mode;
     private final List<TagFormat> customFormats;
 
     private ScanConfiguration(ScanMode mode, List<TagFormat> customFormats) {
         this.mode = mode;
         this.customFormats = customFormats != null ?
-                Collections.unmodifiableList(new ArrayList<>(customFormats)) :
+                List.copyOf(customFormats) :
                 Collections.emptyList();
     }
 

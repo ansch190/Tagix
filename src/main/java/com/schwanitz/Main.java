@@ -17,8 +17,24 @@ import java.util.Map;
 public class Main {
     private static final Logger Log = LoggerFactory.getLogger(Main.class);
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         System.out.println("=== TAGIX - Tag Format Detection Library ===\n");
+
+        // Standard-Anwendung (empfohlen)
+        List<TagInfo> tags = TagFormatDetector.comfortScan("music.mp3");
+
+        // Vollständige Analyse
+        List<TagInfo> allTags = TagFormatDetector.fullScan("music.mp3");
+
+        // Spezifische Formate
+        ScanConfiguration config = ScanConfiguration.customScan(
+                TagFormat.ID3V2_4, TagFormat.VORBIS_COMMENT
+        );
+        List<TagInfo> customTags = TagFormatDetector.customScan("music.mp3", config);
+
+        // Batch-Verarbeitung
+        List<String> files = Arrays.asList("song1.mp3", "song2.flac");
+        Map<String, List<TagInfo>> batchResults = TagFormatDetector.comfortScan(files);
 
         try {
             // 1. Zeige verfügbare Scan-Modi

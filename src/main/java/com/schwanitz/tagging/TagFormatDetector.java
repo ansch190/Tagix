@@ -31,15 +31,85 @@ public class TagFormatDetector {
         }
     }
 
+    // ================================
+    // FULL SCAN METHODS
+    // ================================
+
     /**
-     * Neue Hauptmethode für konfigurierbare Tag-Erkennung
+     * Full Scan - einzelne Datei
+     * prüft alle verfügbaren Tag-Formate in globaler Prioritätsreihenfolge
+     */
+    public static List<TagInfo> fullScan(String filePath) throws IOException {
+        return detectTagFormats(filePath, ScanConfiguration.fullScan());
+    }
+
+    /**
+     * Full Scan - mehrere Dateien
+     * prüft alle verfügbaren Tag-Formate für eine Liste von Dateien
+     */
+    public static Map<String, List<TagInfo>> fullScan(List<String> filePaths) {
+        return detectTagFormats(filePaths, ScanConfiguration.fullScan());
+    }
+
+    // ================================
+    // COMFORT SCAN METHODS
+    // ================================
+
+    /**
+     * Comfort Scan - einzelne Datei
+     * prüft nur wahrscheinliche Tag-Formate für die jeweilige Dateiendung
+     */
+    public static List<TagInfo> comfortScan(String filePath) throws IOException {
+        return detectTagFormats(filePath, ScanConfiguration.comfortScan());
+    }
+
+    /**
+     * Comfort Scan - mehrere Dateien
+     * prüft nur wahrscheinliche Tag-Formate für die jeweiligen Dateiendungen
+     */
+    public static Map<String, List<TagInfo>> comfortScan(List<String> filePaths) {
+        return detectTagFormats(filePaths, ScanConfiguration.comfortScan());
+    }
+
+    // ================================
+    // CUSTOM SCAN METHODS
+    // ================================
+
+    /**
+     * Custom Scan - einzelne Datei
+     * prüft nur die in der ScanConfiguration angegebenen Tag-Formate
+     */
+    public static List<TagInfo> customScan(String filePath, ScanConfiguration config) throws IOException {
+        if (config.getMode() != ScanMode.CUSTOM_SCAN) {
+            throw new IllegalArgumentException("Configuration must be for CUSTOM_SCAN mode");
+        }
+        return detectTagFormats(filePath, config);
+    }
+
+    /**
+     * Custom Scan - mehrere Dateien
+     * prüft nur die in der ScanConfiguration angegebenen Tag-Formate für eine Liste von Dateien
+     */
+    public static Map<String, List<TagInfo>> customScan(List<String> filePaths, ScanConfiguration config) {
+        if (config.getMode() != ScanMode.CUSTOM_SCAN) {
+            throw new IllegalArgumentException("Configuration must be for CUSTOM_SCAN mode");
+        }
+        return detectTagFormats(filePaths, config);
+    }
+
+    // ================================
+    // CORE DETECTION METHODS
+    // ================================
+
+    /**
+     * Hauptmethode für konfigurierbare Tag-Erkennung - einzelne Datei
      *
      * @param filePath Pfad zur zu analysierenden Datei
      * @param config Scan-Konfiguration (Full/Comfort/Custom Scan)
      * @return Liste der erkannten Tag-Informationen
      * @throws IOException bei Dateizugriffsfehlern
      */
-    public static List<TagInfo> detectTagFormats(String filePath, ScanConfiguration config) throws IOException {
+    private static List<TagInfo> detectTagFormats(String filePath, ScanConfiguration config) throws IOException {
         File f = new File(filePath);
         if (!f.exists() || !f.canRead()) {
             throw new IOException("Datei existiert nicht oder ist nicht lesbar: " + filePath);
@@ -73,7 +143,7 @@ public class TagFormatDetector {
             file.seek(endPosition);
             int endRead = file.read(endBuffer);
 
-            // Neue konfigurierbare Detection verwenden
+            // Konfigurierbare Detection verwenden
             detectedTags = detectionContext.detectTags(file, filePath, extension,
                     startBuffer, endBuffer, config);
 
@@ -93,37 +163,13 @@ public class TagFormatDetector {
     }
 
     /**
-     * Convenience-Methode für Full Scan
-     */
-    public static List<TagInfo> detectTagFormatsFullScan(String filePath) throws IOException {
-        return detectTagFormats(filePath, ScanConfiguration.fullScan());
-    }
-
-    /**
-     * Convenience-Methode für Comfort Scan
-     */
-    public static List<TagInfo> detectTagFormatsComfortScan(String filePath) throws IOException {
-        return detectTagFormats(filePath, ScanConfiguration.comfortScan());
-    }
-
-    /**
-     * Convenience-Methode für Custom Scan
-     */
-    public static List<TagInfo> detectTagFormatsCustomScan(String filePath, TagFormat... formats) throws IOException {
-        return detectTagFormats(filePath, ScanConfiguration.customScan(formats));
-    }
-
-    /**
-     * Convenience-Methode für Custom Scan mit Liste
-     */
-    public static List<TagInfo> detectTagFormatsCustomScan(String filePath, List<TagFormat> formats) throws IOException {
-        return detectTagFormats(filePath, ScanConfiguration.customScan(formats));
-    }
-
-    /**
      * Batch-Verarbeitung: Mehrere Dateien mit derselben Konfiguration
+     *
+     * @param filePaths Liste der zu analysierenden Dateipfade
+     * @param config Scan-Konfiguration (Full/Comfort/Custom Scan)
+     * @return Map von Dateipfad zu Liste der erkannten Tag-Informationen
      */
-    public static Map<String, List<TagInfo>> detectTagFormats(List<String> filePaths, ScanConfiguration config) {
+    private static Map<String, List<TagInfo>> detectTagFormats(List<String> filePaths, ScanConfiguration config) {
         Map<String, List<TagInfo>> results = new HashMap<>();
 
         for (String filePath : filePaths) {
@@ -138,6 +184,10 @@ public class TagFormatDetector {
 
         return results;
     }
+
+    // ================================
+    // CACHE MANAGEMENT
+    // ================================
 
     /**
      * Cache-Management: Cache leeren
@@ -167,6 +217,10 @@ public class TagFormatDetector {
             return tagInfoCache.size();
         }
     }
+
+    // ================================
+    // UTILITY METHODS
+    // ================================
 
     /**
      * Hilfsmethode: Dateiendung extrahieren

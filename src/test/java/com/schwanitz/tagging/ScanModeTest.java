@@ -244,7 +244,7 @@ class ScanModeTest {
         void testDetectWithFullScan() throws IOException {
             File testFile = createTestMP3File();
 
-            List<TagInfo> tags = TagFormatDetector.detectTagFormats(
+            List<TagInfo> tags = TagFormatDetector.customScan(
                     testFile.getAbsolutePath(), ScanConfiguration.fullScan());
 
             assertNotNull(tags);
@@ -256,7 +256,7 @@ class ScanModeTest {
         void testDetectWithComfortScan() throws IOException {
             File testFile = createTestMP3File();
 
-            List<TagInfo> tags = TagFormatDetector.detectTagFormats(
+            List<TagInfo> tags = TagFormatDetector.customScan(
                     testFile.getAbsolutePath(), ScanConfiguration.comfortScan());
 
             assertNotNull(tags);
@@ -268,7 +268,7 @@ class ScanModeTest {
             File testFile = createTestMP3File();
 
             ScanConfiguration config = ScanConfiguration.customScan(TagFormat.ID3V2_3, TagFormat.ID3V1);
-            List<TagInfo> tags = TagFormatDetector.detectTagFormats(testFile.getAbsolutePath(), config);
+            List<TagInfo> tags = TagFormatDetector.customScan(testFile.getAbsolutePath(), config);
 
             assertNotNull(tags);
         }
@@ -280,42 +280,12 @@ class ScanModeTest {
             String filePath = testFile.getAbsolutePath();
 
             // Full Scan Convenience
-            List<TagInfo> fullScanTags = TagFormatDetector.detectTagFormatsFullScan(filePath);
+            List<TagInfo> fullScanTags = TagFormatDetector.fullScan(filePath);
             assertNotNull(fullScanTags);
 
             // Comfort Scan Convenience
-            List<TagInfo> comfortScanTags = TagFormatDetector.detectTagFormatsComfortScan(filePath);
+            List<TagInfo> comfortScanTags = TagFormatDetector.comfortScan(filePath);
             assertNotNull(comfortScanTags);
-
-            // Custom Scan Convenience (Array)
-            List<TagInfo> customScanTags1 = TagFormatDetector.detectTagFormatsCustomScan(
-                    filePath, TagFormat.ID3V2_3, TagFormat.ID3V1);
-            assertNotNull(customScanTags1);
-
-            // Custom Scan Convenience (List)
-            List<TagInfo> customScanTags2 = TagFormatDetector.detectTagFormatsCustomScan(
-                    filePath, Arrays.asList(TagFormat.ID3V2_4, TagFormat.APEV2));
-            assertNotNull(customScanTags2);
-        }
-
-        @Test
-        @DisplayName("Backward Compatibility")
-        void testBackwardCompatibility() throws IOException {
-            File testFile = createTestMP3File();
-            String filePath = testFile.getAbsolutePath();
-
-            // Alte Methode sollte noch funktionieren
-            List<TagInfo> oldFullSearch = TagFormatDetector.detectTagFormats(filePath, true);
-            List<TagInfo> oldComfortSearch = TagFormatDetector.detectTagFormats(filePath, false);
-
-            // Neue Methoden sollten gleiche Ergebnisse liefern
-            List<TagInfo> newFullScan = TagFormatDetector.detectTagFormatsFullScan(filePath);
-            List<TagInfo> newComfortScan = TagFormatDetector.detectTagFormatsComfortScan(filePath);
-
-            assertNotNull(oldFullSearch);
-            assertNotNull(oldComfortSearch);
-            assertNotNull(newFullScan);
-            assertNotNull(newComfortScan);
         }
 
         @Test
@@ -329,7 +299,7 @@ class ScanModeTest {
                     testFile2.getAbsolutePath()
             );
 
-            Map<String, List<TagInfo>> results = TagFormatDetector.detectTagFormats(
+            Map<String, List<TagInfo>> results = TagFormatDetector.customScan(
                     filePaths, ScanConfiguration.comfortScan());
 
             assertEquals(2, results.size());
@@ -345,10 +315,10 @@ class ScanModeTest {
             ScanConfiguration config = ScanConfiguration.comfortScan();
 
             // Erster Aufruf
-            List<TagInfo> firstCall = TagFormatDetector.detectTagFormats(filePath, config);
+            List<TagInfo> firstCall = TagFormatDetector.customScan(filePath, config);
 
             // Zweiter Aufruf sollte aus Cache kommen
-            List<TagInfo> secondCall = TagFormatDetector.detectTagFormats(filePath, config);
+            List<TagInfo> secondCall = TagFormatDetector.customScan(filePath, config);
 
             assertEquals(firstCall.size(), secondCall.size());
 
@@ -360,7 +330,7 @@ class ScanModeTest {
             assertEquals(0, TagFormatDetector.getCacheSize());
 
             // Nach Cache-Leerung sollte wieder gescannt werden
-            List<TagInfo> thirdCall = TagFormatDetector.detectTagFormats(filePath, config);
+            List<TagInfo> thirdCall = TagFormatDetector.customScan(filePath, config);
             assertNotNull(thirdCall);
         }
 
@@ -371,8 +341,8 @@ class ScanModeTest {
             String filePath = testFile.getAbsolutePath();
 
             // Cache füllen
-            TagFormatDetector.detectTagFormats(filePath, ScanConfiguration.comfortScan());
-            TagFormatDetector.detectTagFormats(filePath, ScanConfiguration.fullScan());
+            TagFormatDetector.customScan(filePath, ScanConfiguration.comfortScan());
+            TagFormatDetector.customScan(filePath, ScanConfiguration.fullScan());
 
             int initialCacheSize = TagFormatDetector.getCacheSize();
             assertTrue(initialCacheSize >= 2);
@@ -466,7 +436,7 @@ class ScanModeTest {
             String nonExistentFile = tempDir.resolve("does_not_exist.mp3").toString();
 
             assertThrows(IOException.class, () -> {
-                TagFormatDetector.detectTagFormats(nonExistentFile, ScanConfiguration.comfortScan());
+                TagFormatDetector.customScan(nonExistentFile, ScanConfiguration.comfortScan());
             });
         }
 
@@ -474,7 +444,7 @@ class ScanModeTest {
         @DisplayName("Invalid File Path")
         void testInvalidFilePath() {
             assertThrows(IOException.class, () -> {
-                TagFormatDetector.detectTagFormats("", ScanConfiguration.comfortScan());
+                TagFormatDetector.customScan("", ScanConfiguration.comfortScan());
             });
         }
 
@@ -485,7 +455,7 @@ class ScanModeTest {
 
             // Sollte nicht crashen, auch wenn die Datei korrupt ist
             assertDoesNotThrow(() -> {
-                List<TagInfo> tags = TagFormatDetector.detectTagFormats(
+                List<TagInfo> tags = TagFormatDetector.customScan(
                         corruptedFile.getAbsolutePath(), ScanConfiguration.comfortScan());
                 assertNotNull(tags);
             });
@@ -498,7 +468,7 @@ class ScanModeTest {
         File file = new File(tempDir.toFile(), "test.mp3");
         try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
             // Minimaler MP3 Header
-            raf.write(new byte[]{(byte)0xFF, (byte)0xFB, 0x90, 0x00}); // MP3 Sync + Header
+            raf.write(new byte[]{(byte)0xFF, (byte)0xFB, (byte) 0x90, 0x00}); // MP3 Sync + Header
             raf.write(new byte[1000]); // Dummy Audio Data
         }
         return file;

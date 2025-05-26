@@ -67,7 +67,7 @@ public class ScanModeExamples {
 
         // Variante 1: Direkte Verwendung der Configuration
         ScanConfiguration config = ScanConfiguration.comfortScan();
-        List<TagInfo> tags = TagFormatDetector.detectTagFormats(filePath, config);
+        List<TagInfo> tags = TagFormatDetector.customScan(filePath, config);
 
         System.out.println("Comfort Scan für " + filePath + ":");
         System.out.println("Gefundene Tags: " + tags.size());
@@ -78,7 +78,7 @@ public class ScanModeExamples {
         }
 
         // Variante 2: Convenience-Methode
-        List<TagInfo> tagsConvenience = TagFormatDetector.detectTagFormatsComfortScan(filePath);
+        List<TagInfo> tagsConvenience = TagFormatDetector.comfortScan(filePath);
         System.out.println("Comfort Scan (Convenience): " + tagsConvenience.size() + " Tags\n");
     }
 
@@ -90,7 +90,7 @@ public class ScanModeExamples {
 
         // Variante 1: Configuration
         ScanConfiguration config = ScanConfiguration.fullScan();
-        List<TagInfo> tags = TagFormatDetector.detectTagFormats(filePath, config);
+        List<TagInfo> tags = TagFormatDetector.customScan(filePath, config);
 
         System.out.println("Full Scan für " + filePath + ":");
         System.out.println("Gefundene Tags: " + tags.size());
@@ -100,10 +100,6 @@ public class ScanModeExamples {
             System.out.printf("  - %s: Offset=%d, Size=%d%n",
                     tag.getFormat(), tag.getOffset(), tag.getSize());
         }
-
-        // Variante 2: Convenience-Methode
-        List<TagInfo> tagsConvenience = TagFormatDetector.detectTagFormatsFullScan(filePath);
-        System.out.println("Full Scan (Convenience): " + tagsConvenience.size() + " Tags\n");
     }
 
     /**
@@ -117,39 +113,19 @@ public class ScanModeExamples {
         ScanConfiguration id3Only = ScanConfiguration.customScan(
                 TagFormat.ID3V2_3, TagFormat.ID3V2_4, TagFormat.ID3V1, TagFormat.ID3V1_1
         );
-        List<TagInfo> id3Tags = TagFormatDetector.detectTagFormats(filePath, id3Only);
+        List<TagInfo> id3Tags = TagFormatDetector.customScan(filePath, id3Only);
         System.out.println("ID3-Tags gefunden: " + id3Tags.size());
-
-        // Beispiel 2: Nur moderne Formate
-        System.out.println("2. Nur moderne Formate:");
-        ScanConfiguration modernFormats = ScanConfiguration.customScan(
-                TagFormat.ID3V2_4, TagFormat.VORBIS_COMMENT, TagFormat.MP4, TagFormat.APEV2
-        );
-        List<TagInfo> modernTags = TagFormatDetector.detectTagFormats(filePath, modernFormats);
-        System.out.println("Moderne Tags gefunden: " + modernTags.size());
-
-        // Beispiel 3: Spezifische Formate mit Convenience-Methoden
-        System.out.println("3. Convenience-Methoden:");
-        List<TagInfo> customTags1 = TagFormatDetector.detectTagFormatsCustomScan(
-                filePath, TagFormat.ID3V2_3, TagFormat.APEV2
-        );
-        System.out.println("Custom Scan (Array): " + customTags1.size() + " Tags");
-
-        List<TagInfo> customTags2 = TagFormatDetector.detectTagFormatsCustomScan(
-                filePath, Arrays.asList(TagFormat.ID3V2_4, TagFormat.VORBIS_COMMENT)
-        );
-        System.out.println("Custom Scan (Liste): " + customTags2.size() + " Tags\n");
     }
 
     /**
-     * Batch Processing: Mehrere Dateien gleichzeitig verarbeiten
+     * Batch-Processing: Mehrere Dateien gleichzeitig verarbeiten
      */
     private static void demonstrateBatchProcessing(List<String> filePaths) {
         System.out.println("=== BATCH PROCESSING BEISPIEL ===");
 
         // Alle Dateien mit Comfort Scan
         ScanConfiguration config = ScanConfiguration.comfortScan();
-        Map<String, List<TagInfo>> results = TagFormatDetector.detectTagFormats(filePaths, config);
+        Map<String, List<TagInfo>> results = TagFormatDetector.customScan(filePaths, config);
 
         System.out.println("Batch-Verarbeitung von " + filePaths.size() + " Dateien:");
 
@@ -316,7 +292,7 @@ public class ScanModeExamples {
                 System.out.println("Große Datei detected → Custom Scan (nur moderne Formate)");
             }
 
-            List<TagInfo> tags = TagFormatDetector.detectTagFormats(filePath, config);
+            List<TagInfo> tags = TagFormatDetector.customScan(filePath, config);
             System.out.printf("Ergebnis: %d Tag(s) in %.2f MB Datei%n",
                     tags.size(), fileSize / (1024.0 * 1024.0));
         }

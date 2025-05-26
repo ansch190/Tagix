@@ -50,7 +50,7 @@ public class MetadataManager {
         Log.info("Reading metadata from {} with scan mode: {}", filePath, config.getMode());
 
         // Tag-Formate mit konfigurierter Strategie erkennen
-        List<TagInfo> detectedTags = TagFormatDetector.detectTagFormats(filePath, config);
+        List<TagInfo> detectedTags = TagFormatDetector.customScan(filePath, config);
 
         Log.debug("Found {} tag(s) in file", detectedTags.size());
 
