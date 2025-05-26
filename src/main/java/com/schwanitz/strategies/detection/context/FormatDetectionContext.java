@@ -1,65 +1,189 @@
 package com.schwanitz.strategies.detection.context;
 
 import com.schwanitz.strategies.detection.*;
+import com.schwanitz.tagging.ScanConfiguration;
+import com.schwanitz.tagging.ScanMode;
+import com.schwanitz.tagging.TagFormat;
 import com.schwanitz.tagging.TagInfo;
+import com.schwanitz.tagging.FormatPriorityManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class FormatDetectionContext {
+    private static final Logger Log = LoggerFactory.getLogger(FormatDetectionContext.class);
+
     private final List<FormatDetectionStrategy> strategies = new ArrayList<>();
+    private final Map<TagFormat, FormatDetectionStrategy> formatToStrategyMap = new HashMap<>();
 
     public FormatDetectionContext() {
+        initializeStrategies();
+    }
+
+    private void initializeStrategies() {
         // Alle verfügbaren Strategien registrieren
-        strategies.add(new MP3DetectionStrategy());
-        strategies.add(new WAVDetectionStrategy());
-        strategies.add(new OggFlacDetectionStrategy());
-        strategies.add(new MP4DetectionStrategy());
-        strategies.add(new AIFFDetectionStrategy());
+        registerStrategy(new MP3DetectionStrategy());
+        registerStrategy(new WAVDetectionStrategy());
+        registerStrategy(new OggFlacDetectionStrategy());
+        registerStrategy(new MP4DetectionStrategy());
+        registerStrategy(new AIFFDetectionStrategy());
+    }
+
+    private void registerStrategy(FormatDetectionStrategy strategy) {
+        strategies.add(strategy);
+
+        // Mapping für alle TagFormats erstellen, die diese Strategy unterstützen könnte
+        for (TagFormat format : TagFormat.values()) {
+            // Prüfe welche Formate die Strategy theoretisch unterstützt
+            // basierend auf den bekannten Dateierweiterungen
+            for (String extension : format.getFileExtensions()) {
+                try {
+                    // Test mit dummy Daten ob die Strategy diesen Dateityp handhaben kann
+                    if (strategy.canDetect(extension, new byte[0], new byte[0])) {
+                        formatToStrategyMap.put(format, strategy);
+                        break;
+                    }
+                } catch (Exception e) {
+                    // Ignoriere Fehler bei der Initialisierung
+                }
+            }
+        }
     }
 
     public void addStrategy(FormatDetectionStrategy strategy) {
-        strategies.add(strategy);
+        registerStrategy(strategy);
     }
 
-    public List<TagInfo> detectAllFormats(RandomAccessFile file, String filePath, String fileExtension,
-                                          byte[] startBuffer, byte[] endBuffer) throws IOException {
-        List<TagInfo> allDetectedTags = new ArrayList<>();
+    /**
+     * Neue Hauptmethode für konfigurierbare Tag-Erkennung
+     */
+    public List<TagInfo> detectTags(RandomAccessFile file, String filePath, String fileExtension,
+                                    byte[] startBuffer, byte[] endBuffer, ScanConfiguration config) throws IOException {
 
-        for (FormatDetectionStrategy strategy : strategies) {
-            if (strategy.canDetect(fileExtension, startBuffer, endBuffer)) {
-                List<TagInfo> detectedTags = strategy.detectTags(file, filePath, startBuffer, endBuffer);
-                allDetectedTags.addAll(detectedTags);
-            }
+        Log.debug("Starting tag detection with mode: {} for file: {}", config.getMode(), filePath);
+
+        switch (config.getMode()) {
+            case FULL_SCAN:
+                return detectFullScan(file, filePath, fileExtension, startBuffer, endBuffer);
+
+            case COMFORT_SCAN:
+                return detectComfortScan(file, filePath, fileExtension, startBuffer, endBuffer);
+
+            case CUSTOM_SCAN:
+                return detectCustomScan(file, filePath, fileExtension, startBuffer, endBuffer, config.getCustomFormats());
+
+            default:
+                throw new IllegalArgumentException("Unknown scan mode: " + config.getMode());
         }
-
-        return allDetectedTags;
     }
 
-    public List<TagInfo> detectFullSearch(RandomAccessFile file, String filePath, String fileExtension,
-                                          byte[] startBuffer, byte[] endBuffer) throws IOException {
-        List<TagInfo> allDetectedTags = new ArrayList<>();
+    /**
+     * Full Scan: Alle Formate nach globaler Priorität prüfen
+     */
+    private List<TagInfo> detectFullScan(RandomAccessFile file, String filePath, String fileExtension,
+                                         byte[] startBuffer, byte[] endBuffer) throws IOException {
 
-        // Bei fullSearch alle Strategien anwenden, unabhängig von canDetect
-        for (FormatDetectionStrategy strategy : strategies) {
+        List<TagInfo> allDetectedTags = new ArrayList<>();
+        List<TagFormat> priorityOrder = FormatPriorityManager.getFullScanPriority();
+
+        Log.debug("Full scan with {} formats in priority order", priorityOrder.size());
+
+        for (TagFormat format : priorityOrder) {
             try {
-                List<TagInfo> detectedTags = strategy.detectTags(file, filePath, startBuffer, endBuffer);
-                // Duplikate vermeiden
-                for (TagInfo newTag : detectedTags) {
-                    boolean isDuplicate = allDetectedTags.stream()
-                            .anyMatch(existingTag -> existingTag.getFormat() == newTag.getFormat());
-                    if (!isDuplicate) {
-                        allDetectedTags.add(newTag);
+                FormatDetectionStrategy strategy = formatToStrategyMap.get(format);
+                if (strategy != null) {
+                    List<TagInfo> detectedTags = strategy.detectTags(file, filePath, startBuffer, endBuffer);
+
+                    // Nur Tags des gewünschten Formats hinzufügen
+                    for (TagInfo tag : detectedTags) {
+                        if (tag.getFormat() == format) {
+                            allDetectedTags.add(tag);
+                        }
                     }
                 }
             } catch (Exception e) {
-                // Fehler in einer Strategie sollten nicht die anderen blockieren
-                System.err.println("Fehler in Strategie " + strategy.getClass().getSimpleName() + ": " + e.getMessage());
+                Log.warn("Error detecting format {} in file {}: {}", format, filePath, e.getMessage());
             }
         }
 
+        Log.debug("Full scan detected {} tags", allDetectedTags.size());
         return allDetectedTags;
     }
+
+    /**
+     * Comfort Scan: Nur wahrscheinliche Formate für Dateiendung prüfen
+     */
+    private List<TagInfo> detectComfortScan(RandomAccessFile file, String filePath, String fileExtension,
+                                            byte[] startBuffer, byte[] endBuffer) throws IOException {
+
+        List<TagInfo> allDetectedTags = new ArrayList<>();
+        List<TagFormat> priorityOrder = FormatPriorityManager.getComfortScanPriority(fileExtension);
+
+        Log.debug("Comfort scan for extension '{}' with {} formats", fileExtension, priorityOrder.size());
+
+        for (TagFormat format : priorityOrder) {
+            try {
+                FormatDetectionStrategy strategy = formatToStrategyMap.get(format);
+                if (strategy != null) {
+                    // Zusätzliche Prüfung: Kann die Strategy diese Dateiendung überhaupt handhaben?
+                    if (strategy.canDetect(fileExtension, startBuffer, endBuffer)) {
+                        List<TagInfo> detectedTags = strategy.detectTags(file, filePath, startBuffer, endBuffer);
+
+                        // Nur Tags des gewünschten Formats hinzufügen
+                        for (TagInfo tag : detectedTags) {
+                            if (tag.getFormat() == format) {
+                                allDetectedTags.add(tag);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.warn("Error detecting format {} in file {}: {}", format, filePath, e.getMessage());
+            }
+        }
+
+        Log.debug("Comfort scan detected {} tags", allDetectedTags.size());
+        return allDetectedTags;
+    }
+
+    /**
+     * Custom Scan: Nur benutzerdefinierte Formate prüfen
+     */
+    private List<TagInfo> detectCustomScan(RandomAccessFile file, String filePath, String fileExtension,
+                                           byte[] startBuffer, byte[] endBuffer, List<TagFormat> customFormats) throws IOException {
+
+        List<TagInfo> allDetectedTags = new ArrayList<>();
+
+        Log.debug("Custom scan with {} custom formats", customFormats.size());
+
+        for (TagFormat format : customFormats) {
+            try {
+                FormatDetectionStrategy strategy = formatToStrategyMap.get(format);
+                if (strategy != null) {
+                    List<TagInfo> detectedTags = strategy.detectTags(file, filePath, startBuffer, endBuffer);
+
+                    // Nur Tags des gewünschten Formats hinzufügen
+                    for (TagInfo tag : detectedTags) {
+                        if (tag.getFormat() == format) {
+                            allDetectedTags.add(tag);
+                        }
+                    }
+                } else {
+                    Log.warn("No strategy found for custom format: {}", format);
+                }
+            } catch (Exception e) {
+                Log.warn("Error detecting custom format {} in file {}: {}", format, filePath, e.getMessage());
+            }
+        }
+
+        Log.debug("Custom scan detected {} tags", allDetectedTags.size());
+        return allDetectedTags;
+    }
+
 }
