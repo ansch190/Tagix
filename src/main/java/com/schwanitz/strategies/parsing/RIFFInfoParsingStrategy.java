@@ -14,10 +14,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class RIFFInfoParsingStrategy implements TagParsingStrategy {
-    private static final Logger LOGGER = Logger.getLogger(RIFFInfoParsingStrategy.class.getName());
+    private static final Logger Log = LoggerFactory.getLogger(RIFFInfoParsingStrategy.class);
 
     // RIFF INFO Chunk IDs (4 Zeichen)
     private static final Map<String, String> INFO_CHUNKS = new HashMap<>();
@@ -118,7 +119,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             throw new IOException("Expected INFO list type, found: " + infoType);
         }
 
-        LOGGER.fine("Parsing RIFF INFO chunk with size: " + chunkSize);
+        Log.debug("Parsing RIFF INFO chunk with size: " + chunkSize);
 
         // INFO Sub-Chunks parsen
         long currentPos = offset + 12; // 8 bytes LIST header + 4 bytes INFO type
@@ -138,7 +139,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             int subChunkSize = readLittleEndianInt32(subChunkHeader, 4);
 
             if (subChunkSize < 0 || subChunkSize > endPos - currentPos - 8) {
-                LOGGER.warning("Invalid sub-chunk size for " + subChunkId + ": " + subChunkSize);
+                Log.warn("Invalid sub-chunk size for " + subChunkId + ": " + subChunkSize);
                 break;
             }
 
@@ -155,7 +156,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
                     addField(metadata, fieldName, value);
                     fieldCount++;
 
-                    LOGGER.fine("Parsed RIFF INFO field: " + subChunkId + " (" + fieldName + ") = " +
+                    Log.debug("Parsed RIFF INFO field: " + subChunkId + " (" + fieldName + ") = " +
                             (value.length() > 50 ? value.substring(0, 50) + "..." : value));
                 }
             }
@@ -167,7 +168,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             }
         }
 
-        LOGGER.fine("Successfully parsed RIFF INFO chunk with " + fieldCount + " fields");
+        Log.debug("Successfully parsed RIFF INFO chunk with " + fieldCount + " fields");
     }
 
     private String parseNullTerminatedString(byte[] data) {
@@ -230,7 +231,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             // Fallback: TextFieldHandler für unbekannte Felder
             TextFieldHandler textHandler = new TextFieldHandler(key);
             metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOGGER.fine("Created fallback handler for unknown RIFF INFO field: " + key);
+            Log.debug("Created fallback handler for unknown RIFF INFO field: " + key);
         }
     }
 

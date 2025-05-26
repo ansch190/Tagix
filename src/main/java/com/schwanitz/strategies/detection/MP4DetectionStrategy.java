@@ -11,10 +11,11 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MP4DetectionStrategy implements FormatDetectionStrategy {
-    private static final Logger LOGGER = Logger.getLogger(MP4DetectionStrategy.class.getName());
+    private static final Logger Log = LoggerFactory.getLogger(MP4DetectionStrategy.class);
     private static final Set<String> VALID_MP4_BRANDS = new HashSet<>(Arrays.asList(
             "M4A ", "mp42", "isom", "qt  ", "3gp4", "3gp6", "m4v "
     ));
@@ -47,14 +48,14 @@ public class MP4DetectionStrategy implements FormatDetectionStrategy {
             byte[] buffer = new byte[12];
             file.read(buffer);
             if (!new String(buffer, 4, 4).equals("ftyp")) {
-                LOGGER.fine("Kein MP4-ftyp-Atom gefunden");
+                Log.debug("Kein MP4-ftyp-Atom gefunden");
                 return null;
             }
 
             // Prüfe Major Brand
             String majorBrand = new String(buffer, 8, 4);
             if (!VALID_MP4_BRANDS.contains(majorBrand)) {
-                LOGGER.fine("Ungültiger MP4-Major-Brand: " + majorBrand);
+                Log.debug("Ungültiger MP4-Major-Brand: " + majorBrand);
                 return null;
             }
 
@@ -69,7 +70,7 @@ public class MP4DetectionStrategy implements FormatDetectionStrategy {
                 String atomType = new String(atomHeader, 4, 4);
 
                 if (atomSize < 8 || atomSize > file.length() - position) {
-                    LOGGER.fine("Ungültige Atomgröße: " + atomSize + " an Position " + position);
+                    Log.debug("Ungültige Atomgröße: " + atomSize + " an Position " + position);
                     return null;
                 }
 
@@ -78,10 +79,10 @@ public class MP4DetectionStrategy implements FormatDetectionStrategy {
                 }
                 position += atomSize;
             }
-            LOGGER.fine("Kein moov-Atom in MP4-Datei gefunden");
+            Log.debug("Kein moov-Atom in MP4-Datei gefunden");
             return null;
         } catch (IOException e) {
-            LOGGER.warning("Fehler bei MP4-Tag-Prüfung: " + e.getMessage());
+            Log.warn("Fehler bei MP4-Tag-Prüfung: " + e.getMessage());
             return null;
         }
     }

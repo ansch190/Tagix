@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Test configuration - less verbose output -->
+
+    <!-- Console Appender for Tests -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+    </appender>
+
+    <!-- Test Log File -->
+    <appender name="TEST_FILE" class="ch.qos.logback.core.FileAppender">
+        <file>target/test-logs/tagix-test.log</file>
+        <encoder>
+            <pattern>%d{ISO8601} [%thread] %-5level %logger - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Specific logger for test debugging -->
+    <logger name="com.schwanitz.strategies.parsing" level="WARN"/>
+    <logger name="com.schwanitz.strategies.detection" level="WARN"/>
+    <logger name="com.schwanitz.tagging" level="INFO"/>
+
+    <!-- Enable DEBUG for specific test classes when needed -->
+    <logger name="com.schwanitz.strategies.parsing.ID3ParsingStrategyTest" level="DEBUG"/>
+    <logger name="com.schwanitz.strategies.parsing.APEParsingStrategyTest" level="DEBUG"/>
+
+    <!-- Root Logger -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="TEST_FILE"/>
+    </root>
+</configuration>

@@ -8,10 +8,11 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MP3DetectionStrategy implements FormatDetectionStrategy {
-    private static final Logger LOGGER = Logger.getLogger(MP3DetectionStrategy.class.getName());
+    private static final Logger Log = LoggerFactory.getLogger(MP3DetectionStrategy.class);
     private static final int BUFFER_SIZE = 4096;
 
     @Override
@@ -61,7 +62,7 @@ public class MP3DetectionStrategy implements FormatDetectionStrategy {
 
     private static TagInfo checkID3v1FromBuffer(byte[] buffer, long offset) {
         if (buffer.length < 128 || offset < 0) {
-            LOGGER.fine("Puffer zu klein für ID3v1 oder ungültiger Offset: " + offset);
+            Log.debug("Puffer zu klein für ID3v1 oder ungültiger Offset: " + offset);
             return null;
         }
         try {
@@ -79,14 +80,14 @@ public class MP3DetectionStrategy implements FormatDetectionStrategy {
                     ? TagFormat.ID3V1_1 : TagFormat.ID3V1;
             return new TagInfo(format, offset, 128);
         } catch (Exception e) {
-            LOGGER.warning("Fehler bei ID3v1-Prüfung aus Puffer: " + e.getMessage());
+            Log.warn("Fehler bei ID3v1-Prüfung aus Puffer: " + e.getMessage());
             return null;
         }
     }
 
     private static TagInfo checkID3v2FromBuffer(byte[] buffer, long position) {
         if (position < 0 || position + 10 > buffer.length) {
-            LOGGER.fine("Ungültige Position für ID3v2: " + position);
+            Log.debug("Ungültige Position für ID3v2: " + position);
             return null;
         }
         try {
@@ -98,7 +99,7 @@ public class MP3DetectionStrategy implements FormatDetectionStrategy {
             // Versionsbytes prüfen (Byte 3 und 4)
             int majorVersion = buffer[bufferOffset + 3] & 0xFF;
             if (buffer[bufferOffset + 4] != 0) {
-                LOGGER.fine("Ungültige Revision für ID3v2: " + (buffer[bufferOffset + 4] & 0xFF));
+                Log.debug("Ungültige Revision für ID3v2: " + (buffer[bufferOffset + 4] & 0xFF));
                 return null;
             }
 
@@ -106,7 +107,7 @@ public class MP3DetectionStrategy implements FormatDetectionStrategy {
             int size = ((buffer[bufferOffset + 6] & 0x7F) << 21) | ((buffer[bufferOffset + 7] & 0x7F) << 14) |
                     ((buffer[bufferOffset + 8] & 0x7F) << 7) | (buffer[bufferOffset + 9] & 0xFF);
             if (size < 0) {
-                LOGGER.fine("Ungültige ID3v2-Größe: " + size);
+                Log.debug("Ungültige ID3v2-Größe: " + size);
                 return null;
             }
 
@@ -122,19 +123,19 @@ public class MP3DetectionStrategy implements FormatDetectionStrategy {
                     format = TagFormat.ID3V2_4;
                     break;
                 default:
-                    LOGGER.fine("Unbekannte ID3v2-Version: " + majorVersion);
+                    Log.debug("Unbekannte ID3v2-Version: " + majorVersion);
                     return null;
             }
             return new TagInfo(format, position, size + 10);
         } catch (Exception e) {
-            LOGGER.warning("Fehler bei ID3v2-Prüfung aus Puffer: " + e.getMessage());
+            Log.warn("Fehler bei ID3v2-Prüfung aus Puffer: " + e.getMessage());
             return null;
         }
     }
 
     private static TagInfo checkAPEFromBuffer(byte[] buffer, long position) {
         if (position < 0 || position + 32 > buffer.length) {
-            LOGGER.fine("Ungültige Position für APE: " + position);
+            Log.debug("Ungültige Position für APE: " + position);
             return null;
         }
         try {
@@ -150,18 +151,18 @@ public class MP3DetectionStrategy implements FormatDetectionStrategy {
             int tagSize = (buffer[bufferOffset + 12] & 0xFF) | ((buffer[bufferOffset + 13] & 0xFF) << 8) |
                     ((buffer[bufferOffset + 14] & 0xFF) << 16) | ((buffer[bufferOffset + 15] & 0xFF) << 24);
             if (tagSize < 32) {
-                LOGGER.fine("Ungültige APE-Tag-Größe: " + tagSize);
+                Log.debug("Ungültige APE-Tag-Größe: " + tagSize);
                 return null;
             }
 
             TagFormat format = (version == 1000) ? TagFormat.APEV1 : (version == 2000) ? TagFormat.APEV2 : null;
             if (format == null) {
-                LOGGER.fine("Unbekannte APE-Version: " + version);
+                Log.debug("Unbekannte APE-Version: " + version);
                 return null;
             }
             return new TagInfo(format, position, tagSize);
         } catch (Exception e) {
-            LOGGER.warning("Fehler bei APE-Prüfung aus Puffer: " + e.getMessage());
+            Log.warn("Fehler bei APE-Prüfung aus Puffer: " + e.getMessage());
             return null;
         }
     }
@@ -180,7 +181,7 @@ public class MP3DetectionStrategy implements FormatDetectionStrategy {
                         try {
                             int size = Integer.parseInt(sizeStr);
                             if (size < 0 || size > startPosition - 15) {
-                                LOGGER.fine("Ungültige Lyrics3v2-Größe: " + size);
+                                Log.debug("Ungültige Lyrics3v2-Größe: " + size);
                                 return null;
                             }
                             // Prüfe Start-Signatur
@@ -194,7 +195,7 @@ public class MP3DetectionStrategy implements FormatDetectionStrategy {
                                 }
                             }
                         } catch (NumberFormatException e) {
-                            LOGGER.fine("Ungültige Lyrics3v2-Größenangabe: " + sizeStr);
+                            Log.debug("Ungültige Lyrics3v2-Größenangabe: " + sizeStr);
                             return null;
                         }
                     }
@@ -224,10 +225,10 @@ public class MP3DetectionStrategy implements FormatDetectionStrategy {
                 }
             }
 
-            LOGGER.fine("Kein Lyrics3-Tag gefunden");
+            Log.debug("Kein Lyrics3-Tag gefunden");
             return null;
         } catch (Exception e) {
-            LOGGER.warning("Fehler bei Lyrics3-Prüfung aus Puffer: " + e.getMessage());
+            Log.warn("Fehler bei Lyrics3-Prüfung aus Puffer: " + e.getMessage());
             return null;
         }
     }

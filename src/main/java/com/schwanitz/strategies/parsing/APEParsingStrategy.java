@@ -15,11 +15,11 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 public class APEParsingStrategy implements TagParsingStrategy {
-    private static final Logger LOGGER = Logger.getLogger(APEParsingStrategy.class.getName());
+    private static final Logger Log = LoggerFactory.getLogger(APEParsingStrategy.class);
 
     // APE Item Flags
     private static final int APE_ITEM_TYPE_MASK = 0x06;
@@ -183,7 +183,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
         boolean isReadOnly = (tagFlags & 0x00000001) != 0;
 
         // Erweiterte Logging-Informationen
-        LOGGER.fine(String.format(
+        Log.debug(String.format(
                 "APE Tag Details: Version=%d, Size=%d bytes, Items=%d, " +
                         "Flags=0x%08X (Header:%b, Footer:%b, IsHeader:%b, ReadOnly:%b)",
                 version, tagSize, itemCount, tagFlags,
@@ -224,21 +224,21 @@ public class APEParsingStrategy implements TagParsingStrategy {
             }
         }
 
-        LOGGER.fine("Items range: " + itemsStart + " to " + itemsEnd + " (size: " + (itemsEnd - itemsStart) + ")");
+        Log.debug("Items range: " + itemsStart + " to " + itemsEnd + " (size: " + (itemsEnd - itemsStart) + ")");
 
         // Items parsen
         long currentPos = itemsStart;
         for (int i = 0; i < itemCount; i++) {
             try {
                 if (currentPos >= itemsEnd - 8) {
-                    LOGGER.warning("Not enough space for item " + (i + 1));
+                    Log.warn("Not enough space for item " + (i + 1));
                     break;
                 }
 
                 currentPos = parseAPEItem(file, metadata, currentPos, version, itemsEnd);
 
                 if (currentPos > itemsEnd) {
-                    LOGGER.warning("APE item parsing exceeded tag boundary");
+                    Log.warn("APE item parsing exceeded tag boundary");
                     break;
                 }
 
@@ -254,12 +254,12 @@ public class APEParsingStrategy implements TagParsingStrategy {
                 }
 
             } catch (IOException e) {
-                LOGGER.warning("Error parsing APE item " + (i + 1) + ": " + e.getMessage());
+                Log.warn("Error parsing APE item " + (i + 1) + ": " + e.getMessage());
                 break;
             }
         }
 
-        LOGGER.fine("Successfully parsed APE tag with " + itemCount + " items");
+        Log.debug("Successfully parsed APE tag with " + itemCount + " items");
     }
 
     private long parseAPEItem(RandomAccessFile file, APEMetadata metadata, long position, int version, long maxPos)
@@ -312,7 +312,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
 
         // Key-Validierung
         if (!isValidAPEKey(key)) {
-            LOGGER.warning("Invalid APE key detected: " + key);
+            Log.warn("Invalid APE key detected: " + key);
             return currentPos + valueSize;
         }
 
@@ -332,8 +332,8 @@ public class APEParsingStrategy implements TagParsingStrategy {
         boolean isReadOnly = (itemFlags & APE_ITEM_READ_ONLY) != 0;
 
         // Erweiterte Logging
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.finest(String.format(
+        if (Log.isTraceEnabled()) {
+            Log.trace(String.format(
                     "APE Item: Key='%s' (normalized: '%s'), Type=%d, Size=%d, ReadOnly=%b",
                     key, normalizedKey, itemType, valueSize, isReadOnly
             ));
@@ -349,7 +349,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
             case APE_ITEM_TYPE_BINARY:
                 // Binäre Daten - verbesserte Behandlung
                 value = processBinaryItem(normalizedKey, valueData);
-                LOGGER.fine("Binary APE item: " + normalizedKey + " (" + valueSize + " bytes)");
+                Log.debug("Binary APE item: " + normalizedKey + " (" + valueSize + " bytes)");
                 break;
 
             case APE_ITEM_TYPE_EXTERNAL:
@@ -358,7 +358,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
                 break;
 
             default:
-                LOGGER.warning("Unknown APE item type: " + itemType + " for key: " + normalizedKey);
+                Log.warn("Unknown APE item type: " + itemType + " for key: " + normalizedKey);
                 value = "[UNKNOWN:" + valueSize + " bytes]";
                 break;
         }
@@ -366,7 +366,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
         // Feld hinzufügen (nur wenn nicht leer)
         if (!value.isEmpty()) {
             addField(metadata, normalizedKey, value);
-            LOGGER.fine("Parsed APE item: " + normalizedKey + " = " +
+            Log.debug("Parsed APE item: " + normalizedKey + " = " +
                     (value.length() > 50 ? value.substring(0, 50) + "..." : value) +
                     (isReadOnly ? " [read-only]" : ""));
         }
@@ -470,7 +470,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
         // Reservierte Keys prüfen
         if (key.equalsIgnoreCase("ID3") || key.equalsIgnoreCase("TAG") ||
                 key.equalsIgnoreCase("OggS") || key.equalsIgnoreCase("MP+")) {
-            LOGGER.warning("Reserved APE key detected: " + key);
+            Log.warn("Reserved APE key detected: " + key);
             return false;
         }
 
@@ -516,7 +516,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
             // Fallback: TextFieldHandler für unbekannte Felder erstellen
             TextFieldHandler textHandler = new TextFieldHandler(key);
             metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOGGER.fine("Created fallback handler for unknown APE field: " + key);
+            Log.debug("Created fallback handler for unknown APE field: " + key);
         }
     }
 

@@ -3,15 +3,17 @@ package com.schwanitz.strategies.detection;
 import com.schwanitz.strategies.detection.context.FormatDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
 import com.schwanitz.tagging.TagInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
 public class AIFFDetectionStrategy implements FormatDetectionStrategy {
-    private static final Logger LOGGER = Logger.getLogger(AIFFDetectionStrategy.class.getName());
+
+    private static final Logger Log = LoggerFactory.getLogger(AIFFDetectionStrategy.class);
 
     @Override
     public boolean canDetect(String fileExtension, byte[] startBuffer, byte[] endBuffer) {
@@ -34,11 +36,11 @@ public class AIFFDetectionStrategy implements FormatDetectionStrategy {
             byte[] buffer = new byte[12];
             file.read(buffer);
             if (!new String(buffer, 0, 4).equals("FORM")) {
-                LOGGER.fine("Kein AIFF-FORM-Header gefunden");
+                Log.debug("Kein AIFF-FORM-Header gefunden");
                 return tags;
             }
             if (!new String(buffer, 8, 4).equals("AIFF") && !new String(buffer, 8, 4).equals("AIFC")) {
-                LOGGER.fine("Datei ist kein AIFF-Format: " + new String(buffer, 8, 4));
+                Log.debug("Datei ist kein AIFF-Format: " + new String(buffer, 8, 4));
                 return tags;
             }
 
@@ -53,7 +55,7 @@ public class AIFFDetectionStrategy implements FormatDetectionStrategy {
                         ((chunkHeader[6] & 0xFF) << 8) | (chunkHeader[7] & 0xFF);
 
                 if (chunkSize < 0 || chunkSize > file.length() - position - 8) {
-                    LOGGER.fine("Ungültige Chunkgröße: " + chunkSize + " an Position " + position);
+                    Log.debug("Ungültige Chunkgröße: " + chunkSize + " an Position " + position);
                     return tags;
                 }
 
@@ -68,7 +70,7 @@ public class AIFFDetectionStrategy implements FormatDetectionStrategy {
                 position += 8 + chunkSize + (chunkSize % 2); // Padding-Byte
             }
         } catch (IOException e) {
-            LOGGER.warning("Fehler bei AIFF-Tag-Prüfung: " + e.getMessage());
+            Log.warn("Fehler bei AIFF-Tag-Prüfung: " + e.getMessage());
         }
         return tags;
     }
@@ -76,7 +78,7 @@ public class AIFFDetectionStrategy implements FormatDetectionStrategy {
     // Hilfsmethode von ursprünglicher Implementierung
     private static TagInfo checkID3v2(RandomAccessFile file, long position) throws IOException {
         if (position < 0 || position + 10 > file.length()) {
-            LOGGER.fine("Ungültige Position für ID3v2: " + position);
+            Log.debug("Ungültige Position für ID3v2: " + position);
             return null;
         }
         try {
@@ -90,7 +92,7 @@ public class AIFFDetectionStrategy implements FormatDetectionStrategy {
             // Versionsbytes prüfen (Byte 3 und 4)
             int majorVersion = buffer[3] & 0xFF;
             if (buffer[4] != 0) {
-                LOGGER.fine("Ungültige Revision für ID3v2: " + (buffer[4] & 0xFF));
+                Log.debug("Ungültige Revision für ID3v2: " + (buffer[4] & 0xFF));
                 return null;
             }
 
@@ -98,7 +100,7 @@ public class AIFFDetectionStrategy implements FormatDetectionStrategy {
             int size = ((buffer[6] & 0x7F) << 21) | ((buffer[7] & 0x7F) << 14) |
                     ((buffer[8] & 0x7F) << 7) | (buffer[9] & 0xFF);
             if (size < 0 || size > file.length() - position) {
-                LOGGER.fine("Ungültige ID3v2-Größe: " + size);
+                Log.debug("Ungültige ID3v2-Größe: " + size);
                 return null;
             }
 
@@ -114,12 +116,12 @@ public class AIFFDetectionStrategy implements FormatDetectionStrategy {
                     format = TagFormat.ID3V2_4;
                     break;
                 default:
-                    LOGGER.fine("Unbekannte ID3v2-Version: " + majorVersion);
+                    Log.debug("Unbekannte ID3v2-Version: " + majorVersion);
                     return null;
             }
             return new TagInfo(format, position, size + 10);
         } catch (IOException e) {
-            LOGGER.warning("Fehler bei ID3v2-Prüfung an Position " + position + ": " + e.getMessage());
+            Log.warn("Fehler bei ID3v2-Prüfung an Position " + position + ": " + e.getMessage());
             return null;
         }
     }

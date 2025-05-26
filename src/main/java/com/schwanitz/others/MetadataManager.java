@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 public class MetadataManager {
+    
     private final List<Metadata> metadataList = new ArrayList<>();
     private final Map<String, FieldHandler<?>> handlers = new HashMap<>();
     private final TagParsingContext parsingContext = new TagParsingContext();

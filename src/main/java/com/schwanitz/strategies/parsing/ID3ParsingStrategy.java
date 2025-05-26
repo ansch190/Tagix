@@ -16,12 +16,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ID3ParsingStrategy implements TagParsingStrategy {
-    private static final Logger LOGGER = Logger.getLogger(ID3ParsingStrategy.class.getName());
+    private static final Logger Log = LoggerFactory.getLogger(ID3ParsingStrategy.class);
 
     // ID3v2 Text Encoding
     private static final int ISO_8859_1 = 0;
@@ -46,7 +47,6 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
             "Cabaret", "New Wave", "Psychadelic", "Rave", "Showtunes", "Trailer",
             "Lo-Fi", "Tribal", "Acid Punk", "Acid Jazz", "Polka", "Retro",
             "Musical", "Rock & Roll", "Hard Rock",
-
             // Winamp Extension (80-147)
             "Folk", "Folk-Rock", "National Folk", "Swing", "Fast Fusion",
             "Bebob", "Latin", "Revival", "Celtic", "Bluegrass", "Avantgarde",
@@ -346,7 +346,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
             addField(metadata, "TCON", ID3V1_GENRES[genreIndex]);
         }
 
-        LOGGER.fine("Successfully parsed ID3v1" + (format == TagFormat.ID3V1_1 ? ".1" : "") + " tag");
+        Log.debug("Successfully parsed ID3v1" + (format == TagFormat.ID3V1_1 ? ".1" : "") + " tag");
     }
 
     private void parseID3v2(RandomAccessFile file, ID3Metadata metadata, long offset, long size, TagFormat format)
@@ -431,7 +431,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
                 frameFlags = ((frameHeader[8] & 0xFF) << 8) | (frameHeader[9] & 0xFF);
             }
 
-            // Ungültige oder leere Frame-ID -> Ende des Tag-Bereichs
+            // Ungültige oder leere Frame-ID → Ende des Tag-Bereichs
             if (frameId.contains("\0") || frameSize <= 0 || frameSize > endPos - currentPos) {
                 break;
             }
@@ -446,7 +446,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
             currentPos += frameHeaderSize + frameSize;
         }
 
-        LOGGER.fine("Successfully parsed ID3v2." + majorVersion + " tag");
+        Log.debug("Successfully parsed ID3v2." + majorVersion + " tag");
     }
 
     private void parseFrame(ID3Metadata metadata, String frameId, byte[] frameData, int majorVersion) {
@@ -531,20 +531,20 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
             }
             // Weitere Frame-Typen können hier hinzugefügt werden
             else {
-                LOGGER.fine("Unhandled frame type: " + frameId);
+                Log.debug("Unhandled frame type: " + frameId);
                 // Versuche als Text-Frame zu behandeln (Fallback)
                 try {
                     String text = extractTextFromFrame(frameData, majorVersion);
                     if (!text.isEmpty()) {
                         addField(metadata, frameId, text);
-                        LOGGER.fine("Treated unknown frame " + frameId + " as text frame");
+                        Log.debug("Treated unknown frame " + frameId + " as text frame");
                     }
                 } catch (Exception e) {
-                    LOGGER.fine("Could not parse unknown frame " + frameId + " as text: " + e.getMessage());
+                    Log.debug("Could not parse unknown frame " + frameId + " as text: " + e.getMessage());
                 }
             }
         } catch (Exception e) {
-            LOGGER.warning("Error parsing frame " + frameId + ": " + e.getMessage());
+            Log.warn("Error parsing frame " + frameId + ": " + e.getMessage());
         }
     }
 
@@ -787,7 +787,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
             }
 
         } catch (Exception e) {
-            LOGGER.warning("Error parsing picture frame: " + e.getMessage());
+            Log.warn("Error parsing picture frame: " + e.getMessage());
         }
 
         return "[PICTURE:" + frameData.length + " bytes]";
@@ -1040,12 +1040,12 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
                 if (majorVersion >= 4) {
                     charset = StandardCharsets.UTF_8;
                 } else {
-                    LOGGER.warning("UTF-8 encoding in ID3v2." + majorVersion + " - treating as ISO-8859-1");
+                    Log.warn("UTF-8 encoding in ID3v2." + majorVersion + " - treating as ISO-8859-1");
                     charset = StandardCharsets.ISO_8859_1;
                 }
                 break;
             default:
-                LOGGER.warning("Unknown text encoding: " + encoding + " - using ISO-8859-1");
+                Log.warn("Unknown text encoding: " + encoding + " - using ISO-8859-1");
                 charset = StandardCharsets.ISO_8859_1;
                 break;
         }
@@ -1091,7 +1091,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
             // Fallback: TextFieldHandler erstellen
             TextFieldHandler textHandler = new TextFieldHandler(key);
             metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOGGER.fine("Created fallback handler for unknown ID3 field: " + key);
+            Log.debug("Created fallback handler for unknown ID3 field: " + key);
         }
     }
 }

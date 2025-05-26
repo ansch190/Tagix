@@ -8,10 +8,11 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class OggFlacDetectionStrategy implements FormatDetectionStrategy {
-    private static final Logger LOGGER = Logger.getLogger(OggFlacDetectionStrategy.class.getName());
+    private static final Logger Log = LoggerFactory.getLogger(OggFlacDetectionStrategy.class);
     private static final int MAX_OGG_PAGES = 10;
 
     @Override
@@ -78,7 +79,7 @@ public class OggFlacDetectionStrategy implements FormatDetectionStrategy {
                     position += pageSize;
                     pageCount++;
                 }
-                LOGGER.fine("Kein Vorbis/Speex/Opus-Comment-Header in OGG-Datei gefunden");
+                Log.debug("Kein Vorbis/Speex/Opus-Comment-Header in OGG-Datei gefunden");
                 return null;
             } else if (new String(buffer).equals("fLaC")) {
                 // FLAC: Prüfe alle Metadatenblöcke
@@ -99,12 +100,12 @@ public class OggFlacDetectionStrategy implements FormatDetectionStrategy {
                         break;
                     }
                 }
-                LOGGER.fine("Kein Vorbis-Comment-Block in FLAC-Datei gefunden");
+                Log.debug("Kein Vorbis-Comment-Block in FLAC-Datei gefunden");
                 return null;
             }
             return null;
         } catch (IOException e) {
-            LOGGER.warning("Fehler bei Vorbis-Comment-Prüfung: " + e.getMessage());
+            Log.warn("Fehler bei Vorbis-Comment-Prüfung: " + e.getMessage());
             return null;
         }
     }

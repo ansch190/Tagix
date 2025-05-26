@@ -14,10 +14,11 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Lyrics3ParsingStrategy implements TagParsingStrategy {
-    private static final Logger LOGGER = Logger.getLogger(Lyrics3ParsingStrategy.class.getName());
+    private static final Logger Log = LoggerFactory.getLogger(Lyrics3ParsingStrategy.class);
 
     private final Map<String, FieldHandler<?>> handlers;
 
@@ -103,7 +104,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
             addField(metadata, "LYRICS", cleanLyrics);
         }
 
-        LOGGER.fine("Parsed Lyrics3v1 tag with " + lyricsContent.length() + " characters");
+        Log.debug("Parsed Lyrics3v1 tag with " + lyricsContent.length() + " characters");
     }
 
     private void parseLyrics3v2(RandomAccessFile file, Lyrics3Metadata metadata, long offset, long size)
@@ -142,13 +143,13 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         String fieldContent = tagContent.substring(11, tagContent.length() - 15);
 
         if (fieldContent.length() != declaredSize) {
-            LOGGER.warning("Lyrics3v2 size mismatch: declared=" + declaredSize + ", actual=" + fieldContent.length());
+            Log.warn("Lyrics3v2 size mismatch: declared=" + declaredSize + ", actual=" + fieldContent.length());
         }
 
         // Felder parsen mit verbesserter Validierung
         parseFields(metadata, fieldContent);
 
-        LOGGER.fine("Parsed Lyrics3v2 tag with " + fieldContent.length() + " characters");
+        Log.debug("Parsed Lyrics3v2 tag with " + fieldContent.length() + " characters");
     }
 
     private String parseTagContent(byte[] data) {
@@ -158,11 +159,11 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         try {
             String iso = new String(data, StandardCharsets.ISO_8859_1);
             if (isValidLyrics3Text(iso)) {
-                LOGGER.fine("Using ISO-8859-1 encoding for Lyrics3 tag");
+                Log.debug("Using ISO-8859-1 encoding for Lyrics3 tag");
                 return iso;
             }
         } catch (Exception e) {
-            LOGGER.fine("ISO-8859-1 encoding failed: " + e.getMessage());
+            Log.debug("ISO-8859-1 encoding failed: " + e.getMessage());
         }
 
         // 2. Real-World: Windows-1252/CP1252 (häufig verwendet)
@@ -170,26 +171,26 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
             Charset cp1252 = Charset.forName("windows-1252");
             String cp1252Text = new String(data, cp1252);
             if (isValidLyrics3Text(cp1252Text)) {
-                LOGGER.fine("Using Windows-1252 encoding for Lyrics3 tag");
+                Log.debug("Using Windows-1252 encoding for Lyrics3 tag");
                 return cp1252Text;
             }
         } catch (Exception e) {
-            LOGGER.fine("Windows-1252 encoding failed: " + e.getMessage());
+            Log.debug("Windows-1252 encoding failed: " + e.getMessage());
         }
 
         // 3. Fallback: UTF-8 (für moderne Tags)
         try {
             String utf8 = new String(data, StandardCharsets.UTF_8);
             if (isValidLyrics3Text(utf8)) {
-                LOGGER.fine("Using UTF-8 encoding for Lyrics3 tag");
+                Log.debug("Using UTF-8 encoding for Lyrics3 tag");
                 return utf8;
             }
         } catch (Exception e) {
-            LOGGER.fine("UTF-8 encoding failed: " + e.getMessage());
+            Log.debug("UTF-8 encoding failed: " + e.getMessage());
         }
 
         // 4. Last resort: US-ASCII
-        LOGGER.warning("All preferred encodings failed, using US-ASCII as last resort");
+        Log.warn("All preferred encodings failed, using US-ASCII as last resort");
         return new String(data, StandardCharsets.US_ASCII);
     }
 
@@ -247,7 +248,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
 
                 // Validiere Feld-ID Format (A-Z0-9, 3 Zeichen)
                 if (!isValidFieldId(fieldId)) {
-                    LOGGER.warning("Invalid Lyrics3v2 field ID format: " + fieldId);
+                    Log.warn("Invalid Lyrics3v2 field ID format: " + fieldId);
                     break;
                 }
 
@@ -255,14 +256,14 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
 
                 // Feldgröße (2 Zeichen) mit Validierung
                 if (position + 2 > fieldContent.length()) {
-                    LOGGER.warning("Incomplete field size for field: " + fieldId);
+                    Log.warn("Incomplete field size for field: " + fieldId);
                     break;
                 }
                 String sizeStr = fieldContent.substring(position, position + 2);
 
                 // Validiere Größenangabe Format (00-99)
                 if (!isValidFieldSize(sizeStr)) {
-                    LOGGER.warning("Invalid field size format for field " + fieldId + ": " + sizeStr);
+                    Log.warn("Invalid field size format for field " + fieldId + ": " + sizeStr);
                     break;
                 }
 
@@ -272,13 +273,13 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
                 try {
                     fieldSize = Integer.parseInt(sizeStr);
                 } catch (NumberFormatException e) {
-                    LOGGER.warning("Invalid field size for field " + fieldId + ": " + sizeStr);
+                    Log.warn("Invalid field size for field " + fieldId + ": " + sizeStr);
                     break;
                 }
 
                 // Feldinhalt mit Validierung
                 if (position + fieldSize > fieldContent.length()) {
-                    LOGGER.warning("Field " + fieldId + " extends beyond tag boundary");
+                    Log.warn("Field " + fieldId + " extends beyond tag boundary");
                     break;
                 }
 
@@ -299,11 +300,11 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
                     }
                 }
 
-                LOGGER.fine("Parsed field: " + fieldId + " = " +
+                Log.debug("Parsed field: " + fieldId + " = " +
                         (processedValue.length() > 50 ? processedValue.substring(0, 50) + "..." : processedValue));
 
             } catch (Exception e) {
-                LOGGER.warning("Error parsing field at position " + position + ": " + e.getMessage());
+                Log.warn("Error parsing field at position " + position + ": " + e.getMessage());
                 break;
             }
         }
@@ -313,7 +314,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
             validateCRC(fieldContent, lastValidCRC);
         }
 
-        LOGGER.fine("Successfully parsed " + fieldCount + " Lyrics3v2 fields");
+        Log.debug("Successfully parsed " + fieldCount + " Lyrics3v2 fields");
     }
 
     private boolean isValidFieldId(String fieldId) {
@@ -385,7 +386,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
             return timestamp.trim();
         }
 
-        LOGGER.fine("Unusual timestamp format: " + timestamp);
+        Log.debug("Unusual timestamp format: " + timestamp);
         return timestamp.trim();
     }
 
@@ -400,7 +401,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
             return cleanCRC;
         }
 
-        LOGGER.fine("Invalid CRC format: " + crc);
+        Log.debug("Invalid CRC format: " + crc);
         return crc.trim();
     }
 
@@ -419,7 +420,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
             // Nicht numerisch
         }
 
-        LOGGER.fine("Unusual year format: " + year);
+        Log.debug("Unusual year format: " + year);
         return cleanYear;
     }
 
@@ -431,7 +432,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         // LRC Format: [MM:SS]text oder [MM:SS.xx]text
         // einfache Validierung auf LRC-ähnliches Format
         if (lrc.contains("[") && lrc.contains("]") && lrc.contains(":")) {
-            LOGGER.fine("Line synchronized lyrics detected");
+            Log.debug("Line synchronized lyrics detected");
         }
 
         return lrc.trim();
@@ -446,9 +447,9 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
 
         // Prüfe auf gängige Bild-Dateierweiterungen
         if (cleanLink.toLowerCase().matches(".*\\.(jpg|jpeg|png|gif|bmp)$")) {
-            LOGGER.fine("Image file detected: " + cleanLink);
+            Log.debug("Image file detected: " + cleanLink);
         } else if (cleanLink.toLowerCase().startsWith("http")) {
-            LOGGER.fine("Image URL detected: " + cleanLink);
+            Log.debug("Image URL detected: " + cleanLink);
         }
 
         return cleanLink;
@@ -463,13 +464,13 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
             // Vereinfachte CRC-Validierung (echte CRC-Berechnung wäre komplex)
             // Hier nur Format-Validierung und Logging
             if (providedCRC.matches("[0-9A-Fa-f]+")) {
-                LOGGER.fine("CRC field present with value: " + providedCRC);
+                Log.debug("CRC field present with value: " + providedCRC);
                 // TODO: Implementiere echte CRC-Validierung falls benötigt
             } else {
-                LOGGER.warning("Invalid CRC format: " + providedCRC);
+                Log.warn("Invalid CRC format: " + providedCRC);
             }
         } catch (Exception e) {
-            LOGGER.warning("Error validating CRC: " + e.getMessage());
+            Log.warn("Error validating CRC: " + e.getMessage());
         }
     }
 
@@ -482,7 +483,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
             // Fallback: TextFieldHandler für unbekannte Felder erstellen
             TextFieldHandler textHandler = new TextFieldHandler(key);
             metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOGGER.fine("Created fallback handler for unknown field: " + key);
+            Log.debug("Created fallback handler for unknown field: " + key);
         }
     }
 

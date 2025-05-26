@@ -15,10 +15,11 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MP4ParsingStrategy implements TagParsingStrategy {
-    private static final Logger LOGGER = Logger.getLogger(MP4ParsingStrategy.class.getName());
+    private static final Logger Log = LoggerFactory.getLogger(MP4ParsingStrategy.class);
 
     // MP4 Atom Types für Metadaten
     private static final String MOOV_ATOM = "moov";
@@ -201,7 +202,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         // Navigiere zu udta -> meta -> ilst
         long udtaOffset = findAtom(file, moovOffset + 8, moovSize - 8, UDTA_ATOM);
         if (udtaOffset == -1) {
-            LOGGER.fine("No udta atom found - no metadata available");
+            Log.debug("No udta atom found - no metadata available");
             return;
         }
 
@@ -210,7 +211,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
 
         long metaOffset = findAtom(file, udtaOffset + 8, udtaSize - 8, META_ATOM);
         if (metaOffset == -1) {
-            LOGGER.fine("No meta atom found in udta");
+            Log.debug("No meta atom found in udta");
             return;
         }
 
@@ -220,7 +221,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
 
         long ilstOffset = findAtom(file, metaOffset + 12, metaSize - 12, ILST_ATOM);
         if (ilstOffset == -1) {
-            LOGGER.fine("No ilst atom found in meta");
+            Log.debug("No ilst atom found in meta");
             return;
         }
 
@@ -230,7 +231,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         // Parse metadata items in ilst
         parseMetadataItems(file, metadata, ilstOffset + 8, ilstSize - 8);
 
-        LOGGER.fine("Successfully parsed MP4 metadata");
+        Log.debug("Successfully parsed MP4 metadata");
     }
 
     private void parseMetadataItems(RandomAccessFile file, MP4Metadata metadata, long offset, long size)
@@ -262,7 +263,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         // Suche nach 'data' Atom innerhalb des Metadata Items
         long dataOffset = findAtom(file, offset, size, DATA_ATOM);
         if (dataOffset == -1) {
-            LOGGER.fine("No data atom found for " + atomType);
+            Log.debug("No data atom found for " + atomType);
             return;
         }
 
@@ -271,7 +272,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         file.skipBytes(4); // Skip 'data'
 
         if (dataSize < 16) { // 8 bytes header + 8 bytes minimal data header
-            LOGGER.fine("Data atom too small for " + atomType);
+            Log.debug("Data atom too small for " + atomType);
             return;
         }
 
@@ -281,7 +282,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
 
         long valueSize = dataSize - 16; // Subtract atom header (8) + data header (8)
         if (valueSize <= 0 || valueSize > 65536) { // Sanity check
-            LOGGER.fine("Invalid value size for " + atomType + ": " + valueSize);
+            Log.debug("Invalid value size for " + atomType + ": " + valueSize);
             return;
         }
 
@@ -295,7 +296,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
             String fieldName = KNOWN_ATOMS.getOrDefault(atomType, atomType);
             addField(metadata, fieldName, value);
 
-            LOGGER.fine("Parsed MP4 field: " + atomType + " (" + fieldName + ") = " +
+            Log.debug("Parsed MP4 field: " + atomType + " (" + fieldName + ") = " +
                     (value.length() > 50 ? value.substring(0, 50) + "..." : value));
         }
     }
@@ -507,7 +508,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
             // Fallback: TextFieldHandler für unbekannte Felder
             TextFieldHandler textHandler = new TextFieldHandler(key);
             metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOGGER.fine("Created fallback handler for unknown MP4 field: " + key);
+            Log.debug("Created fallback handler for unknown MP4 field: " + key);
         }
     }
 

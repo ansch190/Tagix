@@ -8,10 +8,11 @@ import java.io.RandomAccessFile;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TagFormatDetector {
-    private static final Logger LOGGER = Logger.getLogger(TagFormatDetector.class.getName());
+    private static final Logger Log = LoggerFactory.getLogger(TagFormatDetector.class);
     private static final int BUFFER_SIZE = 4096; // 4 KB Puffer für Anfang/Ende
 
     // In-Memory-Cache für TagInfo-Listen
@@ -67,7 +68,7 @@ public class TagFormatDetector {
                 tagInfoCache.put(filePath, new CachedTagInfo(detectedTags, f.lastModified()));
             }
         } catch (IOException e) {
-            LOGGER.severe("Fehler beim Lesen der Datei " + filePath + ": " + e.getMessage());
+            Log.error("Fehler beim Lesen der Datei " + filePath + ": " + e.getMessage());
             throw e;
         }
 
