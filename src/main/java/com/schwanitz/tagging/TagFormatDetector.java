@@ -7,9 +7,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class TagFormatDetector {
     private static final Logger Log = LoggerFactory.getLogger(TagFormatDetector.class);
@@ -79,22 +77,16 @@ public class TagFormatDetector {
      * Custom Scan - einzelne Datei
      * prüft nur die in der ScanConfiguration angegebenen Tag-Formate
      */
-    public static List<TagInfo> customScan(String filePath, ScanConfiguration config) throws IOException {
-        if (config.getMode() != ScanMode.CUSTOM_SCAN) {
-            throw new IllegalArgumentException("Configuration must be for CUSTOM_SCAN mode");
-        }
-        return detectTagFormats(filePath, config);
+    public static List<TagInfo> customScan(String filePath, TagFormat... formats) throws IOException {
+        return detectTagFormats(filePath, ScanConfiguration.customScan(formats));
     }
 
     /**
      * Custom Scan - mehrere Dateien
      * prüft nur die in der ScanConfiguration angegebenen Tag-Formate für eine Liste von Dateien
      */
-    public static Map<String, List<TagInfo>> customScan(List<String> filePaths, ScanConfiguration config) {
-        if (config.getMode() != ScanMode.CUSTOM_SCAN) {
-            throw new IllegalArgumentException("Configuration must be for CUSTOM_SCAN mode");
-        }
-        return detectTagFormats(filePaths, config);
+    public static Map<String, List<TagInfo>> customScan(List<String> filePaths, TagFormat... formats) {
+        return detectTagFormats(filePaths, ScanConfiguration.customScan(formats));
     }
 
     // ================================
@@ -111,6 +103,7 @@ public class TagFormatDetector {
      */
     private static List<TagInfo> detectTagFormats(String filePath, ScanConfiguration config) throws IOException {
         File f = new File(filePath);
+
         if (!f.exists() || !f.canRead()) {
             throw new IOException("Datei existiert nicht oder ist nicht lesbar: " + filePath);
         }
