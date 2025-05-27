@@ -25,10 +25,8 @@ public class MP4DetectionStrategy implements FormatDetectionStrategy {
     private static final long MAX_MP4_SEARCH = 1024 * 1024; // 1 MB für MP4 moov-Suche
 
     @Override
-    public boolean canDetect(String fileExtension, byte[] startBuffer, byte[] endBuffer) {
-        boolean isMP4 = (fileExtension.equals("m4a") || fileExtension.equals("mp4") || fileExtension.equals("m4v")) &&
-                startBuffer.length >= 8 && new String(startBuffer, 4, 4).equals("ftyp");
-        return isMP4;
+    public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
+        return startBuffer.length >= 8 && new String(startBuffer, 4, 4).equals("ftyp");
     }
 
     @Override

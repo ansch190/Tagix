@@ -16,10 +16,9 @@ public class AIFFDetectionStrategy implements FormatDetectionStrategy {
     private static final Logger Log = LoggerFactory.getLogger(AIFFDetectionStrategy.class);
 
     @Override
-    public boolean canDetect(String fileExtension, byte[] startBuffer, byte[] endBuffer) {
+    public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         String signature = startBuffer.length >= 4 ? new String(startBuffer, 0, 4) : "";
-        boolean isAIFF = (fileExtension.equals("aiff") || fileExtension.equals("aif")) && signature.equals("FORM");
-        return isAIFF;
+        return signature.equals("FORM");
     }
 
     @Override

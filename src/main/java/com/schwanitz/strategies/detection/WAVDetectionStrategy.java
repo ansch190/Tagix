@@ -18,9 +18,9 @@ public class WAVDetectionStrategy implements FormatDetectionStrategy {
     private static final int BUFFER_SIZE = 4096;
 
     @Override
-    public boolean canDetect(String fileExtension, byte[] startBuffer, byte[] endBuffer) {
+    public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         String signature = startBuffer.length >= 4 ? new String(startBuffer, 0, 4) : "";
-        return fileExtension.equals("wav") && signature.equals("RIFF");
+        return signature.equals("RIFF");
     }
 
     @Override

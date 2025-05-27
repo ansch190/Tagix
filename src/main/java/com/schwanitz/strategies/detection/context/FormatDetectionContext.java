@@ -43,22 +43,16 @@ public class FormatDetectionContext {
         for (TagFormat format : TagFormat.values()) {
             // Prüfe welche Formate die Strategy theoretisch unterstützt
             // basierend auf den bekannten Dateierweiterungen
-            for (String extension : format.getFileExtensions()) {
-                try {
-                    // Test mit dummy Daten ob die Strategy diesen Dateityp handhaben kann
-                    if (strategy.canDetect(extension, new byte[0], new byte[0])) {
-                        formatToStrategyMap.put(format, strategy);
-                        break;
-                    }
-                } catch (Exception e) {
-                    // Ignoriere Fehler bei der Initialisierung
+            try {
+                // Test mit dummy Daten ob die Strategy diesen Dateityp handhaben kann
+                if (strategy.canDetect(new byte[0], new byte[0])) {
+                    formatToStrategyMap.put(format, strategy);
+                    break;
                 }
+            } catch (Exception e) {
+                // Ignoriere Fehler bei der Initialisierung
             }
         }
-    }
-
-    public void addStrategy(FormatDetectionStrategy strategy) {
-        registerStrategy(strategy);
     }
 
     /**
@@ -100,13 +94,7 @@ public class FormatDetectionContext {
                 FormatDetectionStrategy strategy = formatToStrategyMap.get(format);
                 if (strategy != null) {
                     List<TagInfo> detectedTags = strategy.detectTags(file, filePath, startBuffer, endBuffer);
-
-                    // Nur Tags des gewünschten Formats hinzufügen
-                    for (TagInfo tag : detectedTags) {
-                        if (tag.getFormat() == format) {
-                            allDetectedTags.add(tag);
-                        }
-                    }
+                    allDetectedTags.addAll(detectedTags);
                 }
             } catch (Exception e) {
                 Log.warn("Error detecting format {} in file {}: {}", format, filePath, e.getMessage());
@@ -132,17 +120,8 @@ public class FormatDetectionContext {
             try {
                 FormatDetectionStrategy strategy = formatToStrategyMap.get(format);
                 if (strategy != null) {
-                    // Zusätzliche Prüfung: Kann die Strategy diese Dateiendung überhaupt handhaben?
-                    if (strategy.canDetect(fileExtension, startBuffer, endBuffer)) {
-                        List<TagInfo> detectedTags = strategy.detectTags(file, filePath, startBuffer, endBuffer);
-
-                        // Nur Tags des gewünschten Formats hinzufügen
-                        for (TagInfo tag : detectedTags) {
-                            if (tag.getFormat() == format) {
-                                allDetectedTags.add(tag);
-                            }
-                        }
-                    }
+                    List<TagInfo> detectedTags = strategy.detectTags(file, filePath, startBuffer, endBuffer);
+                    allDetectedTags.addAll(detectedTags);
                 }
             } catch (Exception e) {
                 Log.warn("Error detecting format {} in file {}: {}", format, filePath, e.getMessage());
@@ -168,13 +147,7 @@ public class FormatDetectionContext {
                 FormatDetectionStrategy strategy = formatToStrategyMap.get(format);
                 if (strategy != null) {
                     List<TagInfo> detectedTags = strategy.detectTags(file, filePath, startBuffer, endBuffer);
-
-                    // Nur Tags des gewünschten Formats hinzufügen
-                    for (TagInfo tag : detectedTags) {
-                        if (tag.getFormat() == format) {
-                            allDetectedTags.add(tag);
-                        }
-                    }
+                    allDetectedTags.addAll(detectedTags);
                 } else {
                     Log.warn("No strategy found for custom format: {}", format);
                 }

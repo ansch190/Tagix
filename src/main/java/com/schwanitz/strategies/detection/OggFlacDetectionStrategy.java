@@ -18,10 +18,10 @@ public class OggFlacDetectionStrategy implements FormatDetectionStrategy {
     private static final int MAX_OGG_PAGES = 10;
 
     @Override
-    public boolean canDetect(String fileExtension, byte[] startBuffer, byte[] endBuffer) {
+    public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         String signature = startBuffer.length >= 4 ? new String(startBuffer, 0, 4) : "";
-        boolean isOGG = (fileExtension.equals("ogg") || fileExtension.equals("spx") || fileExtension.equals("opus")) && signature.equals("OggS");
-        boolean isFLAC = fileExtension.equals("flac") && signature.equals("fLaC");
+        boolean isOGG = signature.equals("OggS");
+        boolean isFLAC = signature.equals("fLaC");
         return isOGG || isFLAC;
     }
 

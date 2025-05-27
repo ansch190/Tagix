@@ -18,8 +18,8 @@ public class MP3DetectionStrategy implements FormatDetectionStrategy {
     private static final int BUFFER_SIZE = 4096;
 
     @Override
-    public boolean canDetect(String fileExtension, byte[] startBuffer, byte[] endBuffer) {
-        return fileExtension.equals("mp3");
+    public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
+        return true;  //Todo:
     }
 
     @Override
