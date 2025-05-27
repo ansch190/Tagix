@@ -1,6 +1,5 @@
 package com.schwanitz.tagging;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -43,17 +42,6 @@ public class ScanConfiguration {
             throw new IllegalArgumentException("Custom scan requires at least one tag format");
         }
         return new ScanConfiguration(ScanMode.CUSTOM_SCAN, Arrays.asList(formats));
-    }
-
-    /**
-     * Erstellt eine Konfiguration für benutzerdefinierten Scan
-     * @param formats Die zu prüfenden Tag-Formate
-     */
-    public static ScanConfiguration customScan(List<TagFormat> formats) {
-        if (formats == null || formats.isEmpty()) {
-            throw new IllegalArgumentException("Custom scan requires at least one tag format");
-        }
-        return new ScanConfiguration(ScanMode.CUSTOM_SCAN, formats);
     }
 
     public ScanMode getMode() {

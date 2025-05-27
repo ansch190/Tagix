@@ -10,10 +10,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TagParsingContext {
+
     private final List<TagParsingStrategy> strategies = new ArrayList<>();
 
     public TagParsingContext() {
-        // Alle verfügbaren Strategien registrieren
         strategies.add(new ID3ParsingStrategy());           // ID3v1/v1.1/v2.2/v2.3/v2.4
         strategies.add(new VorbisParsingStrategy());        // Vorbis Comments (OGG/FLAC)
         strategies.add(new Lyrics3ParsingStrategy());       // Lyrics3v1/v2
@@ -22,10 +22,6 @@ public class TagParsingContext {
         strategies.add(new RIFFInfoParsingStrategy());      // RIFF INFO Chunks (WAV)
         strategies.add(new BWFParsingStrategy());           // Broadcast Wave Format
         strategies.add(new AIFFMetadataParsingStrategy());  // AIFF Metadata Chunks
-    }
-
-    public void addStrategy(TagParsingStrategy strategy) {
-        strategies.add(strategy);
     }
 
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {

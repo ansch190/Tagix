@@ -1,6 +1,7 @@
 package com.schwanitz.tagging;
 
 public class TagInfo {
+
     private final TagFormat format;
     private final long offset;
     private final long size;
@@ -22,4 +23,5 @@ public class TagInfo {
     public long getSize() {
         return size;
     }
+
 }

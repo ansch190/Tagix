@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
+
     private static final Logger Log = LoggerFactory.getLogger(AIFFMetadataParsingStrategy.class);
 
     // AIFF Metadata Chunk Types

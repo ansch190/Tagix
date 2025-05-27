@@ -8,7 +8,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ID3Metadata implements Metadata {
+
     private final List<MetadataField<?>> fields = new ArrayList<>();
+
     private final TagFormat format;
 
     public ID3Metadata(TagFormat format) {

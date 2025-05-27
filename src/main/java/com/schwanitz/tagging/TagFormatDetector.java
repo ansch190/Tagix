@@ -10,7 +10,9 @@ import java.io.RandomAccessFile;
 import java.util.*;
 
 public class TagFormatDetector {
+
     private static final Logger Log = LoggerFactory.getLogger(TagFormatDetector.class);
+
     private static final int BUFFER_SIZE = 4096; // 4 KB Puffer für Anfang/Ende
 
     // In-Memory-Cache für TagInfo-Listen

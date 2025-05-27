@@ -22,6 +22,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ID3ParsingStrategy implements TagParsingStrategy {
+
     private static final Logger Log = LoggerFactory.getLogger(ID3ParsingStrategy.class);
 
     // ID3v2 Text Encoding

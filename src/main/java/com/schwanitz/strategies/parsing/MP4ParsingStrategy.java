@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class MP4ParsingStrategy implements TagParsingStrategy {
+
     private static final Logger Log = LoggerFactory.getLogger(MP4ParsingStrategy.class);
 
     // MP4 Atom Types für Metadaten

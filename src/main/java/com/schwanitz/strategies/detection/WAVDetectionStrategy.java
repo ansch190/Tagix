@@ -12,7 +12,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class WAVDetectionStrategy implements FormatDetectionStrategy {
+
     private static final Logger Log = LoggerFactory.getLogger(WAVDetectionStrategy.class);
+
     private static final int BUFFER_SIZE = 4096;
 
     @Override

@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
 public class APEParsingStrategy implements TagParsingStrategy {
+
     private static final Logger Log = LoggerFactory.getLogger(APEParsingStrategy.class);
 
     // APE Item Flags

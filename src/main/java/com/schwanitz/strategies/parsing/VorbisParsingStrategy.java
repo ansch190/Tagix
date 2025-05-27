@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class VorbisParsingStrategy implements TagParsingStrategy {
+
     private static final Logger Log = LoggerFactory.getLogger(VorbisParsingStrategy.class);
 
     private final Map<String, FieldHandler<?>> handlers;
@@ -275,13 +276,13 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
             return;
         }
 
-        // Validierung des Feldnamens (nur ASCII Zeichen 0x20-0x7D außer 0x3D)
+        // Validierung des Feldnamens (nur ASCII-Zeichen 0x20-0x7D außer 0x3D)
         if (!isValidFieldName(fieldName)) {
             Log.debug("Invalid field name: " + fieldName);
             return;
         }
 
-        // Multi-Value Support: Prüfe ob Feld bereits existiert
+        // Multi-Value Support: Prüfe, ob Feld bereits existiert
         String existingValue = getExistingFieldValue(metadata, fieldName);
         if (existingValue != null && !existingValue.equals(fieldValue)) {
             // Werte mit Separator verbinden (Vorbis Comment Standard)

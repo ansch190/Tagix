@@ -15,10 +15,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class MP4DetectionStrategy implements FormatDetectionStrategy {
+
     private static final Logger Log = LoggerFactory.getLogger(MP4DetectionStrategy.class);
+
     private static final Set<String> VALID_MP4_BRANDS = new HashSet<>(Arrays.asList(
             "M4A ", "mp42", "isom", "qt  ", "3gp4", "3gp6", "m4v "
     ));
+
     private static final long MAX_MP4_SEARCH = 1024 * 1024; // 1 MB für MP4 moov-Suche
 
     @Override

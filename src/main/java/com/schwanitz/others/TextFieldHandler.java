@@ -1,10 +1,10 @@
 package com.schwanitz.others;
 
 import com.schwanitz.interfaces.FieldHandler;
-
 import java.nio.charset.StandardCharsets;
 
 public class TextFieldHandler implements FieldHandler<String> {
+
     private final String key;
 
     public TextFieldHandler(String key) {

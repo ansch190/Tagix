@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Lyrics3ParsingStrategy implements TagParsingStrategy {
+
     private static final Logger Log = LoggerFactory.getLogger(Lyrics3ParsingStrategy.class);
 
     private final Map<String, FieldHandler<?>> handlers;

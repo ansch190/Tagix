@@ -2,7 +2,6 @@ package com.schwanitz.strategies.detection.context;
 
 import com.schwanitz.strategies.detection.*;
 import com.schwanitz.tagging.ScanConfiguration;
-import com.schwanitz.tagging.ScanMode;
 import com.schwanitz.tagging.TagFormat;
 import com.schwanitz.tagging.TagInfo;
 import com.schwanitz.tagging.FormatPriorityManager;
@@ -17,9 +16,11 @@ import java.util.List;
 import java.util.Map;
 
 public class FormatDetectionContext {
+
     private static final Logger Log = LoggerFactory.getLogger(FormatDetectionContext.class);
 
     private final List<FormatDetectionStrategy> strategies = new ArrayList<>();
+
     private final Map<TagFormat, FormatDetectionStrategy> formatToStrategyMap = new HashMap<>();
 
     public FormatDetectionContext() {

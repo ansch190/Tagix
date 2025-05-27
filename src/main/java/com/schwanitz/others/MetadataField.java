@@ -3,6 +3,7 @@ package com.schwanitz.others;
 import com.schwanitz.interfaces.FieldHandler;
 
 public class MetadataField<T> {
+
     private final String key;
     private T value;
     private final FieldHandler<T> handler;

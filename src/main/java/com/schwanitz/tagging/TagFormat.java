@@ -5,6 +5,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 public enum TagFormat {
+
     ID3V1("ID3v1", "mp3", "wav"),
     ID3V1_1("ID3v1.1", "mp3", "wav"),
     ID3V2_2("ID3v2.2", "mp3", "wav"),

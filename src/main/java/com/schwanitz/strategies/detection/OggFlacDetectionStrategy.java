@@ -12,7 +12,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class OggFlacDetectionStrategy implements FormatDetectionStrategy {
+
     private static final Logger Log = LoggerFactory.getLogger(OggFlacDetectionStrategy.class);
+
     private static final int MAX_OGG_PAGES = 10;
 
     @Override

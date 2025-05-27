@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class VorbisMetadata implements Metadata {
+
     private final List<MetadataField<?>> fields = new ArrayList<>();
 
     @Override

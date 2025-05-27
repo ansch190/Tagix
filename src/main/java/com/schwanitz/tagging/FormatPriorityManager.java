@@ -176,31 +176,4 @@ public class FormatPriorityManager {
         return new ArrayList<>(priorities);
     }
 
-    /**
-     * Gibt alle unterstützten Dateiendungen zurück
-     */
-    public static List<String> getSupportedExtensions() {
-        return new ArrayList<>(FILE_EXTENSION_PRIORITIES.keySet());
-    }
-
-    /**
-     * Prüft ob eine Dateiendung unterstützt wird
-     */
-    public static boolean isExtensionSupported(String fileExtension) {
-        return FILE_EXTENSION_PRIORITIES.containsKey(fileExtension.toLowerCase());
-    }
-
-    /**
-     * Fügt eine neue Prioritätsliste für eine Dateiendung hinzu
-     */
-    public static void addExtensionPriority(String fileExtension, List<TagFormat> priority) {
-        FILE_EXTENSION_PRIORITIES.put(fileExtension.toLowerCase(), new ArrayList<>(priority));
-    }
-
-    /**
-     * Entfernt die Prioritätsliste für eine Dateiendung
-     */
-    public static void removeExtensionPriority(String fileExtension) {
-        FILE_EXTENSION_PRIORITIES.remove(fileExtension.toLowerCase());
-    }
 }
