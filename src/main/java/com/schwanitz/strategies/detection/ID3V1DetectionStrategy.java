@@ -1,0 +1,38 @@
+package com.schwanitz.strategies.detection;
+
+import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
+import com.schwanitz.tagging.TagFormat;
+import com.schwanitz.tagging.TagInfo;
+
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.util.ArrayList;
+import java.util.List;
+
+public class ID3V1DetectionStrategy extends TagDetectionStrategy {
+
+    private static final int ID3V1_SIZE = 128;
+
+    @Override
+    public TagFormat getTagFormat() {
+        return TagFormat.ID3V1;
+    }
+
+    @Override
+    public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
+        if (endBuffer.length < ID3V1_SIZE) {
+            return false;
+        }
+        return new String(endBuffer, endBuffer.length - ID3V1_SIZE, 3).equals("TAG");
+    }
+
+    @Override
+    public List<TagInfo> detectTags(RandomAccessFile file, String filePath, byte[] startBuffer, byte[] endBuffer) throws IOException {
+        List<TagInfo> tags = new ArrayList<>();
+        if (canDetect(startBuffer, endBuffer)) {
+            long offset = file.length() - ID3V1_SIZE;
+            tags.add(new TagInfo(TagFormat.ID3V1, offset, ID3V1_SIZE));
+        }
+        return tags;
+    }
+}

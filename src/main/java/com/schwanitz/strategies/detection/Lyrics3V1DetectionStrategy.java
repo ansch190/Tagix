@@ -9,35 +9,34 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MP4DetectionStrategy extends TagDetectionStrategy {
+public class Lyrics3V1DetectionStrategy extends TagDetectionStrategy {
 
     @Override
     public TagFormat getTagFormat() {
-        return TagFormat.MP4;
+        return TagFormat.LYRICS3V1;
     }
 
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
-        return startBuffer.length >= 8 && new String(startBuffer, 4, 4).equals("ftyp");
+        if (endBuffer.length < 9) {
+            return false;
+        }
+        return new String(endBuffer, endBuffer.length - 9, 9).equals("LYRICSEND");
     }
 
     @Override
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath, byte[] startBuffer, byte[] endBuffer) throws IOException {
         List<TagInfo> tags = new ArrayList<>();
         if (canDetect(startBuffer, endBuffer)) {
-            long position = 0;
-            while (position + 8 < file.length()) {
+            long position = file.length() - 9 - 11;
+            if (position >= 0) {
                 file.seek(position);
-                byte[] atomHeader = new byte[8];
-                file.read(atomHeader);
-                int atomSize = ((atomHeader[0] & 0xFF) << 24) | ((atomHeader[1] & 0xFF) << 16) |
-                        ((atomHeader[2] & 0xFF) << 8) | (atomHeader[3] & 0xFF);
-                String atomType = new String(atomHeader, 4, 4);
-                if (atomType.equals("moov")) {
-                    tags.add(new TagInfo(TagFormat.MP4, position, atomSize));
-                    break;
+                byte[] buffer = new byte[11];
+                file.read(buffer);
+                if (new String(buffer).equals("LYRICSBEGIN")) {
+                    long tagSize = file.length() - position;
+                    tags.add(new TagInfo(TagFormat.LYRICS3V1, position, tagSize));
                 }
-                position += atomSize;
             }
         }
         return tags;
