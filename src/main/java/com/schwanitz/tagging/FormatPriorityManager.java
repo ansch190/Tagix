@@ -72,15 +72,15 @@ public class FormatPriorityManager {
         ));
 
         // OGG Dateien (Ogg Vorbis, Speex, Opus)
-        FILE_EXTENSION_PRIORITIES.put("ogg", Arrays.asList(
+        FILE_EXTENSION_PRIORITIES.put("ogg", List.of(
                 TagFormat.VORBIS_COMMENT  // Einziger Standard für OGG
         ));
 
-        FILE_EXTENSION_PRIORITIES.put("spx", Arrays.asList(
+        FILE_EXTENSION_PRIORITIES.put("spx", List.of(
                 TagFormat.VORBIS_COMMENT  // Speex verwendet Vorbis Comments
         ));
 
-        FILE_EXTENSION_PRIORITIES.put("opus", Arrays.asList(
+        FILE_EXTENSION_PRIORITIES.put("opus", List.of(
                 TagFormat.VORBIS_COMMENT  // Opus verwendet Vorbis Comments
         ));
 
@@ -94,15 +94,15 @@ public class FormatPriorityManager {
         ));
 
         // MP4/M4A Dateien
-        FILE_EXTENSION_PRIORITIES.put("mp4", Arrays.asList(
+        FILE_EXTENSION_PRIORITIES.put("mp4", List.of(
                 TagFormat.MP4             // Einziger Standard für MP4
         ));
 
-        FILE_EXTENSION_PRIORITIES.put("m4a", Arrays.asList(
+        FILE_EXTENSION_PRIORITIES.put("m4a", List.of(
                 TagFormat.MP4             // iTunes/AAC Standard
         ));
 
-        FILE_EXTENSION_PRIORITIES.put("m4v", Arrays.asList(
+        FILE_EXTENSION_PRIORITIES.put("m4v", List.of(
                 TagFormat.MP4             // Video MP4
         ));
 
