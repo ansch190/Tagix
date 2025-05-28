@@ -11,43 +11,35 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 public class FormatDetectionContext {
 
     private static final Logger Log = LoggerFactory.getLogger(FormatDetectionContext.class);
 
-    private final Map<TagFormat, TagDetectionStrategy> strategies = new HashMap<>();
+    private final List<TagDetectionStrategy> strategies = new ArrayList<>();
 
     public FormatDetectionContext() {
         initializeStrategies();
     }
 
     private void initializeStrategies() {
-        strategies.put(TagFormat.ID3V1, new ID3V1DetectionStrategy());
-        strategies.put(TagFormat.ID3V1_1, new ID3V1_1DetectionStrategy());
-        strategies.put(TagFormat.ID3V2_2, new ID3V2_2DetectionStrategy());
-        strategies.put(TagFormat.ID3V2_3, new ID3V2_3DetectionStrategy());
-        strategies.put(TagFormat.ID3V2_4, new ID3V2_4DetectionStrategy());
-        strategies.put(TagFormat.APEV1, new APEV1DetectionStrategy());
-        strategies.put(TagFormat.APEV2, new APEV2DetectionStrategy());
-        strategies.put(TagFormat.VORBIS_COMMENT, new VorbisCommentDetectionStrategy());
-        strategies.put(TagFormat.MP4, new MP4DetectionStrategy());
-        strategies.put(TagFormat.RIFF_INFO, new RIFFInfoDetectionStrategy());
-        strategies.put(TagFormat.BWF_V0, new BWFDetectionStrategy());
-        strategies.put(TagFormat.BWF_V1, new BWFDetectionStrategy());
-        strategies.put(TagFormat.BWF_V2, new BWFDetectionStrategy());
-        strategies.put(TagFormat.AIFF_METADATA, new AIFFDetectionStrategy());
-        strategies.put(TagFormat.LYRICS3V1, new Lyrics3V1DetectionStrategy());
-        strategies.put(TagFormat.LYRICS3V2, new Lyrics3V2DetectionStrategy());
+        strategies.add(new ID3V1DetectionStrategy());
+        strategies.add(new ID3V2DetectionStrategy());
+        strategies.add(new APEDetectionStrategy());
+        strategies.add(new Lyrics3DetectionStrategy());
+        strategies.add(new WAVDetectionStrategy());
+        strategies.add(new VorbisCommentDetectionStrategy());
+        strategies.add(new MP4DetectionStrategy());
+        strategies.add(new AIFFDetectionStrategy());
     }
 
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath, String fileExtension,
                                     byte[] startBuffer, byte[] endBuffer, ScanConfiguration config) throws IOException {
 
-        Log.debug("Starte Tag-Erkennung mit Modus: {} für Datei: {}", config.getMode(), filePath);
+        Log.debug("Start Tag-Detection with Mode: {} for File: {}", config.getMode(), filePath);
 
         List<TagFormat> formatsToCheck;
         switch (config.getMode()) {
@@ -61,24 +53,31 @@ public class FormatDetectionContext {
                 formatsToCheck = config.getCustomFormats();
                 break;
             default:
-                throw new IllegalArgumentException("Unbekannter Scan-Modus: " + config.getMode());
+                throw new IllegalArgumentException("Unknown Scan-Mode: " + config.getMode());
         }
 
+        Set<TagFormat> formatsSet = new HashSet<>(formatsToCheck);
         List<TagInfo> detectedTags = new ArrayList<>();
 
-        for (TagFormat format : formatsToCheck) {
-            TagDetectionStrategy strategy = strategies.get(format);
-            if (strategy != null && strategy.canDetect(startBuffer, endBuffer)) {
+        for (TagDetectionStrategy strategy : strategies) {
+            // Check whether the strategy supports at least one relevant format
+            List<TagFormat> supportedFormats = strategy.getSupportedFormats();
+            boolean relevant = supportedFormats.stream().anyMatch(formatsSet::contains);
+            if (relevant && strategy.canDetect(startBuffer, endBuffer)) {
                 try {
                     List<TagInfo> tags = strategy.detectTags(file, filePath, startBuffer, endBuffer);
-                    detectedTags.addAll(tags);
+                    // Only add tags whose format is contained in formatsToCheck
+                    tags.stream()
+                            .filter(tag -> formatsSet.contains(tag.getFormat()))
+                            .forEach(detectedTags::add);
                 } catch (Exception e) {
-                    Log.warn("Fehler bei der Erkennung von Format {} in Datei {}: {}", format, filePath, e.getMessage());
+                    Log.warn("Error during detection with strategy {} in File {}: {}",
+                            strategy.getClass().getSimpleName(), filePath, e.getMessage());
                 }
             }
         }
 
-        Log.debug("Erkannte {} Tags", detectedTags.size());
+        Log.debug("Recognized {} Tags", detectedTags.size());
         return detectedTags;
     }
 }

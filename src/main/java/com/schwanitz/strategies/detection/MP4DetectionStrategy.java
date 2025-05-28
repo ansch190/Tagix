@@ -12,8 +12,8 @@ import java.util.List;
 public class MP4DetectionStrategy extends TagDetectionStrategy {
 
     @Override
-    public TagFormat getTagFormat() {
-        return TagFormat.MP4;
+    public List<TagFormat> getSupportedFormats() {
+        return List.of(TagFormat.MP4);
     }
 
     @Override

@@ -13,9 +13,8 @@ public abstract class TagDetectionStrategy {
 
     protected final Logger Log = LoggerFactory.getLogger(getClass());
 
-    public abstract TagFormat getTagFormat();
+    public abstract List<TagFormat> getSupportedFormats();
 
     public abstract boolean canDetect(byte[] startBuffer, byte[] endBuffer);
-
     public abstract List<TagInfo> detectTags(RandomAccessFile file, String filePath, byte[] startBuffer, byte[] endBuffer) throws IOException;
 }

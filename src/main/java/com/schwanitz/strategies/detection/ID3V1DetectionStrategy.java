@@ -14,8 +14,8 @@ public class ID3V1DetectionStrategy extends TagDetectionStrategy {
     private static final int ID3V1_SIZE = 128;
 
     @Override
-    public TagFormat getTagFormat() {
-        return TagFormat.ID3V1;
+    public List<TagFormat> getSupportedFormats() {
+        return List.of(TagFormat.ID3V1, TagFormat.ID3V1_1);
     }
 
     @Override
@@ -31,7 +31,12 @@ public class ID3V1DetectionStrategy extends TagDetectionStrategy {
         List<TagInfo> tags = new ArrayList<>();
         if (canDetect(startBuffer, endBuffer)) {
             long offset = file.length() - ID3V1_SIZE;
-            tags.add(new TagInfo(TagFormat.ID3V1, offset, ID3V1_SIZE));
+            int trackOffset = endBuffer.length - ID3V1_SIZE + 125;
+            if (endBuffer[trackOffset] == 0 && endBuffer[trackOffset + 1] != 0) {
+                tags.add(new TagInfo(TagFormat.ID3V1_1, offset, ID3V1_SIZE));
+            } else {
+                tags.add(new TagInfo(TagFormat.ID3V1, offset, ID3V1_SIZE));
+            }
         }
         return tags;
     }

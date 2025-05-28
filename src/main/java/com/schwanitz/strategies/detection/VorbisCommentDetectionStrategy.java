@@ -12,8 +12,8 @@ import java.util.List;
 public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
 
     @Override
-    public TagFormat getTagFormat() {
-        return TagFormat.VORBIS_COMMENT;
+    public List<TagFormat> getSupportedFormats() {
+        return List.of(TagFormat.VORBIS_COMMENT);
     }
 
     @Override
