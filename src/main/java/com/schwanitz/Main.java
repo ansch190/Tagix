@@ -6,27 +6,35 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Main {
 
     private static final Logger Log = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) throws IOException {
-        String path = "src/test/resources/testfiles/mp3";
+        //String path = "src/main/resources/musicFiles";
+        //String path = "/home/andreas/Musik/tagging/";
+        String path = "/home/andreas/pCloudDrive/Audio/Alben";
         File f = new File(path);
-        List<File> files = List.of(Objects.requireNonNull(f.listFiles()));
+        List<String> files = Files.walk(f.toPath())
+                .filter(Files::isRegularFile)
+                .map(Path::toString)
+                .collect(Collectors.toList());
 
         Log.info("Files: {}", files.size());
 
-        Map<String,List<TagInfo>> results = new HashMap<>();
-        for (File file : files) {
-          results.put(file.getAbsolutePath(), TagFormatDetector.fullScan(file.getAbsolutePath()));
-        }
+        Map<String,List<TagInfo>> results;
+        results = TagFormatDetector.fullScan(files);
+        //results = TagFormatDetector.comfortScan(files);
+        //results = TagFormatDetector.customScan(files, TagFormat.ID3V2_3, TagFormat.ID3V1_1, TagFormat.ID3V1, TagFormat.ID3V2_4, TagFormat.ID3V2_2);
 
         for (String s : results.keySet()){
           for (TagInfo t: results.get(s)){
-              Log.info("File: {}, Tags: {}",s , t.toString());
+              Log.info("File: {}, Tags: {}",s , t.getFormat());
           }
         }
     }

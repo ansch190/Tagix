@@ -34,6 +34,12 @@ public class FormatDetectionContext {
         strategies.add(new VorbisCommentDetectionStrategy());
         strategies.add(new MP4DetectionStrategy());
         strategies.add(new AIFFDetectionStrategy());
+        strategies.add(new ASFDetectionStrategy());
+        strategies.add(new FLACApplicationDetectionStrategy());
+        strategies.add(new MatroskaDetectionStrategy());
+        strategies.add(new DSDDetectionStrategy());
+        strategies.add(new TTADetectionStrategy());
+        strategies.add(new WavPackDetectionStrategy());
     }
 
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath, String fileExtension,
@@ -41,20 +47,12 @@ public class FormatDetectionContext {
 
         Log.debug("Start Tag-Detection with Mode: {} for File: {}", config.getMode(), filePath);
 
-        List<TagFormat> formatsToCheck;
-        switch (config.getMode()) {
-            case FULL_SCAN:
-                formatsToCheck = FormatPriorityManager.getFullScanPriority();
-                break;
-            case COMFORT_SCAN:
-                formatsToCheck = FormatPriorityManager.getComfortScanPriority(fileExtension);
-                break;
-            case CUSTOM_SCAN:
-                formatsToCheck = config.getCustomFormats();
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown Scan-Mode: " + config.getMode());
-        }
+        List<TagFormat> formatsToCheck = switch (config.getMode()) {
+            case FULL_SCAN -> FormatPriorityManager.getFullScanPriority();
+            case COMFORT_SCAN -> FormatPriorityManager.getComfortScanPriority(fileExtension);
+            case CUSTOM_SCAN -> config.getCustomFormats();
+            default -> throw new IllegalArgumentException("Unknown Scan-Mode: " + config.getMode());
+        };
 
         Set<TagFormat> formatsSet = new HashSet<>(formatsToCheck);
         List<TagInfo> detectedTags = new ArrayList<>();
