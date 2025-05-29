@@ -12,11 +12,16 @@ Supported Tag-Formats:
 - BWF (v0, v1, v2)
 - AIFF
 - LYRCIS3 (v1, v2)
+- ASF
+- DSD (DSF, DFF)
+- FLAC Application Blocks
+- Matroska (EBML)
+- TrueAudio
+- WavPack
 
 Supported Actions:
 
-- Detection
-- Read
-- Write
+- Detection (In Progress)
+- Parsing (Todo)
 
-Contributions welcome as soon as a solid version v1.0 is available.
+Contributions welcome
