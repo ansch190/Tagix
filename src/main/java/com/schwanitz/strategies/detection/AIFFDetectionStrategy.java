@@ -9,6 +9,19 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Detection Strategy for AIFF metadata chunks
+ * <p>
+ * AIFF (Audio Interchange File Format) uses IFF chunk structure.
+ * Metadata is stored in various chunk types:
+ * - NAME: Title/name information
+ * - AUTH: Author/artist information
+ * - ANNO: Annotation/comment
+ * - (c) : Copyright information
+ * - COMT: Structured comment chunks
+ * <p>
+ * Structure: FORM header + chunk type + chunks
+ */
 public class AIFFDetectionStrategy extends TagDetectionStrategy {
 
     @Override

@@ -8,6 +8,22 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Detection Strategy for Lyrics3 tags (versions 1 and 2)
+ * <p>
+ * Lyrics3 tags are located at the end of files, before ID3v1 tags.
+ * <p>
+ * Lyrics3v1:
+ * - Start: "LYRICSBEGIN"
+ * - Lyrics content (variable length)
+ * - End: "LYRICSEND"
+ * <p>
+ * Lyrics3v2:
+ * - Start: "LYRICSBEGIN"
+ * - Field content with size information
+ * - Size indication (6 digits)
+ * - End: "LYRICS200"
+ */
 public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
 
     @Override
@@ -33,7 +49,7 @@ public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
 
         String endTag = new String(endBuffer, endBuffer.length - 9, 9);
         if (endTag.equals("LYRICS200")) {
-            // Lyrics3v2: Check SizeIndication and Start-Signature
+            // Lyrics3v2: Check size indication and start signature
             if (endBuffer.length < 15) {
                 return tags;
             }
@@ -50,10 +66,10 @@ public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
                     }
                 }
             } catch (NumberFormatException e) {
-                Log.debug("Invalid Lyrics3v2-SizeIndication: {}", sizeStr);
+                Log.debug("Invalid Lyrics3v2 size indication: {}", sizeStr);
             }
         } else if (endTag.equals("LYRICSEND")) {
-            // Lyrics3v1: Search "LYRICSBEGIN"
+            // Lyrics3v1: Search for "LYRICSBEGIN"
             long position = file.length() - 9 - 11;
             if (position >= 0) {
                 file.seek(position);

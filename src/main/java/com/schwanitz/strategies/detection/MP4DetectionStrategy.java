@@ -9,6 +9,19 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Detection Strategy for MP4 container metadata
+ * <p>
+ * MP4 files use atom-based structure with metadata in:
+ * moov -> udta -> meta -> ilst
+ * <p>
+ * Key atoms:
+ * - ftyp: File type identifier (at file start)
+ * - moov: Movie atom containing metadata
+ * - udta: User data atom
+ * - meta: Metadata atom
+ * - ilst: Item list atom (contains actual metadata)
+ */
 public class MP4DetectionStrategy extends TagDetectionStrategy {
 
     @Override

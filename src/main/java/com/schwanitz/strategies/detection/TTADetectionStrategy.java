@@ -11,38 +11,26 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Detection Strategy für TrueAudio (.tta) Dateien
- *
- * TrueAudio ist ein verlustfreier Audio-Codec mit eigener Container-Struktur.
- *
- * TTA Header Struktur:
- * - Signature: "TTA1" (4 bytes) oder "TTA2" (4 bytes)
+ * Detection Strategy for TrueAudio (.tta) files
+ * <p>
+ * TrueAudio is a lossless audio codec with its own container structure.
+ * Header Structure:
+ * - Signature: "TTA1" (4 bytes) or "TTA2" (4 bytes)
  * - Audio Format: 16-bit Integer (2 bytes)
  * - Channels: 16-bit Integer (2 bytes)
  * - Bits Per Sample: 16-bit Integer (2 bytes)
  * - Sample Rate: 32-bit Integer (4 bytes)
- * - Data Length: 32-bit Integer (4 bytes) - Anzahl Samples
+ * - Data Length: 32-bit Integer (4 bytes)
  * - CRC32: 32-bit Integer (4 bytes)
- *
- * TTA Metadaten:
- * - ID3v2 Tags am Anfang der Datei (vor TTA Header)
- * - ID3v1 Tags am Ende der Datei
- * - APE Tags am Ende der Datei
- * - Native TTA Metadata (selten verwendet)
- *
- * TTA Format Versionen:
- * - TTA1: Original Format
- * - TTA2: Erweiterte Version (selten)
+ * <p>
+ * TTA files typically use ID3v2/ID3v1/APE tags for metadata,
+ * with rare native TTA metadata chunks.
  */
 public class TTADetectionStrategy extends TagDetectionStrategy {
 
-    // TTA Signatures
     private static final byte[] TTA1_SIGNATURE = {'T', 'T', 'A', '1'};
     private static final byte[] TTA2_SIGNATURE = {'T', 'T', 'A', '2'};
-
-    // TTA Header Size
-    private static final int TTA_HEADER_SIZE = 22; // TTA1 Header
-    private static final int TTA2_HEADER_SIZE = 22; // TTA2 Header (gleich)
+    private static final int TTA_HEADER_SIZE = 22;
 
     @Override
     public List<TagFormat> getSupportedFormats() {
@@ -51,7 +39,6 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
 
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
-        // TTA kann ID3v2 Tags am Anfang haben, daher müssen wir flexibel suchen
         return findTTASignature(startBuffer) != -1;
     }
 
@@ -67,7 +54,6 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
         Log.debug("Detecting TTA metadata in file: {}", filePath);
 
         try {
-            // TTA Header Position finden
             long ttaHeaderOffset = findTTAHeaderOffset(file);
 
             if (ttaHeaderOffset == -1) {
@@ -77,29 +63,19 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
 
             Log.debug("Found TTA header at offset: {}", ttaHeaderOffset);
 
-            // TTA Header analysieren
             TTAHeader header = parseTTAHeader(file, ttaHeaderOffset);
             if (header == null) {
                 Log.debug("Failed to parse TTA header");
                 return tags;
             }
 
-            Log.debug("TTA Header: version={}, format={}, channels={}, bps={}, sampleRate={}, dataLength={}",
-                    header.version, header.audioFormat, header.channels,
-                    header.bitsPerSample, header.sampleRate, header.dataLength);
+            Log.debug("TTA Header: version={}, channels={}, sampleRate={}",
+                    header.version, header.channels, header.sampleRate);
 
-            // Native TTA Metadata suchen (nach Audio-Daten)
+            // Search for native TTA metadata (rare)
             long audioDataEnd = calculateAudioDataEnd(file, header, ttaHeaderOffset);
             List<TagInfo> nativeMetadata = findNativeTTAMetadata(file, audioDataEnd);
             tags.addAll(nativeMetadata);
-
-            // ID3v1/APE Tags am Ende suchen (falls nicht schon von anderen Strategien gefunden)
-            List<TagInfo> endTags = findEndMetadata(file);
-            tags.addAll(endTags);
-
-            if (tags.isEmpty()) {
-                Log.debug("No native TTA metadata found, relying on ID3/APE detection from other strategies");
-            }
 
         } catch (IOException e) {
             Log.error("Error detecting TTA metadata in {}: {}", filePath, e.getMessage());
@@ -110,7 +86,7 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Sucht TTA Signature im Buffer
+     * Search for TTA signature in buffer
      */
     private int findTTASignature(byte[] buffer) {
         for (int i = 0; i <= buffer.length - 4; i++) {
@@ -123,15 +99,12 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Findet TTA Header Offset in der Datei
+     * Find TTA header offset in file
      */
     private long findTTAHeaderOffset(RandomAccessFile file) throws IOException {
-        // TTA Header kann nach ID3v2 Tags stehen
         long currentPos = 0;
         long fileLength = file.length();
-
-        // Suche in den ersten 64KB der Datei
-        long searchLimit = Math.min(fileLength, 65536);
+        long searchLimit = Math.min(fileLength, 65536); // Search first 64KB
 
         while (currentPos + 4 <= searchLimit) {
             file.seek(currentPos);
@@ -155,12 +128,11 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Parst TTA Header
+     * Parse TTA header structure
      */
     private TTAHeader parseTTAHeader(RandomAccessFile file, long offset) throws IOException {
         file.seek(offset);
 
-        // Signature (4 bytes)
         byte[] signature = new byte[4];
         file.read(signature);
 
@@ -173,88 +145,51 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
             return null;
         }
 
-        // Audio Format (2 bytes, Little-Endian)
         int audioFormat = readLittleEndianShort(file);
-
-        // Channels (2 bytes, Little-Endian)
         int channels = readLittleEndianShort(file);
-
-        // Bits Per Sample (2 bytes, Little-Endian)
         int bitsPerSample = readLittleEndianShort(file);
-
-        // Sample Rate (4 bytes, Little-Endian)
         long sampleRate = readLittleEndianInt(file) & 0xFFFFFFFFL;
-
-        // Data Length - Anzahl Samples (4 bytes, Little-Endian)
         long dataLength = readLittleEndianInt(file) & 0xFFFFFFFFL;
-
-        // CRC32 (4 bytes, Little-Endian)
         long crc32 = readLittleEndianInt(file) & 0xFFFFFFFFL;
 
         // Sanity checks
-        if (audioFormat != 1 && audioFormat != 2) { // 1 = PCM, 2 = compressed
-            Log.warn("Unusual TTA audio format: {}", audioFormat);
-        }
-
         if (channels < 1 || channels > 32) {
             Log.warn("Invalid TTA channel count: {}", channels);
             return null;
         }
 
-        if (bitsPerSample < 8 || bitsPerSample > 32) {
-            Log.warn("Invalid TTA bits per sample: {}", bitsPerSample);
-            return null;
-        }
-
-        if (sampleRate < 8000 || sampleRate > 192000) {
-            Log.warn("Unusual TTA sample rate: {}", sampleRate);
-        }
-
-        return new TTAHeader(version, audioFormat, channels, bitsPerSample,
-                sampleRate, dataLength, crc32);
+        return new TTAHeader(version, audioFormat, channels, bitsPerSample, sampleRate, dataLength, crc32);
     }
 
     /**
-     * Berechnet das Ende der Audio-Daten
+     * Calculate approximate end of audio data
      */
     private long calculateAudioDataEnd(RandomAccessFile file, TTAHeader header, long headerOffset)
             throws IOException {
-        // TTA verwendet eine Seek Table nach dem Header
-        long seekTableOffset = headerOffset + TTA_HEADER_SIZE;
-
-        // Für präzise Berechnung müssten wir die Seek Table parsen
-        // Als Approximation nehmen wir 90% der Dateigröße
-        long approximateDataEnd = (long)(file.length() * 0.9);
-
-        return Math.max(seekTableOffset + 1000, approximateDataEnd);
+        // Use 90% of file size as approximation
+        return (long)(file.length() * 0.9);
     }
 
     /**
-     * Sucht native TTA Metadaten nach den Audio-Daten
+     * Search for native TTA metadata chunks (very rare)
      */
     private List<TagInfo> findNativeTTAMetadata(RandomAccessFile file, long searchStart)
             throws IOException {
         List<TagInfo> tags = new ArrayList<>();
 
-        // TTA hat selten native Metadaten, meist werden ID3/APE verwendet
-        // Hier könnten proprietäre TTA Metadata Chunks gesucht werden
-
         long currentPos = searchStart;
         long fileLength = file.length();
-
-        // Suche in den letzten 64KB vor Ende (vor ID3v1/APE)
         long searchEnd = Math.max(searchStart, fileLength - 65536);
 
         while (currentPos + 8 < searchEnd) {
             file.seek(currentPos);
 
-            // Hypothetische TTA Metadata Signature suchen
             byte[] chunkId = new byte[4];
             file.read(chunkId);
 
             String chunkString = new String(chunkId);
 
-            // Bekannte TTA Metadata Chunks (hypothetisch - nicht standardisiert)
+            // Hypothetical TTA metadata chunks
             if ("TTAM".equals(chunkString) || "META".equals(chunkString)) {
                 int chunkSize = readLittleEndianInt(file);
 
@@ -276,24 +211,7 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Sucht Metadaten am Dateiende (ID3v1, APE)
-     * Nur als Fallback, normalerweise von anderen Strategien abgedeckt
-     */
-    private List<TagInfo> findEndMetadata(RandomAccessFile file) throws IOException {
-        List<TagInfo> tags = new ArrayList<>();
-
-        long fileLength = file.length();
-
-        // Diese Methode ist primär als Dokumentation gedacht
-        // In der Praxis werden ID3v1 und APE von anderen Strategien erkannt
-
-        Log.debug("End metadata detection delegated to ID3V1DetectionStrategy and APEDetectionStrategy");
-
-        return tags;
-    }
-
-    /**
-     * Liest einen 16-bit Little-Endian Short
+     * Read 16-bit little-endian short
      */
     private int readLittleEndianShort(RandomAccessFile file) throws IOException {
         byte[] bytes = new byte[2];
@@ -302,7 +220,7 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Liest einen 32-bit Little-Endian Integer
+     * Read 32-bit little-endian integer
      */
     private int readLittleEndianInt(RandomAccessFile file) throws IOException {
         byte[] bytes = new byte[4];
@@ -314,7 +232,7 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * TTA Header Datenklasse
+     * TTA Header data class
      */
     private static class TTAHeader {
         final String version;

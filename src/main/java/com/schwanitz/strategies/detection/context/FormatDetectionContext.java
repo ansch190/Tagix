@@ -15,6 +15,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Central coordinator for tag format detection
+ * <p>
+ * Manages all detection strategies and orchestrates the detection process
+ * based on scan configuration (Full, Comfort, or Custom scan).
+ */
 public class FormatDetectionContext {
 
     private static final Logger Log = LoggerFactory.getLogger(FormatDetectionContext.class);
@@ -25,6 +31,9 @@ public class FormatDetectionContext {
         initializeStrategies();
     }
 
+    /**
+     * Initialize all available detection strategies
+     */
     private void initializeStrategies() {
         strategies.add(new ID3V1DetectionStrategy());
         strategies.add(new ID3V2DetectionStrategy());
@@ -42,6 +51,9 @@ public class FormatDetectionContext {
         strategies.add(new WavPackDetectionStrategy());
     }
 
+    /**
+     * Detect tags according to scan configuration
+     */
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath, String fileExtension,
                                     byte[] startBuffer, byte[] endBuffer, ScanConfiguration config) throws IOException {
 

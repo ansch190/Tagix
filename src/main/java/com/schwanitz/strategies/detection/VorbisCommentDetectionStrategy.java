@@ -9,6 +9,18 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Detection Strategy for Vorbis Comments in OGG and FLAC files
+ * <p>
+ * Vorbis Comments are used in:
+ * - OGG files: Embedded in Ogg pages with packet type 0x03
+ * - FLAC files: As metadata block type 4
+ * <p>
+ * Structure varies by container but content format is standardized:
+ * - Vendor string (length + UTF-8 text)
+ * - Comment count (32-bit little-endian)
+ * - Comments (length + UTF-8 key=value pairs)
+ */
 public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
 
     @Override
@@ -33,6 +45,7 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
         }
         String signature = new String(startBuffer, 0, 4);
         if (signature.equals("OggS")) {
+            // Parse OGG structure to find a Vorbis Comment packet
             long position = 0;
             int pageCount = 0;
             while (position + 27 < file.length() && pageCount < 10) {
@@ -60,6 +73,7 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
                 pageCount++;
             }
         } else if (signature.equals("fLaC")) {
+            // Parse FLAC structure to find Vorbis Comment block
             long position = 4;
             while (position < file.length()) {
                 file.seek(position);

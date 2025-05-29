@@ -8,6 +8,21 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Detection Strategy for APE tags (versions 1.0 and 2.0)
+ * <p>
+ * APE tags can be located at the beginning or end of files.
+ * Structure:
+ * - Preamble: "APETAGEX" (8 bytes)
+ * - Version: 4 bytes little-endian (1000 for v1.0, 2000 for v2.0)
+ * - Tag Size: 4 bytes little-endian (size without header)
+ * - Item Count: 4 bytes little-endian
+ * - Flags: 4 bytes little-endian
+ * - Reserved: 8 bytes
+ * <p>
+ * APE v2.0 can have both header and footer, while v1.0 only has footer.
+ * The flags indicate the presence of header/footer and read-only status.
+ */
 public class APEDetectionStrategy extends TagDetectionStrategy {
 
     private static final int APE_HEADER_SIZE = 32;
@@ -50,6 +65,9 @@ public class APEDetectionStrategy extends TagDetectionStrategy {
         return tags;
     }
 
+    /**
+     * Check for APE signature at specified buffer offset
+     */
     private boolean checkAPE(byte[] buffer, int offset) {
         if (offset + APE_HEADER_SIZE > buffer.length) {
             return false;
@@ -57,16 +75,25 @@ public class APEDetectionStrategy extends TagDetectionStrategy {
         return new String(buffer, offset, 8).equals("APETAGEX");
     }
 
+    /**
+     * Extract an APE version from buffer
+     */
     private int getAPEVersion(byte[] buffer, int offset) {
         return ((buffer[offset + 8] & 0xFF)) | ((buffer[offset + 9] & 0xFF) << 8) |
                 ((buffer[offset + 10] & 0xFF) << 16) | ((buffer[offset + 11] & 0xFF) << 24);
     }
 
+    /**
+     * Extract APE tag size from buffer
+     */
     private int getAPETagSize(byte[] buffer, int offset) {
         return ((buffer[offset + 12] & 0xFF)) | ((buffer[offset + 13] & 0xFF) << 8) |
                 ((buffer[offset + 14] & 0xFF) << 16) | ((buffer[offset + 15] & 0xFF) << 24);
     }
 
+    /**
+     * Determine TagFormat based on version number
+     */
     private TagFormat getAPEFormat(int version) {
         if (version == 1000) {
             return TagFormat.APEV1;

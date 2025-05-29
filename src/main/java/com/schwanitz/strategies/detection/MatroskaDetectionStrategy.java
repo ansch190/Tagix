@@ -6,6 +6,7 @@ import com.schwanitz.tagging.TagInfo;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -13,18 +14,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Detection Strategy für Matroska/WebM Container
- *
- * Matroska verwendet EBML (Extensible Binary Meta Language) als Container-Format.
- * WebM ist ein Subset von Matroska speziell für Web-Video.
- *
- * EBML Struktur:
+ * Detection Strategy for Matroska/WebM Container
+ * <p>
+ * Matroska uses EBML (Extensible Binary Meta Language) as container format.
+ * WebM is a subset of Matroska specifically for web video.
+ * <p>
+ * EBML Structure:
  * - EBML Header: 0x1A45DFA3 (4 bytes)
- * - DocType: "matroska" oder "webm"
+ * - DocType: "matroska" or "webm"
  * - Segment: 0x18538067 (4 bytes)
- * - Tags Element: 0x1254C367 (4 bytes) - enthält Metadaten
- *
- * Wichtige Element IDs:
+ * - Tags Element: 0x1254C367 (4 bytes) - contains metadata
+ * <p>
+ * Important Element IDs:
  * - EBML: 0x1A45DFA3
  * - Segment: 0x18538067
  * - Info: 0x1549A966
@@ -71,7 +72,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
             return false;
         }
 
-        // EBML Header prüfen: 0x1A45DFA3
+        // Check EBML Header: 0x1A45DFA3
         return Arrays.equals(Arrays.copyOfRange(startBuffer, 0, 4), EBML_HEADER);
     }
 
@@ -89,7 +90,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
         try {
             file.seek(0);
 
-            // EBML Header validieren
+            // Validate EBML Header
             byte[] ebmlHeaderId = new byte[4];
             file.read(ebmlHeaderId);
 
@@ -98,7 +99,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
                 return tags;
             }
 
-            // EBML Header Size lesen (Variable Length Integer)
+            // Read EBML Header Size (Variable Length Integer)
             long ebmlHeaderSize = readVLI(file);
             if (ebmlHeaderSize <= 0 || ebmlHeaderSize > 1000) {
                 Log.warn("Invalid EBML header size: {}", ebmlHeaderSize);
@@ -107,7 +108,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
 
             Log.debug("EBML Header size: {} bytes", ebmlHeaderSize);
 
-            // DocType aus EBML Header extrahieren
+            // Extract DocType from EBML Header
             String docType = extractDocType(file, ebmlHeaderSize);
             TagFormat tagFormat = determineTagFormat(docType);
 
@@ -118,19 +119,19 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
 
             Log.debug("Detected container type: {} (DocType: {})", tagFormat.getFormatName(), docType);
 
-            // Segment suchen
+            // Find Segment
             long segmentOffset = findSegment(file);
             if (segmentOffset == -1) {
                 Log.debug("No Segment element found");
                 return tags;
             }
 
-            // Tags Element im Segment suchen
+            // Find Tags Element in Segment
             List<Long> tagOffsets = findTagsElements(file, segmentOffset);
 
             for (Long tagOffset : tagOffsets) {
-                // Tags Element Size bestimmen
-                file.seek(tagOffset + 4); // Nach Tags ID
+                // Determine Tags Element Size
+                file.seek(tagOffset + 4); // After Tags ID
                 long tagsSize = readVLI(file);
                 long totalTagsSize = 4 + getVLISize(tagsSize) + tagsSize;
 
@@ -152,7 +153,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Extrahiert den DocType aus dem EBML Header
+     * Extract DocType from EBML Header
      */
     private String extractDocType(RandomAccessFile file, long headerSize) throws IOException {
         long headerStart = file.getFilePointer();
@@ -160,10 +161,10 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
 
         while (file.getFilePointer() < headerEnd) {
             try {
-                // Element ID lesen (VLI)
+                // Read Element ID (VLI)
                 long elementId = readVLI(file);
 
-                // Element Size lesen (VLI)
+                // Read Element Size (VLI)
                 long elementSize = readVLI(file);
 
                 if (elementSize < 0 || elementSize > headerEnd - file.getFilePointer()) {
@@ -174,9 +175,9 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
                 if (elementId == 0x4282) {
                     byte[] docTypeBytes = new byte[(int)elementSize];
                     file.read(docTypeBytes);
-                    return new String(docTypeBytes, "UTF-8").trim();
+                    return new String(docTypeBytes, StandardCharsets.UTF_8).trim();
                 } else {
-                    // Element überspringen
+                    // Skip element
                     file.skipBytes((int)elementSize);
                 }
 
@@ -190,24 +191,21 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Bestimmt das TagFormat basierend auf dem DocType
+     * Determine TagFormat based on DocType
      */
     private TagFormat determineTagFormat(String docType) {
-        switch (docType.toLowerCase()) {
-            case DOCTYPE_MATROSKA:
-                return TagFormat.MATROSKA_TAGS;
-            case DOCTYPE_WEBM:
-                return TagFormat.WEBM_TAGS;
-            default:
-                return null;
-        }
+        return switch (docType.toLowerCase()) {
+            case DOCTYPE_MATROSKA -> TagFormat.MATROSKA_TAGS;
+            case DOCTYPE_WEBM -> TagFormat.WEBM_TAGS;
+            default -> null;
+        };
     }
 
     /**
-     * Sucht das Segment Element nach dem EBML Header
+     * Find Segment Element after EBML Header
      */
     private long findSegment(RandomAccessFile file) throws IOException {
-        // Nach EBML Header suchen wir das Segment
+        // After EBML Header, we search for the Segment
         long currentPos = file.getFilePointer();
         long fileLength = file.length();
 
@@ -232,13 +230,13 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Sucht Tags Elemente im Segment
+     * Find Tags Elements in Segment
      */
     private List<Long> findTagsElements(RandomAccessFile file, long segmentOffset) throws IOException {
         List<Long> tagOffsets = new ArrayList<>();
 
         try {
-            file.seek(segmentOffset + 4); // Nach Segment ID
+            file.seek(segmentOffset + 4); // After Segment ID
             long segmentSize = readVLI(file);
 
             if (segmentSize <= 0) {
@@ -249,12 +247,12 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
             long segmentEnd = segmentDataStart + segmentSize;
             long currentPos = segmentDataStart;
 
-            // Segment durchsuchen (nur erste Level-1 Elemente)
+            // Search Segment (only first level-1 elements)
             while (currentPos + 8 < segmentEnd) {
                 file.seek(currentPos);
 
                 try {
-                    // Element ID lesen
+                    // Read Element ID
                     long currentElementId = readVLI(file);
                     long elementSize = readVLI(file);
 
@@ -262,14 +260,14 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
                         break;
                     }
 
-                    // Tags Element ID: 0x1254C367 (als long)
+                    // Tags Element ID: 0x1254C367 (as long)
                     if (currentElementId == 0x1254C367L) {
                         tagOffsets.add(currentPos);
                         Log.debug("Found Tags element at offset: {}, size: {} bytes",
                                 currentPos, elementSize);
                     }
 
-                    // Zum nächsten Element springen
+                    // Jump to next element
                     currentPos = file.getFilePointer() + elementSize;
 
                 } catch (IOException e) {
@@ -286,7 +284,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Liest eine EBML Variable Length Integer
+     * Read EBML Variable Length Integer
      */
     private long readVLI(RandomAccessFile file) throws IOException {
         int firstByte = file.read();
@@ -294,7 +292,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
             throw new IOException("Unexpected end of file while reading VLI");
         }
 
-        // Anzahl der Bytes bestimmen basierend auf führenden Nullen
+        // Determine the number of bytes based on leading zeros
         int length = 0;
         int mask = 0x80;
 
@@ -310,7 +308,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
             throw new IOException("Invalid VLI: no length marker found");
         }
 
-        // Wert zusammensetzen
+        // Compose value
         long value = firstByte & (0xFF >> length);
 
         for (int i = 1; i < length; i++) {
@@ -325,7 +323,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Bestimmt die Anzahl Bytes einer VLI basierend auf ihrem Wert
+     * Determine the byte count of VLI based on its value
      */
     private int getVLISize(long value) {
         if (value < 0x7F) return 1;
@@ -339,7 +337,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Konvertiert bytes zu Hex-String für Debugging
+     * Convert bytes to hex string for debugging
      */
     private String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();

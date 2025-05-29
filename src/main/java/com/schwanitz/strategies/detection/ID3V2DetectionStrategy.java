@@ -9,6 +9,21 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Detection Strategy for ID3v2 tags (versions 2.2, 2.3, and 2.4)
+ * <p>
+ * ID3v2 tags are located at the beginning of files and have the structure:
+ * - Header: "ID3" (3 bytes)
+ * - Major Version: 1 byte (2, 3, or 4)
+ * - Minor Version: 1 byte (always 0)
+ * - Flags: 1 byte
+ * - Size: 4 bytes (synchsafe integer for v2.3/2.4, normal integer for v2.2)
+ * <p>
+ * Version differences:
+ * - ID3v2.2: 3-character frame IDs, 24-bit frame sizes
+ * - ID3v2.3: 4-character frame IDs, 32-bit frame sizes
+ * - ID3v2.4: 4-character frame IDs, synchsafe frame sizes, UTF-8 support
+ */
 public class ID3V2DetectionStrategy extends TagDetectionStrategy {
 
     @Override

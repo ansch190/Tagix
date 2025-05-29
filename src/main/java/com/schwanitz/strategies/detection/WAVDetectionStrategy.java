@@ -8,6 +8,18 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Detection Strategy for WAV file metadata
+ * <p>
+ * Supports multiple metadata formats in WAV files:
+ * - RIFF INFO: Standard WAV metadata in LIST/INFO chunk
+ * - BWF (Broadcast Wave Format): Professional audio metadata in bext chunk
+ *   - BWF v0: Basic broadcast metadata
+ *   - BWF v1: Extended with coding history
+ *   - BWF v2: Loudness information added
+ * <p>
+ * WAV structure: RIFF header + chunks (fmt, data, bext, LIST, etc.)
+ */
 public class WAVDetectionStrategy extends TagDetectionStrategy {
 
     @Override
@@ -30,7 +42,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             return tags;
         }
 
-        long position = 12; // For RIFF-Header
+        long position = 12; // Skip RIFF header
         while (position + 8 < file.length()) {
             file.seek(position);
             byte[] chunkHeader = new byte[8];
@@ -53,6 +65,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                 }
             } else if (chunkType.equals("bext")) {
                 if (chunkSize >= 602) {
+                    // Determine BWF version from version field
                     file.seek(position + 8 + 602);
                     byte[] versionBuffer = new byte[2];
                     file.read(versionBuffer);
@@ -81,7 +94,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
 
             position += 8 + chunkSize;
             if (chunkSize % 2 != 0) {
-                position++; // Padding-Byte
+                position++; // Padding byte for even alignment
             }
         }
 
