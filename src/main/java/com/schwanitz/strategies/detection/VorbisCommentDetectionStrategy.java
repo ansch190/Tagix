@@ -32,7 +32,7 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
     private static final int MAX_COMMENT_COUNT = 10000;
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.VORBIS_COMMENT);
     }
 

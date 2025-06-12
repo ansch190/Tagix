@@ -28,7 +28,7 @@ public class APEDetectionStrategy extends TagDetectionStrategy {
     private static final int APE_HEADER_SIZE = 32;
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.APEV1, TagFormat.APEV2);
     }
 

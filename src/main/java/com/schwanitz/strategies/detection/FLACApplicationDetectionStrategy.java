@@ -37,7 +37,7 @@ public class FLACApplicationDetectionStrategy extends TagDetectionStrategy {
     }
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.FLAC_APPLICATION);
     }
 

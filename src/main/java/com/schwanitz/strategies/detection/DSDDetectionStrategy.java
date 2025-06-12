@@ -40,7 +40,7 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
     private static final byte[] DFF_ID3_CHUNK = {'I', 'D', '3', ' '};
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.DSF_METADATA, TagFormat.DFF_METADATA);
     }
 

@@ -29,7 +29,7 @@ public class MP4DetectionStrategy extends TagDetectionStrategy {
     private static final long SEARCH_LIMIT = 64 * 1024; // 64 KB
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.MP4);
     }
 

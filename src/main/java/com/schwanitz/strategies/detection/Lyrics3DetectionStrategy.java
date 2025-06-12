@@ -27,7 +27,7 @@ import java.util.List;
 public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.LYRICS3V1, TagFormat.LYRICS3V2);
     }
 

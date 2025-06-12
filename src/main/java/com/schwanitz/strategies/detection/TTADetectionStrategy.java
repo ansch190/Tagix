@@ -33,7 +33,7 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
     private static final int TTA_HEADER_SIZE = 22;
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.TTA_METADATA);
     }
 

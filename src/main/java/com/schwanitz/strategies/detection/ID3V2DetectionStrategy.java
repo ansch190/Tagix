@@ -27,7 +27,7 @@ import java.util.List;
 public class ID3V2DetectionStrategy extends TagDetectionStrategy {
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.ID3V2_2, TagFormat.ID3V2_3, TagFormat.ID3V2_4);
     }
 

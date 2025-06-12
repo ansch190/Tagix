@@ -65,7 +65,7 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
     };
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.ASF_CONTENT_DESC, TagFormat.ASF_EXT_CONTENT_DESC);
     }
 

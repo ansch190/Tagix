@@ -50,7 +50,7 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
     }
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.WAVPACK_NATIVE);
     }
 

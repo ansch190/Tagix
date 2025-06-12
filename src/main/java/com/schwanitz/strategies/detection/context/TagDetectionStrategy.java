@@ -23,7 +23,7 @@ public abstract class TagDetectionStrategy {
     /**
      * Returns the tag formats supported by this detection strategy
      */
-    public abstract List<TagFormat> getSupportedFormats();
+    public abstract List<TagFormat> getSupportedTagFormats();
 
     /**
      * Fast signature-based detection using file buffers

@@ -62,7 +62,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
     }
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.MATROSKA_TAGS, TagFormat.WEBM_TAGS);
     }
 

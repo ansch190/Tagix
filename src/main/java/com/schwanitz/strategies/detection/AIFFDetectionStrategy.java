@@ -25,7 +25,7 @@ import java.util.List;
 public class AIFFDetectionStrategy extends TagDetectionStrategy {
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.AIFF_METADATA);
     }
 

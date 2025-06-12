@@ -30,7 +30,7 @@ public class ID3V1DetectionStrategy extends TagDetectionStrategy {
     private static final int ID3V1_SIZE = 128;
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.ID3V1, TagFormat.ID3V1_1);
     }
 

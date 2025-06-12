@@ -42,7 +42,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
     private static final int BWF_VERSION_OFFSET = 602;
 
     @Override
-    public List<TagFormat> getSupportedFormats() {
+    public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.BWF_V0, TagFormat.BWF_V1, TagFormat.BWF_V2, TagFormat.RIFF_INFO);
     }
 
