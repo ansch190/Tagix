@@ -11,13 +11,13 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
- * FormatDetectionContext übernimmt jetzt die komplette Detection-Logik
+ * FormatDetectionContext mit optimierter Strategy-Ausführung
  * <p>
- * Verwaltet Datei-I/O, Buffer-Management und Strategy-Koordination
+ * Jede Strategy wird nur einmal pro Datei ausgeführt, auch wenn mehrere
+ * ihrer unterstützten Formate angefragt werden.
  */
 public class FormatDetectionContext {
 
@@ -41,19 +41,16 @@ public class FormatDetectionContext {
     private final WavPackDetectionStrategy wavPackStrategy = new WavPackDetectionStrategy();
 
     /**
-     * Haupteingang: Nur noch filePath und config benötigt
+     * Haupteingang
      */
     public List<TagInfo> detectTags(String filePath, ScanConfiguration config) throws IOException {
-        // File validation
         File file = new File(filePath);
         if (!file.exists() || !file.canRead()) {
             throw new IOException("Datei existiert nicht oder ist nicht lesbar: " + filePath);
         }
 
-        // Extract file extension
         String extension = getFileExtension(filePath);
 
-        // Determine formats to check based on configuration
         List<TagFormat> formatsToCheck = switch (config.getMode()) {
             case FULL_SCAN -> FormatPriorityManager.getFullScanPriority();
             case COMFORT_SCAN -> FormatPriorityManager.getComfortScanPriority(extension);
@@ -65,10 +62,9 @@ public class FormatDetectionContext {
 
         // File I/O and detection
         try (RandomAccessFile raf = new RandomAccessFile(filePath, "r")) {
-            // Read buffers for start and end of file
             FileBuffers buffers = readFileBuffers(raf);
 
-            // Perform tag detection
+            // Perform optimized tag detection
             List<TagInfo> detectedTags = performDetection(formatsToCheck, raf, filePath, extension, buffers);
 
             Log.info("Detected {} tags in {} using {}", detectedTags.size(), filePath, config.getMode());
@@ -78,6 +74,87 @@ public class FormatDetectionContext {
             Log.error("Fehler beim Lesen der Datei {}: {}", filePath, e.getMessage());
             throw e;
         }
+    }
+
+    /**
+     * Optimierte Tag-Detection: Jede Strategy wird nur einmal aufgerufen
+     */
+    private List<TagInfo> performDetection(List<TagFormat> formatsToCheck, RandomAccessFile raf,
+                                                    String filePath, String extension, FileBuffers buffers) throws IOException {
+
+        List<TagInfo> detectedTags = new ArrayList<>();
+        Set<TagDetectionStrategy> executedStrategies = new HashSet<>();
+
+        Log.debug("Processing {} formats, optimizing strategy calls", formatsToCheck.size());
+
+        for (TagFormat format : formatsToCheck) {
+            try {
+                List<TagInfo> tags = detectFormat(format, raf, filePath, buffers, executedStrategies);
+                detectedTags.addAll(tags);
+            } catch (Exception e) {
+                Log.warn("Error detecting format {} in file {}: {}", format, filePath, e.getMessage());
+            }
+        }
+
+        Log.debug("Found {} tags", detectedTags.size());
+
+        return detectedTags;
+    }
+
+    /**
+     * Optimierte Format-Detection mit Strategy-Tracking
+     */
+    private List<TagInfo> detectFormat(TagFormat format, RandomAccessFile file, String filePath,
+                                                FileBuffers buffers, Set<TagDetectionStrategy> executedStrategies) throws IOException {
+
+        return switch (format) {
+            case ID3V2_3, ID3V2_4, ID3V2_2 ->
+                    detectWithStrategy(id3v2Strategy, format, file, filePath, buffers, executedStrategies);
+
+            case ID3V1, ID3V1_1 ->
+                    detectWithStrategy(id3v1Strategy, format, file, filePath, buffers, executedStrategies);
+
+            case VORBIS_COMMENT ->
+                    detectWithStrategy(vorbisStrategy, null, file, filePath, buffers, executedStrategies);
+
+            case MP4 ->
+                    detectWithStrategy(mp4Strategy, null, file, filePath, buffers, executedStrategies);
+
+            case APEV2, APEV1 ->
+                    detectWithStrategy(apeStrategy, format, file, filePath, buffers, executedStrategies);
+
+            case ASF_CONTENT_DESC, ASF_EXT_CONTENT_DESC ->
+                    detectWithStrategy(asfStrategy, format, file, filePath, buffers, executedStrategies);
+
+            case RIFF_INFO, BWF_V2, BWF_V1, BWF_V0 ->
+                    detectWithStrategy(wavStrategy, format, file, filePath, buffers, executedStrategies);
+
+            case FLAC_APPLICATION ->
+                    detectWithStrategy(flacAppStrategy, null, file, filePath, buffers, executedStrategies);
+
+            case MATROSKA_TAGS, WEBM_TAGS ->
+                    detectWithStrategy(matroskaStrategy, format, file, filePath, buffers, executedStrategies);
+
+            case DSF_METADATA, DFF_METADATA ->
+                    detectWithStrategy(dsdStrategy, format, file, filePath, buffers, executedStrategies);
+
+            case TTA_METADATA ->
+                    detectWithStrategy(ttaStrategy, null, file, filePath, buffers, executedStrategies);
+
+            case WAVPACK_NATIVE ->
+                    detectWithStrategy(wavPackStrategy, null, file, filePath, buffers, executedStrategies);
+
+            case AIFF_METADATA ->
+                    detectWithStrategy(aiffStrategy, null, file, filePath, buffers, executedStrategies);
+
+            case LYRICS3V2, LYRICS3V1 ->
+                    detectWithStrategy(lyrics3Strategy, format, file, filePath, buffers, executedStrategies);
+
+            default -> {
+                Log.warn("Unknown format requested: {}", format);
+                yield List.of();
+            }
+        };
     }
 
     /**
@@ -108,107 +185,6 @@ public class FormatDetectionContext {
     }
 
     /**
-     * Führt die eigentliche Tag-Detection durch
-     */
-    private List<TagInfo> performDetection(List<TagFormat> formatsToCheck, RandomAccessFile raf,
-                                           String filePath, String extension, FileBuffers buffers) throws IOException {
-        List<TagInfo> detectedTags = new ArrayList<>();
-
-        // Direct format-to-strategy mapping - only check relevant strategies
-        for (TagFormat format : formatsToCheck) {
-            try {
-                List<TagInfo> tags = detectFormatDirect(format, raf, filePath, buffers);
-                detectedTags.addAll(tags);
-            } catch (Exception e) {
-                Log.warn("Error detecting format {} in file {}: {}", format, filePath, e.getMessage());
-            }
-        }
-
-        Log.debug("Recognized {} Tags", detectedTags.size());
-        return detectedTags;
-    }
-
-    /**
-     * Direct format detection - cleaner switch without repetitive yield blocks
-     */
-    private List<TagInfo> detectFormatDirect(TagFormat format, RandomAccessFile file, String filePath,
-                                             FileBuffers buffers) throws IOException {
-
-        return switch (format) {
-            case ID3V2_3, ID3V2_4, ID3V2_2 ->
-                    detectWithStrategy(id3v2Strategy, format, file, filePath, buffers);
-
-            case ID3V1, ID3V1_1 ->
-                    detectWithStrategy(id3v1Strategy, format, file, filePath, buffers);
-
-            case VORBIS_COMMENT ->
-                    detectWithStrategy(vorbisStrategy, null, file, filePath, buffers);
-
-            case MP4 ->
-                    detectWithStrategy(mp4Strategy, null, file, filePath, buffers);
-
-            case APEV2, APEV1 ->
-                    detectWithStrategy(apeStrategy, format, file, filePath, buffers);
-
-            case ASF_CONTENT_DESC, ASF_EXT_CONTENT_DESC ->
-                    detectWithStrategy(asfStrategy, format, file, filePath, buffers);
-
-            case RIFF_INFO, BWF_V2, BWF_V1, BWF_V0 ->
-                    detectWithStrategy(wavStrategy, format, file, filePath, buffers);
-
-            case FLAC_APPLICATION ->
-                    detectWithStrategy(flacAppStrategy, null, file, filePath, buffers);
-
-            case MATROSKA_TAGS, WEBM_TAGS ->
-                    detectWithStrategy(matroskaStrategy, format, file, filePath, buffers);
-
-            case DSF_METADATA, DFF_METADATA ->
-                    detectWithStrategy(dsdStrategy, format, file, filePath, buffers);
-
-            case TTA_METADATA ->
-                    detectWithStrategy(ttaStrategy, null, file, filePath, buffers);
-
-            case WAVPACK_NATIVE ->
-                    detectWithStrategy(wavPackStrategy, null, file, filePath, buffers);
-
-            case AIFF_METADATA ->
-                    detectWithStrategy(aiffStrategy, null, file, filePath, buffers);
-
-            case LYRICS3V2, LYRICS3V1 ->
-                    detectWithStrategy(lyrics3Strategy, format, file, filePath, buffers);
-
-            default -> {
-                Log.warn("Unknown format requested: {}", format);
-                yield List.of();
-            }
-        };
-    }
-
-    /**
-     * Unified helper method for all detection strategies
-     * @param strategy The detection strategy to use
-     * @param requestedFormat The specific format to filter for (null = return all)
-     */
-    private List<TagInfo> detectWithStrategy(TagDetectionStrategy strategy, TagFormat requestedFormat,
-                                             RandomAccessFile file, String filePath,
-                                             FileBuffers buffers) throws IOException {
-        if (!strategy.canDetect(buffers.startBuffer, buffers.endBuffer)) {
-            return List.of();
-        }
-
-        List<TagInfo> allTags = strategy.detectTags(file, filePath, buffers.startBuffer, buffers.endBuffer);
-
-        // Filter only if specific format requested, otherwise return all
-        if (requestedFormat != null) {
-            return allTags.stream()
-                    .filter(tag -> tag.getFormat() == requestedFormat)
-                    .toList();
-        }
-
-        return allTags;
-    }
-
-    /**
      * Hilfsmethode: Dateiendung extrahieren
      */
     private String getFileExtension(String filePath) {
@@ -220,4 +196,44 @@ public class FormatDetectionContext {
      * Data class für File-Buffer
      */
     private record FileBuffers(byte[] startBuffer, byte[] endBuffer) {}
+
+    /**
+     * Führt Strategy nur einmal aus und filtert optional nach Format
+     */
+    private List<TagInfo> detectWithStrategy(TagDetectionStrategy strategy, TagFormat requestedFormat,
+                                             RandomAccessFile file, String filePath, FileBuffers buffers,
+                                             Set<TagDetectionStrategy> executedStrategies) throws IOException {
+
+        // Prüfe, ob Strategy bereits ausgeführt wurde
+        if (!executedStrategies.add(strategy)) {
+            // Strategy bereits ausgeführt - keine erneute Ausführung
+            Log.debug("Strategy {} already executed, skipping", strategy.getClass().getSimpleName());
+            return List.of();
+        }
+
+        // Strategy noch nicht ausgeführt - jetzt ausführen
+        Log.debug("Executing strategy: {}", strategy.getClass().getSimpleName());
+
+        if (!strategy.canDetect(buffers.startBuffer, buffers.endBuffer)) {
+            Log.debug("Strategy {} cannot handle this file type", strategy.getClass().getSimpleName());
+            return List.of();
+        }
+
+        List<TagInfo> allTags = strategy.detectTags(file, filePath, buffers.startBuffer, buffers.endBuffer);
+
+        // Filtere nach requestedFormat, falls angegeben, sonst alle Tags zurückgeben
+        if (requestedFormat != null) {
+            List<TagInfo> filteredTags = allTags.stream()
+                    .filter(tag -> tag.getFormat() == requestedFormat)
+                    .toList();
+
+            Log.debug("Strategy {} found {} total tags, {} matching format {}",
+                    strategy.getClass().getSimpleName(), allTags.size(), filteredTags.size(), requestedFormat);
+
+            return filteredTags;
+        } else {
+            Log.debug("Strategy {} found {} tags", strategy.getClass().getSimpleName(), allTags.size());
+            return allTags;
+        }
+    }
 }
