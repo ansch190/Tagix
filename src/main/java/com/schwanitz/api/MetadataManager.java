@@ -47,7 +47,11 @@ public class MetadataManager {
     public List<Metadata> readFromFile(String filePath, ScanConfiguration config) throws IOException {
         Objects.requireNonNull(filePath, "filePath must not be null");
         Objects.requireNonNull(config, "config must not be null");
-        List<TagInfo> detectedTags = detector.fullScan(filePath);
+        List<TagInfo> detectedTags = switch (config.getMode()) {
+            case FULL_SCAN -> detector.fullScan(filePath);
+            case COMFORT_SCAN -> detector.comfortScan(filePath);
+            case CUSTOM_SCAN -> detector.customScan(filePath, config.getCustomFormats().toArray(new TagFormat[0]));
+        };
         return parseTags(filePath, detectedTags);
     }
 
