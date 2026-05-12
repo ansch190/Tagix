@@ -18,11 +18,15 @@ import java.util.List;
  * - Major Version: 1 byte (2, 3, or 4)
  * - Minor Version: 1 byte (always 0)
  * - Flags: 1 byte
- * - Size: 4 bytes (synchsafe integer for v2.3/2.4, normal integer for v2.2)
+ * - Size: 4 bytes (synchsafe integer in all versions)
  * <p>
- * Version differences:
- * - ID3v2.2: 3-character frame IDs, 24-bit frame sizes
- * - ID3v2.3: 4-character frame IDs, 32-bit frame sizes
+ * The tag size field is encoded as a synchsafe integer in ALL ID3v2 versions
+ * (2.2, 2.3, and 2.4), per the ID3v2 specification. Each byte only uses 7 bits,
+ * giving a maximum tag size of 256 MB.
+ * <p>
+ * Version differences apply to frame structure:
+ * - ID3v2.2: 3-character frame IDs, 24-bit plain frame sizes
+ * - ID3v2.3: 4-character frame IDs, 32-bit plain frame sizes
  * - ID3v2.4: 4-character frame IDs, synchsafe frame sizes, UTF-8 support
  */
 public class ID3V2DetectionStrategy extends TagDetectionStrategy {
@@ -54,30 +58,35 @@ public class ID3V2DetectionStrategy extends TagDetectionStrategy {
                 LOG.debug("Invalid Revision for ID3v2: {}", revision);
                 return tags;
             }
-            TagFormat format;
-            switch (majorVersion) {
-                case 2:
-                    format = TagFormat.ID3V2_2;
-                    int sizeV2 = ((startBuffer[6] & 0xFF) << 16) | ((startBuffer[7] & 0xFF) << 8) | (startBuffer[8] & 0xFF);
-                    tags.add(new TagInfo(format, 0, sizeV2 + ID3V2_HEADER_SIZE));
-                    break;
-                case 3:
-                    format = TagFormat.ID3V2_3;
-                    int sizeV3 = ((startBuffer[6] & SYNCHSAFE_MASK) << 21) | ((startBuffer[7] & SYNCHSAFE_MASK) << 14) |
-                            ((startBuffer[8] & SYNCHSAFE_MASK) << 7) | (startBuffer[9] & SYNCHSAFE_MASK);
-                    tags.add(new TagInfo(format, 0, sizeV3 + ID3V2_HEADER_SIZE));
-                    break;
-                case 4:
-                    format = TagFormat.ID3V2_4;
-                    int sizeV4 = ((startBuffer[6] & SYNCHSAFE_MASK) << 21) | ((startBuffer[7] & SYNCHSAFE_MASK) << 14) |
-                            ((startBuffer[8] & SYNCHSAFE_MASK) << 7) | (startBuffer[9] & SYNCHSAFE_MASK);
-                    tags.add(new TagInfo(format, 0, sizeV4 + ID3V2_HEADER_SIZE));
-                    break;
-                default:
+
+            int tagSize = decodeSynchsafeInt(startBuffer[6], startBuffer[7], startBuffer[8], startBuffer[9]);
+
+            TagFormat format = switch (majorVersion) {
+                case 2 -> TagFormat.ID3V2_2;
+                case 3 -> TagFormat.ID3V2_3;
+                case 4 -> TagFormat.ID3V2_4;
+                default -> {
                     LOG.debug("Unknown ID3v2-Version: {}", majorVersion);
-                    break;
+                    yield null;
+                }
+            };
+
+            if (format != null) {
+                tags.add(new TagInfo(format, 0, tagSize + ID3V2_HEADER_SIZE));
             }
         }
         return tags;
+    }
+
+    /**
+     * Decode a 4-byte synchsafe integer as used in ID3v2 tag headers.
+     * Each byte only uses 7 bits (MSB is always 0).
+     * Maximum value: 2^28 - 1 = 268435455 (256 MB - 1)
+     */
+    private int decodeSynchsafeInt(byte b0, byte b1, byte b2, byte b3) {
+        return ((b0 & SYNCHSAFE_MASK) << 21) |
+                ((b1 & SYNCHSAFE_MASK) << 14) |
+                ((b2 & SYNCHSAFE_MASK) << 7) |
+                (b3 & SYNCHSAFE_MASK);
     }
 }
