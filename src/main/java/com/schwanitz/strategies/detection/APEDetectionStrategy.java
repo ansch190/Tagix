@@ -5,6 +5,7 @@ import com.schwanitz.tagging.TagFormat;
 import com.schwanitz.tagging.TagInfo;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -72,7 +73,7 @@ public class APEDetectionStrategy extends TagDetectionStrategy {
         if (offset + APE_HEADER_SIZE > buffer.length) {
             return false;
         }
-        return new String(buffer, offset, 8).equals("APETAGEX");
+        return new String(buffer, offset, 8, StandardCharsets.US_ASCII).equals("APETAGEX");
     }
 
     /**

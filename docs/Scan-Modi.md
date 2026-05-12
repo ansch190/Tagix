@@ -24,14 +24,12 @@ Die Tagix-Bibliothek bietet drei verschiedene Scan-Modi für die Tag-Format-Erke
 ```java
 // Direkte Konfiguration
 ScanConfiguration config = ScanConfiguration.comfortScan();
-List<TagInfo> tags = TagFormatDetector.detectTagFormats("song.mp3", config);
+TagFormatDetector detector = new TagFormatDetector();
+List<TagInfo> tags = detector.comfortScan("song.mp3");
 
-// Convenience-Methode
-List<TagInfo> tags = TagFormatDetector.detectTagFormatsComfortScan("song.mp3");
-
-// MetadataManager
+// MetadataManager (Comfort Scan ist Standard)
 MetadataManager manager = new MetadataManager();
-manager.readFromFile("song.mp3"); // Standard = Comfort Scan
+List<Metadata> metadata = manager.readFromFile("song.mp3");
 ```
 
 **Prioritäten nach Dateiendung:**
@@ -63,14 +61,12 @@ manager.readFromFile("song.mp3"); // Standard = Comfort Scan
 ```java
 // Direkte Konfiguration
 ScanConfiguration config = ScanConfiguration.fullScan();
-List<TagInfo> tags = TagFormatDetector.detectTagFormats("song.mp3", config);
+TagFormatDetector detector = new TagFormatDetector();
+List<TagInfo> tags = detector.fullScan("song.mp3");
 
-// Convenience-Methode  
-List<TagInfo> tags = TagFormatDetector.detectTagFormatsFullScan("song.mp3");
-
-// MetadataManager
+// MetadataManager mit expliziter Konfiguration
 MetadataManager manager = new MetadataManager();
-manager.readFromFileFullScan("song.mp3");
+List<Metadata> metadata = manager.readFromFile("song.mp3", config);
 ```
 
 **Globale Prioritätsreihenfolge:**
@@ -102,19 +98,12 @@ ScanConfiguration config = ScanConfiguration.customScan(
     TagFormat.ID3V2_3, TagFormat.ID3V2_4, TagFormat.VORBIS_COMMENT
 );
 
-// Listen-Syntax
-List<TagFormat> formats = Arrays.asList(
-    TagFormat.ID3V2_4, TagFormat.MP4, TagFormat.APEV2
-);
-ScanConfiguration config = ScanConfiguration.customScan(formats);
-
-// Convenience-Methoden
-List<TagInfo> tags = TagFormatDetector.detectTagFormatsCustomScan(
-    "song.mp3", TagFormat.ID3V2_3, TagFormat.ID3V1
-);
+TagFormatDetector detector = new TagFormatDetector();
+List<TagInfo> tags = detector.customScan("song.mp3", TagFormat.ID3V2_3, TagFormat.ID3V1);
 
 // MetadataManager
-manager.readFromFileCustomScan("song.mp3", TagFormat.ID3V2_4, TagFormat.APEV2);
+MetadataManager manager = new MetadataManager();
+List<Metadata> metadata = manager.readFromFile("song.mp3", config);
 ```
 
 **Anwendungsbeispiele:**
@@ -146,11 +135,12 @@ List<String> filePaths = Arrays.asList("song1.mp3", "song2.flac", "song3.wav");
 ScanConfiguration config = ScanConfiguration.comfortScan();
 
 // TagFormatDetector
-Map<String, List<TagInfo>> results = TagFormatDetector.detectTagFormats(filePaths, config);
+TagFormatDetector detector = new TagFormatDetector();
+Map<String, List<TagInfo>> results = detector.comfortScan(filePaths);
 
 // MetadataManager  
 MetadataManager manager = new MetadataManager();
-Map<String, Integer> metadataCount = manager.readFromFiles(filePaths, config);
+Map<String, List<Metadata>> metadata = manager.readFromFiles(filePaths, config);
 ```
 
 ### Caching
@@ -158,12 +148,8 @@ Map<String, Integer> metadataCount = manager.readFromFiles(filePaths, config);
 Das Caching-System optimiert wiederholte Zugriffe:
 
 ```java
-// Cache-Statistiken
-int cacheSize = TagFormatDetector.getCacheSize();
-
-// Cache-Management
-TagFormatDetector.clearCache();
-TagFormatDetector.removeCacheEntry("specific-file.mp3");
+// Caching ist derzeit nicht implementiert.
+// Bei Bedarf kann ein externes Caching-Layer verwendet werden.
 ```
 
 ### Prioritäts-Management
@@ -171,14 +157,8 @@ TagFormatDetector.removeCacheEntry("specific-file.mp3");
 Anpassung der Scan-Prioritäten für spezielle Anwendungsfälle:
 
 ```java
-// Neue Dateiendung hinzufügen
-List<TagFormat> customPriority = Arrays.asList(
-    TagFormat.ID3V2_4, TagFormat.VORBIS_COMMENT
-);
-FormatPriorityManager.addExtensionPriority("newformat", customPriority);
-
-// Unterstützte Endungen prüfen
-boolean supported = FormatPriorityManager.isExtensionSupported("mp3");
+// FormatPriorityManager ist derzeit rein statisch konfiguriert.
+// Erweiterungen sind nur direkt im Source-Code möglich.
 List<String> allSupported = FormatPriorityManager.getSupportedExtensions();
 ```
 
@@ -213,12 +193,14 @@ manager.readFromFileCustomScan(filePath,
     TagFormat.ID3V2_4, TagFormat.MP4, TagFormat.VORBIS_COMMENT);
 
 // Audioproduktion (professionelle Formate)
-manager.readFromFileCustomScan(filePath,
+ScanConfiguration professional = ScanConfiguration.customScan(
     TagFormat.BWF_V2, TagFormat.BWF_V1, TagFormat.RIFF_INFO, TagFormat.AIFF_METADATA);
+manager.readFromFile(filePath, professional);
 
 // Legacy-System-Unterstützung
-manager.readFromFileCustomScan(filePath,
+ScanConfiguration legacy = ScanConfiguration.customScan(
     TagFormat.ID3V1, TagFormat.ID3V1_1, TagFormat.APEV1);
+manager.readFromFile(filePath, legacy);
 ```
 
 ### Performance-Optimierung für große Dateiensammlungen
@@ -246,15 +228,16 @@ public ScanConfiguration getOptimalConfig(String filePath) {
 ### Robuste Fehlerbehandlung in allen Modi
 
 ```java
+TagFormatDetector detector = new TagFormatDetector();
 try {
-    List<TagInfo> tags = TagFormatDetector.detectTagFormats(filePath, config);
+    List<TagInfo> tags = detector.fullScan(filePath);
 } catch (IOException e) {
     // Dateizugriffsfehler
     logger.error("Cannot read file: " + e.getMessage());
 }
 
 // Batch-Verarbeitung mit Fehlertoleranz
-Map<String, List<TagInfo>> results = TagFormatDetector.detectTagFormats(filePaths, config);
+Map<String, List<TagInfo>> results = detector.comfortScan(filePaths);
 results.forEach((path, tags) -> {
     if (tags.isEmpty()) {
         logger.warn("No tags found in: " + path);
@@ -269,14 +252,15 @@ results.forEach((path, tags) -> {
 ```java
 // Fallback-Strategie bei Custom Scan Fehlern
 public List<TagInfo> robustDetection(String filePath, List<TagFormat> preferredFormats) {
+    TagFormatDetector detector = new TagFormatDetector();
     try {
         // Versuche Custom Scan
-        return TagFormatDetector.detectTagFormatsCustomScan(filePath, preferredFormats);
+        return detector.customScan(filePath, preferredFormats.toArray(new TagFormat[0]));
     } catch (Exception e) {
         logger.warn("Custom scan failed, falling back to comfort scan: " + e.getMessage());
         try {
             // Fallback zu Comfort Scan
-            return TagFormatDetector.detectTagFormatsComfortScan(filePath);
+            return detector.comfortScan(filePath);
         } catch (Exception e2) {
             logger.error("All scan modes failed: " + e2.getMessage());
             return Collections.emptyList();
@@ -294,18 +278,19 @@ public List<TagInfo> robustDetection(String filePath, List<TagFormat> preferredF
 void testAllScanModes() throws IOException {
     String testFile = "test.mp3";
     
+    TagFormatDetector detector = new TagFormatDetector();
+
     // Comfort Scan
-    List<TagInfo> comfortTags = TagFormatDetector.detectTagFormatsComfortScan(testFile);
+    List<TagInfo> comfortTags = detector.comfortScan(testFile);
     assertNotNull(comfortTags);
-    
+
     // Full Scan
-    List<TagInfo> fullTags = TagFormatDetector.detectTagFormatsFullScan(testFile);
+    List<TagInfo> fullTags = detector.fullScan(testFile);
     assertNotNull(fullTags);
     assertTrue(fullTags.size() >= comfortTags.size()); // Full scan sollte mindestens so viele finden
-    
+
     // Custom Scan
-    List<TagInfo> customTags = TagFormatDetector.detectTagFormatsCustomScan(
-        testFile, TagFormat.ID3V2_3, TagFormat.ID3V1);
+    List<TagInfo> customTags = detector.customScan(testFile, TagFormat.ID3V2_3, TagFormat.ID3V1);
     assertNotNull(customTags);
 }
 ```
@@ -318,18 +303,19 @@ void testAllScanModes() throws IOException {
 ScanConfiguration config = ScanConfiguration.comfortScan();
 
 // ❌ Schlecht: Magic Boolean
-detectTagFormats(filePath, false);
+detect(filePath, false);
 ```
 
 ### 2. Batch-Verarbeitung
 
 ```java
 // ✅ Gut: Batch-API verwenden
-Map<String, List<TagInfo>> results = TagFormatDetector.detectTagFormats(filePaths, config);
+TagFormatDetector detector = new TagFormatDetector();
+Map<String, List<TagInfo>> results = detector.comfortScan(filePaths);
 
 // ❌ Schlecht: Schleife mit Einzelaufrufen
 for (String path : filePaths) {
-    detectTagFormats(path, config); // Kein Caching-Vorteil
+    detector.comfortScan(path); // Kein Caching-Vorteil
 }
 ```
 
@@ -350,13 +336,8 @@ ScanConfiguration.customScan(
 ### 4. Ressourcen-Management
 
 ```java
-// ✅ Gut: Cache-Management bei langen Läufen
-if (processedFiles > 10000) {
-    TagFormatDetector.clearCache(); // Speicher freigeben
-}
-
-// ✅ Gut: Dateispezifische Cache-Bereinigung
-TagFormatDetector.removeCacheEntry(updatedFilePath);
+// Cache-Management ist derzeit nicht implementiert.
+// Bei Bedarf kann ein externes Caching-Layer verwendet werden.
 ```
 
 ## Troubleshooting
@@ -366,7 +347,8 @@ TagFormatDetector.removeCacheEntry(updatedFilePath);
 **Problem:** Comfort Scan findet keine Tags in bekannter Datei
 ```java
 // Lösung: Full Scan für Debugging verwenden
-List<TagInfo> debugTags = TagFormatDetector.detectTagFormatsFullScan(filePath);
+TagFormatDetector detector = new TagFormatDetector();
+List<TagInfo> debugTags = detector.fullScan(filePath);
 if (debugTags.isEmpty()) {
     logger.info("Datei enthält wirklich keine Tags");
 } else {
@@ -387,16 +369,12 @@ List<TagFormat> optimizedFormats = Arrays.asList(
 
 **Problem:** Memory-Probleme bei großen Sammlungen
 ```java
-// Lösung: Streaming-Verarbeitung mit Cache-Management
+// Lösung: Streaming-Verarbeitung in Batches
 int batchSize = 1000;
+TagFormatDetector detector = new TagFormatDetector();
 for (int i = 0; i < allFiles.size(); i += batchSize) {
     List<String> batch = allFiles.subList(i, Math.min(i + batchSize, allFiles.size()));
-    processFiles(batch);
-    
-    if (i % (batchSize * 10) == 0) {
-        TagFormatDetector.clearCache(); // Regelmäßige Cache-Bereinigung
-        System.gc(); // Garbage Collection hint
-    }
+    detector.comfortScan(batch);
 }
 ```
 

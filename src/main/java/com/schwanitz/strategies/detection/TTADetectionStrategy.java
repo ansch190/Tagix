@@ -6,6 +6,7 @@ import com.schwanitz.tagging.TagInfo;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -187,7 +188,7 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
             byte[] chunkId = new byte[4];
             file.read(chunkId);
 
-            String chunkString = new String(chunkId);
+            String chunkString = new String(chunkId, StandardCharsets.US_ASCII);
 
             // Hypothetical TTA metadata chunks
             if ("TTAM".equals(chunkString) || "META".equals(chunkString)) {

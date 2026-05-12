@@ -6,6 +6,7 @@ import com.schwanitz.tagging.TagInfo;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,7 +37,7 @@ public class ID3V2DetectionStrategy extends TagDetectionStrategy {
         if (startBuffer.length < 10) {
             return false;
         }
-        return new String(startBuffer, 0, 3).equals("ID3");
+        return new String(startBuffer, 0, 3, StandardCharsets.US_ASCII).equals("ID3");
     }
 
     @Override

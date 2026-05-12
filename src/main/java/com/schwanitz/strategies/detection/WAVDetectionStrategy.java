@@ -159,8 +159,8 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
      */
     private boolean isValidRIFFWAVEHeader(byte[] startBuffer) {
         try {
-            String riffSignature = new String(startBuffer, 0, 4, "ASCII");
-            String waveType = new String(startBuffer, 8, 4, "ASCII");
+            String riffSignature = new String(startBuffer, 0, 4, StandardCharsets.US_ASCII);
+            String waveType = new String(startBuffer, 8, 4, StandardCharsets.US_ASCII);
             return "RIFF".equals(riffSignature) && "WAVE".equals(waveType);
         } catch (Exception e) {
             return false;
@@ -182,7 +182,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                 return null;
             }
 
-            String chunkType = new String(headerData, 0, 4, "ASCII");
+            String chunkType = new String(headerData, 0, 4, StandardCharsets.US_ASCII);
             int chunkSize = readLittleEndianInt32(headerData, 4);
 
             return new ChunkHeader(chunkType, chunkSize);
@@ -273,7 +273,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                 return null;
             }
 
-            String listTypeStr = new String(listType, "ASCII");
+            String listTypeStr = new String(listType, StandardCharsets.US_ASCII);
             if ("INFO".equals(listTypeStr)) {
                 return new TagInfo(TagFormat.RIFF_INFO, position, header.size + MIN_CHUNK_HEADER_SIZE);
             }

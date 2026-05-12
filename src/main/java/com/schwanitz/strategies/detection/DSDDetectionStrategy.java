@@ -6,6 +6,7 @@ import com.schwanitz.tagging.TagInfo;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -178,7 +179,7 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
 
                     tags.add(new TagInfo(TagFormat.DFF_METADATA, currentPos, chunkSize + 12));
 
-                    String chunkName = new String(chunkId);
+                    String chunkName = new String(chunkId, StandardCharsets.US_ASCII);
                     Log.debug("Found DFF metadata chunk: {} at offset: {}, size: {} bytes",
                             chunkName, currentPos, chunkSize + 12);
                 }

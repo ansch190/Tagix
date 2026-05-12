@@ -6,6 +6,7 @@ import com.schwanitz.tagging.TagInfo;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,8 +32,8 @@ public class AIFFDetectionStrategy extends TagDetectionStrategy {
 
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
-        return startBuffer.length >= 12 && new String(startBuffer, 0, 4).equals("FORM") &&
-                (new String(startBuffer, 8, 4).equals("AIFF") || new String(startBuffer, 8, 4).equals("AIFC"));
+        return startBuffer.length >= 12 && new String(startBuffer, 0, 4, StandardCharsets.US_ASCII).equals("FORM") &&
+                (new String(startBuffer, 8, 4, StandardCharsets.US_ASCII).equals("AIFF") || new String(startBuffer, 8, 4, StandardCharsets.US_ASCII).equals("AIFC"));
     }
 
     @Override
@@ -44,7 +45,7 @@ public class AIFFDetectionStrategy extends TagDetectionStrategy {
                 file.seek(position);
                 byte[] chunkHeader = new byte[8];
                 file.read(chunkHeader);
-                String chunkType = new String(chunkHeader, 0, 4);
+                String chunkType = new String(chunkHeader, 0, 4, StandardCharsets.US_ASCII);
                 int chunkSize = ((chunkHeader[4] & 0xFF) << 24) | ((chunkHeader[5] & 0xFF) << 16) |
                         ((chunkHeader[6] & 0xFF) << 8) | (chunkHeader[7] & 0xFF);
                 if (chunkType.equals("NAME") || chunkType.equals("AUTH") || chunkType.equals("ANNO") || chunkType.equals("(c) ")) {

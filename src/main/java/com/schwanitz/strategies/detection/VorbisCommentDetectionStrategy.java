@@ -6,6 +6,7 @@ import com.schwanitz.tagging.TagInfo;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,7 +40,7 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         if (startBuffer.length < 4) return false;
-        String signature = new String(startBuffer, 0, 4);
+        String signature = new String(startBuffer, 0, 4, StandardCharsets.US_ASCII);
         return signature.equals("OggS") || signature.equals("fLaC");
     }
 
@@ -48,7 +49,7 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
         List<TagInfo> tags = new ArrayList<>();
         if (startBuffer.length < 4) return tags;
 
-        String signature = new String(startBuffer, 0, 4);
+        String signature = new String(startBuffer, 0, 4, StandardCharsets.US_ASCII);
         if (signature.equals("OggS")) {
             // Try direct jump to a comment packet
             CommentPacketInfo packetInfo = findCommentPacketDirect(file);
@@ -90,7 +91,7 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
 
         // Read first page header (Identification packet, Type 0x01)
         byte[] buffer = new byte[OGG_PAGE_HEADER_SIZE];
-        if (file.read(buffer) != OGG_PAGE_HEADER_SIZE || !new String(buffer, 0, 4).equals("OggS")) {
+        if (file.read(buffer) != OGG_PAGE_HEADER_SIZE || !new String(buffer, 0, 4, StandardCharsets.US_ASCII).equals("OggS")) {
             Log.debug("Invalid OGG header at position 0");
             return null;
         }
@@ -106,7 +107,7 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
         // Verify an Identification packet
         file.seek(position + OGG_PAGE_HEADER_SIZE + segmentCount);
         byte[] packetHeader = new byte[VORBIS_PACKET_HEADER_SIZE];
-        if (file.read(packetHeader) != VORBIS_PACKET_HEADER_SIZE || packetHeader[0] != 1 || !new String(packetHeader, 1, 6).equals("vorbis")) {
+        if (file.read(packetHeader) != VORBIS_PACKET_HEADER_SIZE || packetHeader[0] != 1 || !new String(packetHeader, 1, 6, StandardCharsets.US_ASCII).equals("vorbis")) {
             Log.debug("Invalid Identification packet at offset: {}", position + OGG_PAGE_HEADER_SIZE + segmentCount);
             return null;
         }
@@ -114,7 +115,7 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
         // Jump to the next page (Comment packet, Type 0x03)
         position += pageSize;
         file.seek(position);
-        if (file.read(buffer) != OGG_PAGE_HEADER_SIZE || !new String(buffer, 0, 4).equals("OggS")) {
+        if (file.read(buffer) != OGG_PAGE_HEADER_SIZE || !new String(buffer, 0, 4, StandardCharsets.US_ASCII).equals("OggS")) {
             Log.debug("Invalid OGG page at offset: {}", position);
             return null;
         }
@@ -142,7 +143,7 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
         while (position + OGG_PAGE_HEADER_SIZE < file.length() && pageCount < MAX_PAGES) {
             file.seek(position);
             byte[] buffer = new byte[OGG_PAGE_HEADER_SIZE];
-            if (file.read(buffer) != OGG_PAGE_HEADER_SIZE || !new String(buffer, 0, 4).equals("OggS")) break;
+            if (file.read(buffer) != OGG_PAGE_HEADER_SIZE || !new String(buffer, 0, 4, StandardCharsets.US_ASCII).equals("OggS")) break;
 
             int segmentCount = buffer[26] & 0xFF;
             byte[] segments = new byte[segmentCount];

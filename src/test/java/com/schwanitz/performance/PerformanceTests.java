@@ -44,9 +44,10 @@ public class PerformanceTests {
 
         //Scan Files (Each File separated)
         List<File> fileList = List.of(Objects.requireNonNull(f.listFiles()));
+        TagFormatDetector detector = new TagFormatDetector();
         Map<String,List<TagInfo>> results = new HashMap<>();
         for (File file : fileList) {
-            results.put(file.getAbsolutePath(), TagFormatDetector.fullScan(file.getAbsolutePath()));
+            results.put(file.getAbsolutePath(), detector.fullScan(file.getAbsolutePath()));
         }
 
         long simpleResultTime = System.currentTimeMillis() - startTime;
@@ -57,7 +58,7 @@ public class PerformanceTests {
                 .map(File::getAbsolutePath)
                 .toList();
         System.out.println("FilesCount: " + files.size());
-        results = TagFormatDetector.fullScan(files);
+        results = detector.fullScan(files);
 
         long listResultTime = System.currentTimeMillis() - startTime;
 
@@ -93,9 +94,10 @@ public class PerformanceTests {
 
         //Scan Files (Each File separated)
         List<File> fileList = List.of(Objects.requireNonNull(f.listFiles()));
+        TagFormatDetector detector = new TagFormatDetector();
         Map<String,List<TagInfo>> results = new HashMap<>();
         for (File file : fileList) {
-            results.put(file.getAbsolutePath(), TagFormatDetector.comfortScan(file.getAbsolutePath()));
+            results.put(file.getAbsolutePath(), detector.comfortScan(file.getAbsolutePath()));
         }
 
         long simpleResultTime = System.currentTimeMillis() - startTime;
@@ -106,7 +108,7 @@ public class PerformanceTests {
                 .map(File::getAbsolutePath)
                 .toList();
         System.out.println("FilesCount: " + files.size());
-        results = TagFormatDetector.comfortScan(files);
+        results = detector.comfortScan(files);
 
         long listResultTime = System.currentTimeMillis() - startTime;
 
@@ -142,9 +144,10 @@ public class PerformanceTests {
 
         //Scan Files (Each File separated)
         List<File> fileList = List.of(Objects.requireNonNull(f.listFiles()));
+        TagFormatDetector detector = new TagFormatDetector();
         Map<String,List<TagInfo>> results = new HashMap<>();
         for (File file : fileList) {
-            results.put(file.getAbsolutePath(), TagFormatDetector.customScan(file.getAbsolutePath(), TagFormat.ID3V2_3));
+            results.put(file.getAbsolutePath(), detector.customScan(file.getAbsolutePath(), TagFormat.ID3V2_3));
         }
 
         long simpleResultTime = System.currentTimeMillis() - startTime;
@@ -155,7 +158,7 @@ public class PerformanceTests {
                 .map(File::getAbsolutePath)
                 .toList();
         System.out.println("FilesCount: " + files.size());
-        results = TagFormatDetector.customScan(files,TagFormat.ID3V2_3);
+        results = detector.customScan(files,TagFormat.ID3V2_3);
 
         long listResultTime = System.currentTimeMillis() - startTime;
 

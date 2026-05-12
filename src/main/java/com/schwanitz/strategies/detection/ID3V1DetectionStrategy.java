@@ -6,6 +6,7 @@ import com.schwanitz.tagging.TagInfo;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,7 +40,7 @@ public class ID3V1DetectionStrategy extends TagDetectionStrategy {
         if (endBuffer.length < ID3V1_SIZE) {
             return false;
         }
-        return new String(endBuffer, endBuffer.length - ID3V1_SIZE, 3).equals("TAG");
+        return new String(endBuffer, endBuffer.length - ID3V1_SIZE, 3, StandardCharsets.US_ASCII).equals("TAG");
     }
 
     @Override

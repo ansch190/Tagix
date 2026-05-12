@@ -5,6 +5,7 @@ import com.schwanitz.tagging.TagFormat;
 import com.schwanitz.tagging.TagInfo;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,7 +37,7 @@ public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
         if (endBuffer.length < 9) {
             return false;
         }
-        String endTag = new String(endBuffer, endBuffer.length - 9, 9);
+        String endTag = new String(endBuffer, endBuffer.length - 9, 9, StandardCharsets.US_ASCII);
         return endTag.equals("LYRICSEND") || endTag.equals("LYRICS200");
     }
 
@@ -47,13 +48,13 @@ public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
             return tags;
         }
 
-        String endTag = new String(endBuffer, endBuffer.length - 9, 9);
+        String endTag = new String(endBuffer, endBuffer.length - 9, 9, StandardCharsets.US_ASCII);
         if (endTag.equals("LYRICS200")) {
             // Lyrics3v2: Check size indication and start signature
             if (endBuffer.length < 15) {
                 return tags;
             }
-            String sizeStr = new String(endBuffer, endBuffer.length - 15, 6);
+            String sizeStr = new String(endBuffer, endBuffer.length - 15, 6, StandardCharsets.US_ASCII);
             try {
                 int size = Integer.parseInt(sizeStr);
                 long startOffset = file.length() - 15 - size;
@@ -61,7 +62,7 @@ public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
                     file.seek(startOffset);
                     byte[] buffer = new byte[11];
                     file.read(buffer);
-                    if (new String(buffer).equals("LYRICSBEGIN")) {
+                    if (new String(buffer, StandardCharsets.US_ASCII).equals("LYRICSBEGIN")) {
                         tags.add(new TagInfo(TagFormat.LYRICS3V2, startOffset, size + 15));
                     }
                 }
@@ -75,7 +76,7 @@ public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
                 file.seek(position);
                 byte[] buffer = new byte[11];
                 file.read(buffer);
-                if (new String(buffer).equals("LYRICSBEGIN")) {
+                if (new String(buffer, StandardCharsets.US_ASCII).equals("LYRICSBEGIN")) {
                     long tagSize = file.length() - position;
                     tags.add(new TagInfo(TagFormat.LYRICS3V1, position, tagSize));
                 }

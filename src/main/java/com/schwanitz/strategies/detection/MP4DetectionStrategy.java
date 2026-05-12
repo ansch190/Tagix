@@ -6,6 +6,7 @@ import com.schwanitz.tagging.TagInfo;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,7 +37,7 @@ public class MP4DetectionStrategy extends TagDetectionStrategy {
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         if (startBuffer.length < ATOM_HEADER_SIZE) return false;
-        return new String(startBuffer, ATOM_TYPE_LENGTH, ATOM_TYPE_LENGTH).equals("ftyp");
+        return new String(startBuffer, ATOM_TYPE_LENGTH, ATOM_TYPE_LENGTH, StandardCharsets.US_ASCII).equals("ftyp");
     }
 
     @Override
@@ -100,7 +101,7 @@ public class MP4DetectionStrategy extends TagDetectionStrategy {
         }
 
         // Read an atom type
-        String atomType = new String(atomHeader, ATOM_TYPE_LENGTH, ATOM_TYPE_LENGTH);
+        String atomType = new String(atomHeader, ATOM_TYPE_LENGTH, ATOM_TYPE_LENGTH, StandardCharsets.US_ASCII);
         if (!atomType.equals("moov")) {
             return null;
         }

@@ -15,7 +15,15 @@ import java.util.*;
 public class TagFormatDetector {
 
     private static final Logger Log = LoggerFactory.getLogger(TagFormatDetector.class);
-    private static final FormatDetectionContext detectionContext = new FormatDetectionContext();
+    private final FormatDetectionContext detectionContext;
+
+    public TagFormatDetector() {
+        this.detectionContext = new FormatDetectionContext();
+    }
+
+    public TagFormatDetector(FormatDetectionContext detectionContext) {
+        this.detectionContext = detectionContext;
+    }
 
     // ================================
     // FULL SCAN METHODS
@@ -24,14 +32,14 @@ public class TagFormatDetector {
     /**
      * Full Scan - einzelne Datei
      */
-    public static List<TagInfo> fullScan(String filePath) throws IOException {
+    public List<TagInfo> fullScan(String filePath) throws IOException {
         return detectionContext.detectTags(filePath, ScanConfiguration.fullScan());
     }
 
     /**
      * Full Scan - mehrere Dateien
      */
-    public static Map<String, List<TagInfo>> fullScan(List<String> filePaths) {
+    public Map<String, List<TagInfo>> fullScan(List<String> filePaths) {
         return detectTagFormats(filePaths, ScanConfiguration.fullScan());
     }
 
@@ -42,14 +50,14 @@ public class TagFormatDetector {
     /**
      * Comfort Scan - einzelne Datei
      */
-    public static List<TagInfo> comfortScan(String filePath) throws IOException {
+    public List<TagInfo> comfortScan(String filePath) throws IOException {
         return detectionContext.detectTags(filePath, ScanConfiguration.comfortScan());
     }
 
     /**
      * Comfort Scan - mehrere Dateien
      */
-    public static Map<String, List<TagInfo>> comfortScan(List<String> filePaths) {
+    public Map<String, List<TagInfo>> comfortScan(List<String> filePaths) {
         return detectTagFormats(filePaths, ScanConfiguration.comfortScan());
     }
 
@@ -60,14 +68,14 @@ public class TagFormatDetector {
     /**
      * Custom Scan - einzelne Datei
      */
-    public static List<TagInfo> customScan(String filePath, TagFormat... formats) throws IOException {
+    public List<TagInfo> customScan(String filePath, TagFormat... formats) throws IOException {
         return detectionContext.detectTags(filePath, ScanConfiguration.customScan(formats));
     }
 
     /**
      * Custom Scan - mehrere Dateien
      */
-    public static Map<String, List<TagInfo>> customScan(List<String> filePaths, TagFormat... formats) {
+    public Map<String, List<TagInfo>> customScan(List<String> filePaths, TagFormat... formats) {
         return detectTagFormats(filePaths, ScanConfiguration.customScan(formats));
     }
 
@@ -78,7 +86,7 @@ public class TagFormatDetector {
     /**
      * Batch-Verarbeitung: Mehrere Dateien mit derselben Konfiguration
      */
-    private static Map<String, List<TagInfo>> detectTagFormats(List<String> filePaths, ScanConfiguration config) {
+    private Map<String, List<TagInfo>> detectTagFormats(List<String> filePaths, ScanConfiguration config) {
         Map<String, List<TagInfo>> results = new HashMap<>();
 
         for (String filePath : filePaths) {
