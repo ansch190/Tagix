@@ -1,7 +1,7 @@
 package com.schwanitz.metadata;
 
 import com.schwanitz.interfaces.Metadata;
-import com.schwanitz.others.MetadataField;
+import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.tagging.TagFormat;
 
 import java.util.ArrayList;

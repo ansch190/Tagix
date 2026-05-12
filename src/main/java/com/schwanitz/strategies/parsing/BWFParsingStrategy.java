@@ -2,8 +2,8 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
-import com.schwanitz.others.MetadataField;
-import com.schwanitz.others.TextFieldHandler;
+import com.schwanitz.metadata.MetadataField;
+import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 
 public class BWFParsingStrategy implements TagParsingStrategy {
 
-    private static final Logger Log = LoggerFactory.getLogger(BWFParsingStrategy.class);
+    private static final Logger LOG = LoggerFactory.getLogger(BWFParsingStrategy.class);
 
     // BWF Chunk Struktur
     private static final int BWF_DESCRIPTION_SIZE = 256;
@@ -106,7 +106,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         }
 
         int chunkSize = readLittleEndianInt32(chunkHeader, 4);
-        Log.debug("Parsing BWF bext chunk with size: " + chunkSize);
+        LOG.debug("Parsing BWF bext chunk with size: " + chunkSize);
 
         // Mindestgröße prüfen (602 Bytes für Version 0)
         if (chunkSize < 602) {
@@ -213,7 +213,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
             parseBWFExtensions(file, metadata, currentPos, offset + size - currentPos);
         }
 
-        Log.debug("Successfully parsed BWF " + format.getFormatName() + " chunk");
+        LOG.debug("Successfully parsed BWF " + format.getFormatName() + " chunk");
     }
 
     private void parseLoudnessInfo(RandomAccessFile file, BWFMetadata metadata) throws IOException {
@@ -256,7 +256,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         long currentPos = offset;
         long endPos = offset + size;
 
-        Log.debug("Parsing BWF extensions from position " + currentPos + " to " + endPos);
+        LOG.debug("Parsing BWF extensions from position " + currentPos + " to " + endPos);
 
         while (currentPos + 8 < endPos) {
             try {
@@ -273,7 +273,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
                 int chunkSize = readLittleEndianInt32(chunkHeader, 4);
 
                 if (chunkSize < 0 || chunkSize > endPos - currentPos - 8) {
-                    Log.debug("Invalid chunk size for " + chunkId + ": " + chunkSize);
+                    LOG.debug("Invalid chunk size for " + chunkId + ": " + chunkSize);
                     break;
                 }
 
@@ -300,7 +300,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
                         break;
 
                     default:
-                        Log.debug("Unknown BWF extension chunk: " + chunkId);
+                        LOG.debug("Unknown BWF extension chunk: " + chunkId);
                         file.skipBytes(chunkSize);
                         break;
                 }
@@ -314,7 +314,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
                 }
 
             } catch (Exception e) {
-                Log.warn("Error parsing BWF extension at position " + currentPos + ": " + e.getMessage());
+                LOG.warn("Error parsing BWF extension at position " + currentPos + ": " + e.getMessage());
                 break;
             }
         }
@@ -348,7 +348,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         }
 
         addField(metadata, "CuePoints", cueInfo.toString());
-        Log.debug("Parsed BWF Cue List with " + numCues + " cue points");
+        LOG.debug("Parsed BWF Cue List with " + numCues + " cue points");
     }
 
     private void parsePeakEnvelopeChunk(RandomAccessFile file, BWFMetadata metadata, int chunkSize) throws IOException {
@@ -374,7 +374,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         // Skip actual peak data
         file.skipBytes(chunkSize - 20);
 
-        Log.debug("Parsed BWF Peak Envelope: " + channels + " channels, " + numFrames + " frames");
+        LOG.debug("Parsed BWF Peak Envelope: " + channels + " channels, " + numFrames + " frames");
     }
 
     private void parseIXMLChunk(RandomAccessFile file, BWFMetadata metadata, int chunkSize) throws IOException {
@@ -393,7 +393,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
             // Extract key metadata from iXML
             String extractedInfo = extractIXMLInfo(xmlContent);
             addField(metadata, "iXMLMetadata", extractedInfo);
-            Log.debug("Parsed iXML metadata: " + extractedInfo.length() + " characters");
+            LOG.debug("Parsed iXML metadata: " + extractedInfo.length() + " characters");
         } else {
             addField(metadata, "iXMLMetadata", "[iXML:" + chunkSize + " bytes]");
         }
@@ -413,7 +413,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         if (xmlContent.contains("adobe") || xmlContent.contains("xmp")) {
             String extractedInfo = extractAdobeXMLInfo(xmlContent);
             addField(metadata, "AdobeXMLMetadata", extractedInfo);
-            Log.debug("Parsed Adobe XML metadata: " + extractedInfo.length() + " characters");
+            LOG.debug("Parsed Adobe XML metadata: " + extractedInfo.length() + " characters");
         } else {
             addField(metadata, "AdobeXMLMetadata", "[Adobe XML:" + chunkSize + " bytes]");
         }
@@ -434,7 +434,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         String linkInfo = parseLinkContent(linkContent);
         addField(metadata, "LinkedFiles", linkInfo);
 
-        Log.debug("Parsed BWF Link chunk: " + linkInfo);
+        LOG.debug("Parsed BWF Link chunk: " + linkInfo);
     }
 
     private String combineDateTime(String date, String time) {
@@ -445,7 +445,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
 
             return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         } catch (DateTimeParseException e) {
-            Log.debug("Could not combine date/time: " + e.getMessage());
+            LOG.debug("Could not combine date/time: " + e.getMessage());
             return date + " " + time;
         }
     }
@@ -505,7 +505,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
                     length, instance, materialNum.toString(), timestamp.toString());
 
         } catch (Exception e) {
-            Log.debug("Error parsing UMID structure: " + e.getMessage());
+            LOG.debug("Error parsing UMID structure: " + e.getMessage());
             return ""; // Fallback to empty if parsing fails
         }
     }
@@ -760,7 +760,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         } else {
             TextFieldHandler textHandler = new TextFieldHandler(key);
             metadata.addField(new MetadataField<>(key, value, textHandler));
-            Log.debug("Created fallback handler for unknown BWF field: " + key);
+            LOG.debug("Created fallback handler for unknown BWF field: " + key);
         }
     }
 

@@ -14,7 +14,7 @@ import java.util.*;
  */
 public class TagFormatDetector {
 
-    private static final Logger Log = LoggerFactory.getLogger(TagFormatDetector.class);
+    private static final Logger LOG = LoggerFactory.getLogger(TagFormatDetector.class);
     private final FormatDetectionContext detectionContext;
 
     public TagFormatDetector() {
@@ -22,7 +22,7 @@ public class TagFormatDetector {
     }
 
     public TagFormatDetector(FormatDetectionContext detectionContext) {
-        this.detectionContext = detectionContext;
+        this.detectionContext = Objects.requireNonNull(detectionContext, "detectionContext must not be null");
     }
 
     // ================================
@@ -33,6 +33,7 @@ public class TagFormatDetector {
      * Full Scan - einzelne Datei
      */
     public List<TagInfo> fullScan(String filePath) throws IOException {
+        Objects.requireNonNull(filePath, "filePath must not be null");
         return detectionContext.detectTags(filePath, ScanConfiguration.fullScan());
     }
 
@@ -40,6 +41,7 @@ public class TagFormatDetector {
      * Full Scan - mehrere Dateien
      */
     public Map<String, List<TagInfo>> fullScan(List<String> filePaths) {
+        Objects.requireNonNull(filePaths, "filePaths must not be null");
         return detectTagFormats(filePaths, ScanConfiguration.fullScan());
     }
 
@@ -51,6 +53,7 @@ public class TagFormatDetector {
      * Comfort Scan - einzelne Datei
      */
     public List<TagInfo> comfortScan(String filePath) throws IOException {
+        Objects.requireNonNull(filePath, "filePath must not be null");
         return detectionContext.detectTags(filePath, ScanConfiguration.comfortScan());
     }
 
@@ -58,6 +61,7 @@ public class TagFormatDetector {
      * Comfort Scan - mehrere Dateien
      */
     public Map<String, List<TagInfo>> comfortScan(List<String> filePaths) {
+        Objects.requireNonNull(filePaths, "filePaths must not be null");
         return detectTagFormats(filePaths, ScanConfiguration.comfortScan());
     }
 
@@ -69,6 +73,8 @@ public class TagFormatDetector {
      * Custom Scan - einzelne Datei
      */
     public List<TagInfo> customScan(String filePath, TagFormat... formats) throws IOException {
+        Objects.requireNonNull(filePath, "filePath must not be null");
+        Objects.requireNonNull(formats, "formats must not be null");
         return detectionContext.detectTags(filePath, ScanConfiguration.customScan(formats));
     }
 
@@ -76,6 +82,8 @@ public class TagFormatDetector {
      * Custom Scan - mehrere Dateien
      */
     public Map<String, List<TagInfo>> customScan(List<String> filePaths, TagFormat... formats) {
+        Objects.requireNonNull(filePaths, "filePaths must not be null");
+        Objects.requireNonNull(formats, "formats must not be null");
         return detectTagFormats(filePaths, ScanConfiguration.customScan(formats));
     }
 
@@ -90,12 +98,16 @@ public class TagFormatDetector {
         Map<String, List<TagInfo>> results = new HashMap<>();
 
         for (String filePath : filePaths) {
+            if (filePath == null) {
+                LOG.warn("Skipping null file path in batch");
+                continue;
+            }
             try {
                 List<TagInfo> tags = detectionContext.detectTags(filePath, config);
                 results.put(filePath, tags);
             } catch (IOException e) {
-                Log.error("Error processing file {}: {}", filePath, e.getMessage());
-                results.put(filePath, List.of()); // Leere Liste bei Fehler
+                LOG.error("Error processing file {}: {}", filePath, e.getMessage());
+                results.put(filePath, List.of());
             }
         }
 

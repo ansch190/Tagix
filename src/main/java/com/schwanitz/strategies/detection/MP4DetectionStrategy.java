@@ -45,7 +45,7 @@ public class MP4DetectionStrategy extends TagDetectionStrategy {
         List<TagInfo> tags = new ArrayList<>();
         if (!canDetect(startBuffer, endBuffer)) return tags;
 
-        Log.debug("Detecting MP4 tags in file: {}", filePath);
+        LOG.debug("Detecting MP4 tags in file: {}", filePath);
 
         // Try forward search in first 64 KB
         long fileLength = file.length();
@@ -56,7 +56,7 @@ public class MP4DetectionStrategy extends TagDetectionStrategy {
             TagInfo tag = tryReadAtom(file, position, fileLength);
             if (tag != null) {
                 tags.add(tag);
-                Log.debug("Found moov atom at offset: {}, size: {} bytes", tag.getOffset(), tag.getSize());
+                LOG.debug("Found moov atom at offset: {}, size: {} bytes", tag.getOffset(), tag.getSize());
                 return tags;
             }
             position += ATOM_HEADER_SIZE; // Move to next potential atom
@@ -68,13 +68,13 @@ public class MP4DetectionStrategy extends TagDetectionStrategy {
             TagInfo tag = tryReadAtom(file, position, fileLength);
             if (tag != null) {
                 tags.add(tag);
-                Log.debug("Found moov atom at offset: {}, size: {} bytes", tag.getOffset(), tag.getSize());
+                LOG.debug("Found moov atom at offset: {}, size: {} bytes", tag.getOffset(), tag.getSize());
                 return tags;
             }
             position -= ATOM_HEADER_SIZE; // Move backward
         }
 
-        Log.debug("No moov atom found in file: {}", filePath);
+        LOG.debug("No moov atom found in file: {}", filePath);
         return tags;
     }
 
@@ -96,7 +96,7 @@ public class MP4DetectionStrategy extends TagDetectionStrategy {
 
         // Validate atom size
         if (atomSize < ATOM_HEADER_SIZE || position + atomSize > fileLength) {
-            Log.debug("Invalid atom size: {} at offset: {}", atomSize, position);
+            LOG.debug("Invalid atom size: {} at offset: {}", atomSize, position);
             return null;
         }
 
@@ -116,7 +116,7 @@ public class MP4DetectionStrategy extends TagDetectionStrategy {
                         ((prevHeader[2] & 0xFF) << 8) |
                         (prevHeader[3] & 0xFF);
                 if (prevSize > position) {
-                    Log.debug("moov at offset: {} appears nested, skipping", position);
+                    LOG.debug("moov at offset: {} appears nested, skipping", position);
                     return null;
                 }
             }

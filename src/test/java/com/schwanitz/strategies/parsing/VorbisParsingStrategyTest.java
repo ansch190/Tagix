@@ -1,7 +1,7 @@
 package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.Metadata;
-import com.schwanitz.others.MetadataField;
+import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.tagging.TagFormat;
 import com.schwanitz.tagging.TagInfo;
 import org.junit.jupiter.api.*;

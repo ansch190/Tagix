@@ -40,6 +40,19 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
     private static final byte[] DFF_DITI_CHUNK = {'D', 'I', 'T', 'I'};
     private static final byte[] DFF_ID3_CHUNK = {'I', 'D', '3', ' '};
 
+    // DSF structural offsets
+    private static final int DSF_METADATA_POINTER_OFFSET = 20;
+    private static final int DSF_ID3_CHUNK_HEADER_SIZE = 12; // 4 (chunk ID) + 8 (size)
+
+    // DFF structural sizes
+    private static final int DFF_FORM_HEADER_SIZE = 16; // 4 (FORM) + 8 (size) + 4 (DSD )
+    private static final int DFF_CHUNK_HEADER_SIZE = 12;  // 4 (chunk ID) + 8 (size)
+    private static final int DFF_MIN_TYPE_LENGTH = 8;     // 4 (FORM) + 4 (DSD)
+
+    // Minimum buffer sizes for detection
+    private static final int DSF_MIN_BUFFER = 8;
+    private static final int DFF_MIN_BUFFER = 12;
+
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.DSF_METADATA, TagFormat.DFF_METADATA);
@@ -47,18 +60,16 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
 
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
-        if (startBuffer.length < 8) {
+        if (startBuffer.length < DSF_MIN_BUFFER) {
             return false;
         }
 
-        // DSF format check
         if (Arrays.equals(Arrays.copyOfRange(startBuffer, 0, 4), DSF_SIGNATURE)) {
             return true;
         }
 
-        // DFF format check
         if (Arrays.equals(Arrays.copyOfRange(startBuffer, 0, 4), DFF_FORM_SIGNATURE) &&
-                startBuffer.length >= 12 &&
+                startBuffer.length >= DFF_MIN_BUFFER &&
                 Arrays.equals(Arrays.copyOfRange(startBuffer, 8, 12), DFF_DSD_TYPE)) {
             return true;
         }
@@ -75,7 +86,7 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
             return tags;
         }
 
-        Log.debug("Detecting DSD tags in file: {}", filePath);
+        LOG.debug("Detecting DSD tags in file: {}", filePath);
 
         if (Arrays.equals(Arrays.copyOfRange(startBuffer, 0, 4), DSF_SIGNATURE)) {
             tags.addAll(detectDSFTags(file, filePath));
@@ -86,9 +97,6 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
         return tags;
     }
 
-    /**
-     * Detect metadata in DSF (DSD Stream File) files
-     */
     private List<TagInfo> detectDSFTags(RandomAccessFile file, String filePath) throws IOException {
         List<TagInfo> tags = new ArrayList<>();
 
@@ -102,8 +110,7 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
                 return tags;
             }
 
-            // Skip header fields to metadata pointer
-            file.seek(20);
+            file.seek(DSF_METADATA_POINTER_OFFSET);
             long metadataPointer = readLittleEndianLong(file);
 
             if (metadataPointer > 0 && metadataPointer < file.length()) {
@@ -116,24 +123,21 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
                     long id3ChunkSize = readLittleEndianLong(file);
 
                     if (id3ChunkSize > 0 && id3ChunkSize < file.length() - metadataPointer) {
-                        tags.add(new TagInfo(TagFormat.DSF_METADATA, metadataPointer, id3ChunkSize + 12));
-                        Log.debug("Found DSF ID3 metadata at offset: {}, size: {} bytes",
-                                metadataPointer, id3ChunkSize + 12);
+                        tags.add(new TagInfo(TagFormat.DSF_METADATA, metadataPointer, id3ChunkSize + DSF_ID3_CHUNK_HEADER_SIZE));
+                        LOG.debug("Found DSF ID3 metadata at offset: {}, size: {} bytes",
+                                metadataPointer, id3ChunkSize + DSF_ID3_CHUNK_HEADER_SIZE);
                     }
                 }
             }
 
         } catch (IOException e) {
-            Log.error("Error detecting DSF tags in {}: {}", filePath, e.getMessage());
+            LOG.error("Error detecting DSF tags in {}: {}", filePath, e.getMessage());
             throw e;
         }
 
         return tags;
     }
 
-    /**
-     * Detect metadata in DFF (DSDIFF) files
-     */
     private List<TagInfo> detectDFFTags(RandomAccessFile file, String filePath) throws IOException {
         List<TagInfo> tags = new ArrayList<>();
 
@@ -156,11 +160,10 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
                 return tags;
             }
 
-            // Search chunks in DFF container
-            long currentPos = 16; // After FRM8 + Size + DSD
-            long endPos = 12 + formSize;
+            long currentPos = DFF_FORM_HEADER_SIZE;
+            long endPos = DFF_CHUNK_HEADER_SIZE + formSize;
 
-            while (currentPos + 12 < endPos) {
+            while (currentPos + DFF_CHUNK_HEADER_SIZE < endPos) {
                 file.seek(currentPos);
 
                 byte[] chunkId = new byte[4];
@@ -168,39 +171,35 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
 
                 long chunkSize = readBigEndianLong(file);
 
-                if (chunkSize < 0 || chunkSize > endPos - currentPos - 12) {
+                if (chunkSize < 0 || chunkSize > endPos - currentPos - DFF_CHUNK_HEADER_SIZE) {
                     break;
                 }
 
-                // Check for known metadata chunks
                 if (Arrays.equals(chunkId, DFF_DIIN_CHUNK) ||
                         Arrays.equals(chunkId, DFF_DITI_CHUNK) ||
                         Arrays.equals(chunkId, DFF_ID3_CHUNK)) {
 
-                    tags.add(new TagInfo(TagFormat.DFF_METADATA, currentPos, chunkSize + 12));
+                    tags.add(new TagInfo(TagFormat.DFF_METADATA, currentPos, chunkSize + DFF_CHUNK_HEADER_SIZE));
 
                     String chunkName = new String(chunkId, StandardCharsets.US_ASCII);
-                    Log.debug("Found DFF metadata chunk: {} at offset: {}, size: {} bytes",
-                            chunkName, currentPos, chunkSize + 12);
+                    LOG.debug("Found DFF metadata chunk: {} at offset: {}, size: {} bytes",
+                            chunkName, currentPos, chunkSize + DFF_CHUNK_HEADER_SIZE);
                 }
 
-                currentPos += 12 + chunkSize;
+                currentPos += DFF_CHUNK_HEADER_SIZE + chunkSize;
                 if (chunkSize % 2 != 0) {
-                    currentPos++; // Padding byte
+                    currentPos++;
                 }
             }
 
         } catch (IOException e) {
-            Log.error("Error detecting DFF tags in {}: {}", filePath, e.getMessage());
+            LOG.error("Error detecting DFF tags in {}: {}", filePath, e.getMessage());
             throw e;
         }
 
         return tags;
     }
 
-    /**
-     * Read 64-bit little-endian long
-     */
     private long readLittleEndianLong(RandomAccessFile file) throws IOException {
         byte[] bytes = new byte[8];
         file.read(bytes);
@@ -214,9 +213,6 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
                 ((long)(bytes[7] & 0xFF) << 56);
     }
 
-    /**
-     * Read 64-bit big-endian long
-     */
     private long readBigEndianLong(RandomAccessFile file) throws IOException {
         byte[] bytes = new byte[8];
         file.read(bytes);

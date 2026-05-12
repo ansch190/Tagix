@@ -258,7 +258,7 @@ class ID3TestUtils {
             String fieldName = entry.getKey();
             String expectedValue = entry.getValue();
 
-            com.schwanitz.others.MetadataField<?> field = metadata.getFields().stream()
+            com.schwanitz.metadata.MetadataField<?> field = metadata.getFields().stream()
                     .filter(f -> f.getKey().equals(fieldName))
                     .findFirst()
                     .orElse(null);

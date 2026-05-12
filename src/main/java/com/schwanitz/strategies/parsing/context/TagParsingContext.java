@@ -14,14 +14,20 @@ public class TagParsingContext {
     private final List<TagParsingStrategy> strategies = new ArrayList<>();
 
     public TagParsingContext() {
-        strategies.add(new ID3ParsingStrategy());           // ID3v1/v1.1/v2.2/v2.3/v2.4
-        strategies.add(new VorbisParsingStrategy());        // Vorbis Comments (OGG/FLAC)
-        strategies.add(new Lyrics3ParsingStrategy());       // Lyrics3v1/v2
-        strategies.add(new APEParsingStrategy());           // APEv1/v2
-        strategies.add(new MP4ParsingStrategy());           // MP4/iTunes Tags
-        strategies.add(new RIFFInfoParsingStrategy());      // RIFF INFO Chunks (WAV)
-        strategies.add(new BWFParsingStrategy());           // Broadcast Wave Format
-        strategies.add(new AIFFMetadataParsingStrategy());  // AIFF Metadata Chunks
+        strategies.add(new ID3ParsingStrategy());
+        strategies.add(new VorbisParsingStrategy());
+        strategies.add(new Lyrics3ParsingStrategy());
+        strategies.add(new APEParsingStrategy());
+        strategies.add(new MP4ParsingStrategy());
+        strategies.add(new RIFFInfoParsingStrategy());
+        strategies.add(new BWFParsingStrategy());
+        strategies.add(new AIFFMetadataParsingStrategy());
+        strategies.add(new ASFParsingStrategy());
+        strategies.add(new DSFParsingStrategy());
+        strategies.add(new DFFParsingStrategy());
+        strategies.add(new MatroskaParsingStrategy());
+        strategies.add(new WavPackParsingStrategy());
+        strategies.add(new FLACApplicationParsingStrategy());
     }
 
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {

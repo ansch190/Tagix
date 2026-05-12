@@ -27,6 +27,13 @@ import java.util.List;
 public class APEDetectionStrategy extends TagDetectionStrategy {
 
     private static final int APE_HEADER_SIZE = 32;
+    private static final int APE_PREAMBLE_LENGTH = 8;
+    private static final int APE_VERSION_1 = 1000;
+    private static final int APE_VERSION_2 = 2000;
+
+    // APE header field offsets (relative to start of header)
+    private static final int APE_VERSION_OFFSET = 8;
+    private static final int APE_TAG_SIZE_OFFSET = 12;
 
     @Override
     public List<TagFormat> getSupportedTagFormats() {
@@ -42,7 +49,6 @@ public class APEDetectionStrategy extends TagDetectionStrategy {
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath, byte[] startBuffer, byte[] endBuffer) throws IOException {
         List<TagInfo> tags = new ArrayList<>();
 
-        // Check at the beginning of the File
         if (checkAPE(startBuffer, 0)) {
             int version = getAPEVersion(startBuffer, 0);
             int tagSize = getAPETagSize(startBuffer, 0);
@@ -52,7 +58,6 @@ public class APEDetectionStrategy extends TagDetectionStrategy {
             }
         }
 
-        // Check at the end of the File
         if (checkAPE(endBuffer, endBuffer.length - APE_HEADER_SIZE)) {
             int version = getAPEVersion(endBuffer, endBuffer.length - APE_HEADER_SIZE);
             int tagSize = getAPETagSize(endBuffer, endBuffer.length - APE_HEADER_SIZE);
@@ -66,42 +71,30 @@ public class APEDetectionStrategy extends TagDetectionStrategy {
         return tags;
     }
 
-    /**
-     * Check for APE signature at specified buffer offset
-     */
     private boolean checkAPE(byte[] buffer, int offset) {
         if (offset + APE_HEADER_SIZE > buffer.length) {
             return false;
         }
-        return new String(buffer, offset, 8, StandardCharsets.US_ASCII).equals("APETAGEX");
+        return new String(buffer, offset, APE_PREAMBLE_LENGTH, StandardCharsets.US_ASCII).equals("APETAGEX");
     }
 
-    /**
-     * Extract an APE version from buffer
-     */
     private int getAPEVersion(byte[] buffer, int offset) {
-        return ((buffer[offset + 8] & 0xFF)) | ((buffer[offset + 9] & 0xFF) << 8) |
-                ((buffer[offset + 10] & 0xFF) << 16) | ((buffer[offset + 11] & 0xFF) << 24);
+        return ((buffer[offset + APE_VERSION_OFFSET] & 0xFF)) | ((buffer[offset + APE_VERSION_OFFSET + 1] & 0xFF) << 8) |
+                ((buffer[offset + APE_VERSION_OFFSET + 2] & 0xFF) << 16) | ((buffer[offset + APE_VERSION_OFFSET + 3] & 0xFF) << 24);
     }
 
-    /**
-     * Extract APE tag size from buffer
-     */
     private int getAPETagSize(byte[] buffer, int offset) {
-        return ((buffer[offset + 12] & 0xFF)) | ((buffer[offset + 13] & 0xFF) << 8) |
-                ((buffer[offset + 14] & 0xFF) << 16) | ((buffer[offset + 15] & 0xFF) << 24);
+        return ((buffer[offset + APE_TAG_SIZE_OFFSET] & 0xFF)) | ((buffer[offset + APE_TAG_SIZE_OFFSET + 1] & 0xFF) << 8) |
+                ((buffer[offset + APE_TAG_SIZE_OFFSET + 2] & 0xFF) << 16) | ((buffer[offset + APE_TAG_SIZE_OFFSET + 3] & 0xFF) << 24);
     }
 
-    /**
-     * Determine TagFormat based on version number
-     */
     private TagFormat getAPEFormat(int version) {
-        if (version == 1000) {
+        if (version == APE_VERSION_1) {
             return TagFormat.APEV1;
-        } else if (version == 2000) {
+        } else if (version == APE_VERSION_2) {
             return TagFormat.APEV2;
         } else {
-            Log.debug("Unknown APE-Version: {}", version);
+            LOG.debug("Unknown APE-Version: {}", version);
             return null;
         }
     }

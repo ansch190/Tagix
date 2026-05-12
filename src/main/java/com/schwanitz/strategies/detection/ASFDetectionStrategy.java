@@ -64,6 +64,13 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
             (byte)0xA1, 0x41, 0x1D, 0x13, 0x4E, 0x45, 0x70, 0x54
     };
 
+    // ASF structural sizes
+    private static final int GUID_SIZE = 16;
+    private static final int ASF_HEADER_OBJECT_SIZE = 30; // 16 (GUID) + 8 (size) + 4 (count) + 2 (reserved)
+    private static final int ASF_OBJECT_MIN_SIZE = 24;    // 16 (GUID) + 8 (size)
+    private static final int ASF_HEADER_EXT_DATA_OFFSET = 46; // Header ext: GUID(16) + size(8) + reserved1(16) + reserved2(2) + data_size(4)
+    private static final int MAX_HEADER_OBJECTS = 10000;
+
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.ASF_CONTENT_DESC, TagFormat.ASF_EXT_CONTENT_DESC);
@@ -71,10 +78,10 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
 
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
-        if (startBuffer.length < 16) {
+        if (startBuffer.length < GUID_SIZE) {
             return false;
         }
-        return Arrays.equals(Arrays.copyOfRange(startBuffer, 0, 16), ASF_HEADER_GUID);
+        return Arrays.equals(Arrays.copyOfRange(startBuffer, 0, GUID_SIZE), ASF_HEADER_GUID);
     }
 
     @Override
@@ -86,27 +93,25 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
             return tags;
         }
 
-        Log.debug("Detecting ASF tags in file: {}", filePath);
+        LOG.debug("Detecting ASF tags in file: {}", filePath);
 
         try {
-            // Parse ASF header
             ASFHeader asfHeader = parseASFHeader(file);
             if (asfHeader == null) {
-                Log.debug("Failed to parse ASF header");
+                LOG.debug("Failed to parse ASF header");
                 return tags;
             }
 
-            Log.debug("ASF Header: size={}, objects={}", asfHeader.headerSize, asfHeader.numHeaderObjects);
+            LOG.debug("ASF Header: size={}, objects={}", asfHeader.headerSize, asfHeader.numHeaderObjects);
 
-            // Search header objects for metadata
-            long currentPos = 30; // After ASF Header (16 + 8 + 4 + 2)
+            long currentPos = ASF_HEADER_OBJECT_SIZE;
             long headerEnd = asfHeader.headerSize;
 
-            for (int i = 0; i < asfHeader.numHeaderObjects && currentPos + 24 < headerEnd; i++) {
+            for (int i = 0; i < asfHeader.numHeaderObjects && currentPos + ASF_OBJECT_MIN_SIZE < headerEnd; i++) {
                 ASFObject object = parseASFObject(file, currentPos);
 
                 if (object == null) {
-                    Log.warn("Failed to parse ASF object {} at position {}", i + 1, currentPos);
+                    LOG.warn("Failed to parse ASF object {} at position {}", i + 1, currentPos);
                     break;
                 }
 
@@ -115,7 +120,6 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
                     tags.add(tagInfo);
                 }
 
-                // Process Header Extension Objects for additional metadata
                 if (Arrays.equals(object.guid, HEADER_EXT_GUID)) {
                     List<TagInfo> extTags = processHeaderExtensionObject(file, currentPos, object.size);
                     tags.addAll(extTags);
@@ -124,27 +128,24 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
                 currentPos += object.size;
             }
 
-            Log.debug("ASF detection completed: found {} metadata objects", tags.size());
+            LOG.debug("ASF detection completed: found {} metadata objects", tags.size());
 
         } catch (IOException e) {
-            Log.error("Error detecting ASF tags in {}: {}", filePath, e.getMessage());
+            LOG.error("Error detecting ASF tags in {}: {}", filePath, e.getMessage());
             throw e;
         }
 
         return tags;
     }
 
-    /**
-     * Parse ASF header structure
-     */
     private ASFHeader parseASFHeader(RandomAccessFile file) throws IOException {
         file.seek(0);
 
-        byte[] headerGuid = new byte[16];
+        byte[] headerGuid = new byte[GUID_SIZE];
         file.read(headerGuid);
 
         if (!Arrays.equals(headerGuid, ASF_HEADER_GUID)) {
-            Log.debug("Invalid ASF header GUID");
+            LOG.debug("Invalid ASF header GUID");
             return null;
         }
 
@@ -152,88 +153,77 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
         int numHeaderObjects = readLittleEndianInt(file);
         int reserved = readLittleEndianShort(file);
 
-        // Sanity checks
-        if (headerSize < 30 || headerSize > file.length()) {
-            Log.warn("Invalid ASF header size: {}", headerSize);
+        if (headerSize < ASF_HEADER_OBJECT_SIZE || headerSize > file.length()) {
+            LOG.warn("Invalid ASF header size: {}", headerSize);
             return null;
         }
 
-        if (numHeaderObjects < 0 || numHeaderObjects > 10000) {
-            Log.warn("Invalid ASF header object count: {}", numHeaderObjects);
+        if (numHeaderObjects < 0 || numHeaderObjects > MAX_HEADER_OBJECTS) {
+            LOG.warn("Invalid ASF header object count: {}", numHeaderObjects);
             return null;
         }
 
         return new ASFHeader(headerSize, numHeaderObjects, reserved);
     }
 
-    /**
-     * Parse individual ASF object
-     */
     private ASFObject parseASFObject(RandomAccessFile file, long offset) throws IOException {
         file.seek(offset);
 
-        byte[] objectGuid = new byte[16];
+        byte[] objectGuid = new byte[GUID_SIZE];
         file.read(objectGuid);
 
         long objectSize = readLittleEndianLong(file);
 
-        if (objectSize < 24) {
-            Log.warn("Invalid ASF object size: {} at offset: {}", objectSize, offset);
+        if (objectSize < ASF_OBJECT_MIN_SIZE) {
+            LOG.warn("Invalid ASF object size: {} at offset: {}", objectSize, offset);
             return null;
         }
 
         return new ASFObject(objectGuid, objectSize);
     }
 
-    /**
-     * Process an ASF object and create TagInfo if it contains metadata
-     */
     private TagInfo processASFObject(ASFObject object, long offset) {
         if (Arrays.equals(object.guid, CONTENT_DESC_GUID)) {
-            Log.debug("Found ASF Content Description Object at offset: {}, size: {} bytes", offset, object.size);
+            LOG.debug("Found ASF Content Description Object at offset: {}, size: {} bytes", offset, object.size);
             return new TagInfo(TagFormat.ASF_CONTENT_DESC, offset, object.size);
         }
 
         if (Arrays.equals(object.guid, EXT_CONTENT_DESC_GUID)) {
-            Log.debug("Found ASF Extended Content Description Object at offset: {}, size: {} bytes", offset, object.size);
+            LOG.debug("Found ASF Extended Content Description Object at offset: {}, size: {} bytes", offset, object.size);
             return new TagInfo(TagFormat.ASF_EXT_CONTENT_DESC, offset, object.size);
         }
 
         if (Arrays.equals(object.guid, METADATA_GUID) || Arrays.equals(object.guid, METADATA_LIBRARY_GUID)) {
-            Log.debug("Found ASF Metadata Object at offset: {}, size: {} bytes", offset, object.size);
+            LOG.debug("Found ASF Metadata Object at offset: {}, size: {} bytes", offset, object.size);
             return new TagInfo(TagFormat.ASF_EXT_CONTENT_DESC, offset, object.size);
         }
 
         return null;
     }
 
-    /**
-     * Process Header Extension Objects for additional metadata
-     */
     private List<TagInfo> processHeaderExtensionObject(RandomAccessFile file, long headerExtOffset,
                                                        long headerExtSize) throws IOException {
         List<TagInfo> extTags = new ArrayList<>();
 
         try {
-            file.seek(headerExtOffset + 24); // Skip GUID + Size
+            file.seek(headerExtOffset + ASF_OBJECT_MIN_SIZE);
 
-            byte[] reserved1 = new byte[16];
+            byte[] reserved1 = new byte[GUID_SIZE];
             file.read(reserved1);
 
             int reserved2 = readLittleEndianShort(file);
             int extDataSize = readLittleEndianInt(file);
 
-            if (extDataSize <= 0 || extDataSize > headerExtSize - 46) {
-                Log.debug("Invalid Header Extension data size: {}", extDataSize);
+            if (extDataSize <= 0 || extDataSize > headerExtSize - ASF_HEADER_EXT_DATA_OFFSET) {
+                LOG.debug("Invalid Header Extension data size: {}", extDataSize);
                 return extTags;
             }
 
-            long extDataStart = headerExtOffset + 46;
+            long extDataStart = headerExtOffset + ASF_HEADER_EXT_DATA_OFFSET;
             long extDataEnd = extDataStart + extDataSize;
             long currentPos = extDataStart;
 
-            // Search extension objects for metadata
-            while (currentPos + 24 < extDataEnd) {
+            while (currentPos + ASF_OBJECT_MIN_SIZE < extDataEnd) {
                 ASFObject extObject = parseASFObject(file, currentPos);
 
                 if (extObject == null || extObject.size > extDataEnd - currentPos) {
@@ -249,24 +239,18 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
             }
 
         } catch (IOException e) {
-            Log.debug("Error parsing ASF Header Extension: {}", e.getMessage());
+            LOG.debug("Error parsing ASF Header Extension: {}", e.getMessage());
         }
 
         return extTags;
     }
 
-    /**
-     * Read 16-bit little-endian short
-     */
     private int readLittleEndianShort(RandomAccessFile file) throws IOException {
         byte[] bytes = new byte[2];
         file.read(bytes);
         return ((bytes[0] & 0xFF)) | ((bytes[1] & 0xFF) << 8);
     }
 
-    /**
-     * Read 32-bit little-endian integer
-     */
     private int readLittleEndianInt(RandomAccessFile file) throws IOException {
         byte[] bytes = new byte[4];
         file.read(bytes);
@@ -276,9 +260,6 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
                 ((bytes[3] & 0xFF) << 24);
     }
 
-    /**
-     * Read 64-bit little-endian long
-     */
     private long readLittleEndianLong(RandomAccessFile file) throws IOException {
         byte[] bytes = new byte[8];
         file.read(bytes);
@@ -292,9 +273,6 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
                 ((long)(bytes[7] & 0xFF) << 56);
     }
 
-    /**
-     * ASF Header data class
-     */
     private static class ASFHeader {
         final long headerSize;
         final int numHeaderObjects;
@@ -307,9 +285,6 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
         }
     }
 
-    /**
-     * ASF Object data class
-     */
     private static class ASFObject {
         final byte[] guid;
         final long size;

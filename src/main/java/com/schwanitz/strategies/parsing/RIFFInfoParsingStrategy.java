@@ -2,8 +2,8 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
-import com.schwanitz.others.MetadataField;
-import com.schwanitz.others.TextFieldHandler;
+import com.schwanitz.metadata.MetadataField;
+import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
 
 public class RIFFInfoParsingStrategy implements TagParsingStrategy {
 
-    private static final Logger Log = LoggerFactory.getLogger(RIFFInfoParsingStrategy.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RIFFInfoParsingStrategy.class);
 
     // RIFF INFO Chunk IDs (4 Zeichen)
     private static final Map<String, String> INFO_CHUNKS = new HashMap<>();
@@ -120,7 +120,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             throw new IOException("Expected INFO list type, found: " + infoType);
         }
 
-        Log.debug("Parsing RIFF INFO chunk with size: " + chunkSize);
+        LOG.debug("Parsing RIFF INFO chunk with size: " + chunkSize);
 
         // INFO Sub-Chunks parsen
         long currentPos = offset + 12; // 8 bytes LIST header + 4 bytes INFO type
@@ -140,7 +140,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             int subChunkSize = readLittleEndianInt32(subChunkHeader, 4);
 
             if (subChunkSize < 0 || subChunkSize > endPos - currentPos - 8) {
-                Log.warn("Invalid sub-chunk size for " + subChunkId + ": " + subChunkSize);
+                LOG.warn("Invalid sub-chunk size for " + subChunkId + ": " + subChunkSize);
                 break;
             }
 
@@ -157,7 +157,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
                     addField(metadata, fieldName, value);
                     fieldCount++;
 
-                    Log.debug("Parsed RIFF INFO field: " + subChunkId + " (" + fieldName + ") = " +
+                    LOG.debug("Parsed RIFF INFO field: " + subChunkId + " (" + fieldName + ") = " +
                             (value.length() > 50 ? value.substring(0, 50) + "..." : value));
                 }
             }
@@ -169,7 +169,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             }
         }
 
-        Log.debug("Successfully parsed RIFF INFO chunk with " + fieldCount + " fields");
+        LOG.debug("Successfully parsed RIFF INFO chunk with " + fieldCount + " fields");
     }
 
     private String parseNullTerminatedString(byte[] data) {
@@ -232,7 +232,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             // Fallback: TextFieldHandler für unbekannte Felder
             TextFieldHandler textHandler = new TextFieldHandler(key);
             metadata.addField(new MetadataField<>(key, value, textHandler));
-            Log.debug("Created fallback handler for unknown RIFF INFO field: " + key);
+            LOG.debug("Created fallback handler for unknown RIFF INFO field: " + key);
         }
     }
 

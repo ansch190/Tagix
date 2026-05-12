@@ -3,8 +3,8 @@ package com.schwanitz.strategies.parsing;
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.VorbisMetadata;
-import com.schwanitz.others.MetadataField;
-import com.schwanitz.others.TextFieldHandler;
+import com.schwanitz.metadata.MetadataField;
+import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
@@ -18,7 +18,7 @@ import org.slf4j.LoggerFactory;
 
 public class VorbisParsingStrategy implements TagParsingStrategy {
 
-    private static final Logger Log = LoggerFactory.getLogger(VorbisParsingStrategy.class);
+    private static final Logger LOG = LoggerFactory.getLogger(VorbisParsingStrategy.class);
 
     private final Map<String, FieldHandler<?>> handlers;
 
@@ -149,7 +149,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
 
         // Vendor String lesen
         String vendor = readVendorString(file);
-        Log.debug("Vorbis Comment Vendor: " + vendor);
+        LOG.debug("Vorbis Comment Vendor: " + vendor);
         currentOffset += 4 + vendor.getBytes(StandardCharsets.UTF_8).length;
 
         // Vendor String als Metadatum speichern falls vorhanden
@@ -165,7 +165,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
             throw new IOException("Invalid user comment count: " + userCommentCount);
         }
 
-        Log.debug("Reading " + userCommentCount + " Vorbis comments");
+        LOG.debug("Reading " + userCommentCount + " Vorbis comments");
 
         // User Comments lesen
         for (long i = 0; i < userCommentCount; i++) {
@@ -179,12 +179,12 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
 
                 // Sanity check für Offset
                 if (currentOffset > offset + size) {
-                    Log.warn("Comment parsing exceeded tag boundary");
+                    LOG.warn("Comment parsing exceeded tag boundary");
                     break;
                 }
 
             } catch (IOException e) {
-                Log.warn("Error reading comment " + (i + 1) + ": " + e.getMessage());
+                LOG.warn("Error reading comment " + (i + 1) + ": " + e.getMessage());
                 break;
             }
         }
@@ -194,15 +194,15 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
             try {
                 byte framingBit = file.readByte();
                 if (framingBit != 1) {
-                    Log.debug("Invalid framing bit: " + framingBit + " (expected 1, normal for FLAC)");
+                    LOG.debug("Invalid framing bit: " + framingBit + " (expected 1, normal for FLAC)");
                 }
             } catch (IOException e) {
                 // Framing bit fehlt - kann bei FLAC vorkommen
-                Log.debug("No framing bit found (normal for FLAC)");
+                LOG.debug("No framing bit found (normal for FLAC)");
             }
         }
 
-        Log.debug("Successfully parsed Vorbis Comment block");
+        LOG.debug("Successfully parsed Vorbis Comment block");
     }
 
     private String readVendorString(RandomAccessFile file) throws IOException {
@@ -264,7 +264,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         int equalPos = comment.indexOf('=');
 
         if (equalPos <= 0 || equalPos == comment.length() - 1) {
-            Log.debug("Invalid comment format (no = or empty field/value): " + comment);
+            LOG.debug("Invalid comment format (no = or empty field/value): " + comment);
             return;
         }
 
@@ -272,13 +272,13 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         String fieldValue = comment.substring(equalPos + 1).trim();
 
         if (fieldName.isEmpty() || fieldValue.isEmpty()) {
-            Log.debug("Empty field name or value in comment: " + comment);
+            LOG.debug("Empty field name or value in comment: " + comment);
             return;
         }
 
         // Validierung des Feldnamens (nur ASCII-Zeichen 0x20-0x7D außer 0x3D)
         if (!isValidFieldName(fieldName)) {
-            Log.debug("Invalid field name: " + fieldName);
+            LOG.debug("Invalid field name: " + fieldName);
             return;
         }
 
@@ -287,12 +287,12 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         if (existingValue != null && !existingValue.equals(fieldValue)) {
             // Werte mit Separator verbinden (Vorbis Comment Standard)
             fieldValue = existingValue + "; " + fieldValue;
-            Log.debug("Multi-value field detected: " + fieldName + " = " + fieldValue);
+            LOG.debug("Multi-value field detected: " + fieldName + " = " + fieldValue);
         }
 
         addField(metadata, fieldName, fieldValue);
 
-        Log.debug("Parsed comment: " + fieldName + " = " +
+        LOG.debug("Parsed comment: " + fieldName + " = " +
                 (fieldValue.length() > 50 ? fieldValue.substring(0, 50) + "..." : fieldValue));
     }
 
@@ -331,7 +331,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
             // Fallback: TextFieldHandler für unbekannte Felder erstellen
             TextFieldHandler textHandler = new TextFieldHandler(normalizedKey);
             metadata.addField(new MetadataField<>(normalizedKey, value, textHandler));
-            Log.debug("Created fallback handler for unknown field: " + normalizedKey);
+            LOG.debug("Created fallback handler for unknown field: " + normalizedKey);
         }
     }
 

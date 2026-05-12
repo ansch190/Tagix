@@ -63,7 +63,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             return tags;
         }
 
-        Log.debug("Detecting WAV metadata in file: {}", filePath);
+        LOG.debug("Detecting WAV metadata in file: {}", filePath);
 
         try {
             long fileLength = file.length();
@@ -77,10 +77,10 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                 ChunkHeader chunkHeader = readChunkHeader(file, position);
 
                 if (chunkHeader == null) {
-                    Log.debug("Failed to read chunk header at position {}, attempting recovery", position);
+                    LOG.debug("Failed to read chunk header at position {}, attempting recovery", position);
                     position = attemptChunkRecovery(file, position, fileLength);
                     if (position == -1) {
-                        Log.debug("Could not recover from chunk corruption, ending detection");
+                        LOG.debug("Could not recover from chunk corruption, ending detection");
                         break;
                     }
                     corruptedChunksSkipped++;
@@ -89,7 +89,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
 
                 // Validate a chunk type
                 if (!isValidChunkType(chunkHeader.type)) {
-                    Log.debug("Invalid chunk type '{}' at position {}, skipping",
+                    LOG.debug("Invalid chunk type '{}' at position {}, skipping",
                             chunkHeader.type, position);
                     position += MIN_CHUNK_HEADER_SIZE;
                     corruptedChunksSkipped++;
@@ -100,7 +100,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                 ChunkValidationResult validation = validateChunkSize(chunkHeader.size,
                         position, fileLength);
                 if (!validation.isValid) {
-                    Log.warn("Invalid chunk size for '{}' at position {}: {} - {}",
+                    LOG.warn("Invalid chunk size for '{}' at position {}: {} - {}",
                             chunkHeader.type, position, chunkHeader.size, validation.reason);
 
                     if (validation.shouldSkip) {
@@ -109,7 +109,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                         continue;
                     } else {
                         // Critical error - chunk extends beyond file
-                        Log.debug("Chunk '{}' extends beyond file boundary, ending detection",
+                        LOG.debug("Chunk '{}' extends beyond file boundary, ending detection",
                                 chunkHeader.type);
                         break;
                     }
@@ -119,7 +119,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                 TagInfo tagInfo = processMetadataChunk(file, chunkHeader, position);
                 if (tagInfo != null) {
                     tags.add(tagInfo);
-                    Log.debug("Found {} metadata chunk '{}' at offset: {}, size: {} bytes",
+                    LOG.debug("Found {} metadata chunk '{}' at offset: {}, size: {} bytes",
                             tagInfo.getFormat().getFormatName(), chunkHeader.type,
                             position, chunkHeader.size + MIN_CHUNK_HEADER_SIZE);
                 }
@@ -135,19 +135,19 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
 
             // Log detection summary
             if (chunksProcessed >= MAX_CHUNKS_TO_PROCESS) {
-                Log.warn("Reached maximum chunk processing limit in {}", filePath);
+                LOG.warn("Reached maximum chunk processing limit in {}", filePath);
             }
 
             if (corruptedChunksSkipped > 0) {
-                Log.info("WAV detection in {} completed: found {} metadata chunks, " +
+                LOG.info("WAV detection in {} completed: found {} metadata chunks, " +
                         "skipped {} corrupted chunks", filePath, tags.size(), corruptedChunksSkipped);
             } else {
-                Log.debug("WAV detection in {} completed: found {} metadata chunks",
+                LOG.debug("WAV detection in {} completed: found {} metadata chunks",
                         filePath, tags.size());
             }
 
         } catch (IOException e) {
-            Log.error("Error detecting WAV metadata in {}: {}", filePath, e.getMessage());
+            LOG.error("Error detecting WAV metadata in {}: {}", filePath, e.getMessage());
             throw e;
         }
 
@@ -177,7 +177,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             int bytesRead = file.read(headerData);
 
             if (bytesRead != MIN_CHUNK_HEADER_SIZE) {
-                Log.debug("Incomplete chunk header at position {}: read {} bytes",
+                LOG.debug("Incomplete chunk header at position {}: read {} bytes",
                         position, bytesRead);
                 return null;
             }
@@ -188,7 +188,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             return new ChunkHeader(chunkType, chunkSize);
 
         } catch (IOException e) {
-            Log.debug("IOException reading chunk header at position {}: {}", position, e.getMessage());
+            LOG.debug("IOException reading chunk header at position {}: {}", position, e.getMessage());
             return null;
         }
     }
@@ -259,7 +259,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             throws IOException {
 
         if (header.size < 4) {
-            Log.debug("LIST chunk too small: {} bytes", header.size);
+            LOG.debug("LIST chunk too small: {} bytes", header.size);
             return null;
         }
 
@@ -269,7 +269,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             int bytesRead = file.read(listType);
 
             if (bytesRead != 4) {
-                Log.debug("Could not read LIST type");
+                LOG.debug("Could not read LIST type");
                 return null;
             }
 
@@ -279,7 +279,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             }
 
         } catch (IOException e) {
-            Log.debug("Error processing LIST chunk: {}", e.getMessage());
+            LOG.debug("Error processing LIST chunk: {}", e.getMessage());
         }
 
         return null;
@@ -293,13 +293,13 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
 
         // Validate BWF chunk size
         if (header.size < BWF_MIN_CHUNK_SIZE) {
-            Log.debug("bext chunk too small for BWF: {} bytes (minimum: {})",
+            LOG.debug("bext chunk too small for BWF: {} bytes (minimum: {})",
                     header.size, BWF_MIN_CHUNK_SIZE);
             return null;
         }
 
         if (header.size > BWF_MAX_REASONABLE_SIZE) {
-            Log.warn("bext chunk unusually large: {} bytes, processing anyway", header.size);
+            LOG.warn("bext chunk unusually large: {} bytes, processing anyway", header.size);
         }
 
         try {
@@ -309,7 +309,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             int bytesRead = file.read(versionBuffer);
 
             if (bytesRead != 2) {
-                Log.debug("Could not read BWF version field");
+                LOG.debug("Could not read BWF version field");
                 return null;
             }
 
@@ -319,13 +319,13 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             if (format != null) {
                 return new TagInfo(format, position, header.size + MIN_CHUNK_HEADER_SIZE);
             } else {
-                Log.debug("Unknown BWF version: {}", version);
+                LOG.debug("Unknown BWF version: {}", version);
                 // Still return a generic BWF format for unknown versions
                 return new TagInfo(TagFormat.BWF_V2, position, header.size + MIN_CHUNK_HEADER_SIZE);
             }
 
         } catch (IOException e) {
-            Log.debug("Error processing bext chunk: {}", e.getMessage());
+            LOG.debug("Error processing bext chunk: {}", e.getMessage());
             return null;
         }
     }
@@ -339,7 +339,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             case 1 -> TagFormat.BWF_V1;
             case 2 -> TagFormat.BWF_V2;
             default -> {
-                Log.debug("Unknown BWF version: {}", version);
+                LOG.debug("Unknown BWF version: {}", version);
                 yield null;
             }
         };
@@ -351,7 +351,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
     private long attemptChunkRecovery(RandomAccessFile file, long startPosition, long fileLength)
             throws IOException {
 
-        Log.debug("Attempting chunk recovery from position {}", startPosition);
+        LOG.debug("Attempting chunk recovery from position {}", startPosition);
 
         long searchPosition = startPosition + 1;
         long maxSearchDistance = Math.min(1024, fileLength - searchPosition); // Search up to 1KB
@@ -365,7 +365,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                 if (bytesRead == 4) {
                     String candidateType = new String(candidateHeader, StandardCharsets.US_ASCII);
                     if (isValidChunkType(candidateType) && isKnownChunkType(candidateType)) {
-                        Log.debug("Found potential chunk '{}' at position {} during recovery",
+                        LOG.debug("Found potential chunk '{}' at position {} during recovery",
                                 candidateType, searchPosition);
                         return searchPosition;
                     }
@@ -378,7 +378,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             searchPosition++;
         }
 
-        Log.debug("Chunk recovery failed - no valid chunk found within search distance");
+        LOG.debug("Chunk recovery failed - no valid chunk found within search distance");
         return -1;
     }
 

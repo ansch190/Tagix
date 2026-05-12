@@ -3,8 +3,8 @@ package com.schwanitz.strategies.parsing;
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.ID3Metadata;
-import com.schwanitz.others.MetadataField;
-import com.schwanitz.others.TextFieldHandler;
+import com.schwanitz.metadata.MetadataField;
+import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.strategies.parsing.id3.ID3FrameParser;
 import com.schwanitz.strategies.parsing.id3.ID3FrameParserRegistry;
@@ -22,7 +22,7 @@ import java.util.Map;
 
 public class ID3ParsingStrategy implements TagParsingStrategy {
 
-    private static final Logger Log = LoggerFactory.getLogger(ID3ParsingStrategy.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ID3ParsingStrategy.class);
 
     private final Map<String, FieldHandler<?>> handlers;
     private final ID3FrameParserRegistry frameParserRegistry;
@@ -116,7 +116,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
             addField(metadata, "TCON", ID3FrameParsingUtils.ID3V1_GENRES[genreIndex]);
         }
 
-        Log.debug("Successfully parsed ID3v1{} tag", format == TagFormat.ID3V1_1 ? ".1" : "");
+        LOG.debug("Successfully parsed ID3v1{} tag", format == TagFormat.ID3V1_1 ? ".1" : "");
     }
 
     private void parseID3v2(RandomAccessFile file, ID3Metadata metadata, long offset, long size, TagFormat format)
@@ -199,7 +199,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
             currentPos += frameHeaderSize + frameSize;
         }
 
-        Log.debug("Successfully parsed ID3v2.{} tag", majorVersion);
+        LOG.debug("Successfully parsed ID3v2.{} tag", majorVersion);
     }
 
     private void parseFrame(ID3Metadata metadata, String frameId, byte[] frameData, int majorVersion) {
@@ -215,19 +215,19 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
                     addField(metadata, frameId, value);
                 }
             } else {
-                Log.debug("Unhandled frame type: {}", frameId);
+                LOG.debug("Unhandled frame type: {}", frameId);
                 // Fallback: als Text-Frame behandeln
                 ID3FrameParser textParser = frameParserRegistry.getParser("TIT2");
                 if (textParser != null) {
                     String text = textParser.parse(frameData, frameId, majorVersion);
                     if (!text.isEmpty()) {
                         addField(metadata, frameId, text);
-                        Log.debug("Treated unknown frame {} as text frame", frameId);
+                        LOG.debug("Treated unknown frame {} as text frame", frameId);
                     }
                 }
             }
         } catch (Exception e) {
-            Log.warn("Error parsing frame {}: {}", frameId, e.getMessage());
+            LOG.warn("Error parsing frame {}: {}", frameId, e.getMessage());
         }
     }
 
@@ -239,7 +239,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
         } else {
             TextFieldHandler textHandler = new TextFieldHandler(key);
             metadata.addField(new MetadataField<>(key, value, textHandler));
-            Log.debug("Created fallback handler for unknown ID3 field: {}", key);
+            LOG.debug("Created fallback handler for unknown ID3 field: {}", key);
         }
     }
 

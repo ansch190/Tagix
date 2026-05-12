@@ -18,7 +18,7 @@ import java.util.List;
  */
 public abstract class TagDetectionStrategy {
 
-    protected final Logger Log = LoggerFactory.getLogger(getClass());
+    protected final Logger LOG = LoggerFactory.getLogger(getClass());
 
     /**
      * Returns the tag formats supported by this detection strategy

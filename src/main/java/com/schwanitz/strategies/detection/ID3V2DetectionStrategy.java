@@ -27,6 +27,10 @@ import java.util.List;
  */
 public class ID3V2DetectionStrategy extends TagDetectionStrategy {
 
+    private static final int ID3V2_HEADER_SIZE = 10;
+    private static final int ID3V2_SIGNATURE_LENGTH = 3;
+    private static final int SYNCHSAFE_MASK = 0x7F;
+
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.ID3V2_2, TagFormat.ID3V2_3, TagFormat.ID3V2_4);
@@ -34,10 +38,10 @@ public class ID3V2DetectionStrategy extends TagDetectionStrategy {
 
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
-        if (startBuffer.length < 10) {
+        if (startBuffer.length < ID3V2_HEADER_SIZE) {
             return false;
         }
-        return new String(startBuffer, 0, 3, StandardCharsets.US_ASCII).equals("ID3");
+        return new String(startBuffer, 0, ID3V2_SIGNATURE_LENGTH, StandardCharsets.US_ASCII).equals("ID3");
     }
 
     @Override
@@ -47,33 +51,30 @@ public class ID3V2DetectionStrategy extends TagDetectionStrategy {
             int majorVersion = startBuffer[3] & 0xFF;
             int revision = startBuffer[4] & 0xFF;
             if (revision != 0) {
-                Log.debug("Invalid Revision for ID3v2: {}", revision);
+                LOG.debug("Invalid Revision for ID3v2: {}", revision);
                 return tags;
             }
             TagFormat format;
             switch (majorVersion) {
                 case 2:
                     format = TagFormat.ID3V2_2;
-                    // Size for ID3v2.2: 3 Bytes (24-Bit)
                     int sizeV2 = ((startBuffer[6] & 0xFF) << 16) | ((startBuffer[7] & 0xFF) << 8) | (startBuffer[8] & 0xFF);
-                    tags.add(new TagInfo(format, 0, sizeV2 + 10));
+                    tags.add(new TagInfo(format, 0, sizeV2 + ID3V2_HEADER_SIZE));
                     break;
                 case 3:
                     format = TagFormat.ID3V2_3;
-                    // Size for ID3v2.3: 4 Bytes (synchsafe)
-                    int sizeV3 = ((startBuffer[6] & 0x7F) << 21) | ((startBuffer[7] & 0x7F) << 14) |
-                            ((startBuffer[8] & 0x7F) << 7) | (startBuffer[9] & 0x7F);
-                    tags.add(new TagInfo(format, 0, sizeV3 + 10));
+                    int sizeV3 = ((startBuffer[6] & SYNCHSAFE_MASK) << 21) | ((startBuffer[7] & SYNCHSAFE_MASK) << 14) |
+                            ((startBuffer[8] & SYNCHSAFE_MASK) << 7) | (startBuffer[9] & SYNCHSAFE_MASK);
+                    tags.add(new TagInfo(format, 0, sizeV3 + ID3V2_HEADER_SIZE));
                     break;
                 case 4:
                     format = TagFormat.ID3V2_4;
-                    // Size for ID3v2.4: 4 Bytes (synchsafe)
-                    int sizeV4 = ((startBuffer[6] & 0x7F) << 21) | ((startBuffer[7] & 0x7F) << 14) |
-                            ((startBuffer[8] & 0x7F) << 7) | (startBuffer[9] & 0x7F);
-                    tags.add(new TagInfo(format, 0, sizeV4 + 10));
+                    int sizeV4 = ((startBuffer[6] & SYNCHSAFE_MASK) << 21) | ((startBuffer[7] & SYNCHSAFE_MASK) << 14) |
+                            ((startBuffer[8] & SYNCHSAFE_MASK) << 7) | (startBuffer[9] & SYNCHSAFE_MASK);
+                    tags.add(new TagInfo(format, 0, sizeV4 + ID3V2_HEADER_SIZE));
                     break;
                 default:
-                    Log.debug("Unknown ID3v2-Version: {}", majorVersion);
+                    LOG.debug("Unknown ID3v2-Version: {}", majorVersion);
                     break;
             }
         }

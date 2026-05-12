@@ -1,4 +1,4 @@
-package com.schwanitz.others;
+package com.schwanitz.metadata;
 
 import com.schwanitz.interfaces.FieldHandler;
 import java.nio.charset.StandardCharsets;

@@ -1,6 +1,7 @@
-package com.schwanitz.others;
+package com.schwanitz.api;
 
 import com.schwanitz.interfaces.Metadata;
+import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.strategies.parsing.factory.TagParsingStrategyFactory;
 import com.schwanitz.tagging.*;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Zentrale API für die Erkennung und das Parsen von Metadaten.
@@ -20,7 +22,7 @@ import java.util.Map;
  */
 public class MetadataManager {
 
-    private static final Logger Log = LoggerFactory.getLogger(MetadataManager.class);
+    private static final Logger LOG = LoggerFactory.getLogger(MetadataManager.class);
 
     private final TagFormatDetector detector;
 
@@ -29,7 +31,7 @@ public class MetadataManager {
     }
 
     public MetadataManager(TagFormatDetector detector) {
-        this.detector = detector;
+        this.detector = Objects.requireNonNull(detector, "detector must not be null");
     }
 
     /**
@@ -43,6 +45,8 @@ public class MetadataManager {
      * Liest Metadaten aus einer Datei mit gegebener Konfiguration.
      */
     public List<Metadata> readFromFile(String filePath, ScanConfiguration config) throws IOException {
+        Objects.requireNonNull(filePath, "filePath must not be null");
+        Objects.requireNonNull(config, "config must not be null");
         List<TagInfo> detectedTags = detector.fullScan(filePath);
         return parseTags(filePath, detectedTags);
     }
@@ -58,6 +62,8 @@ public class MetadataManager {
      * Liest Metadaten aus mehreren Dateien mit gegebener Konfiguration.
      */
     public Map<String, List<Metadata>> readFromFiles(List<String> filePaths, ScanConfiguration config) {
+        Objects.requireNonNull(filePaths, "filePaths must not be null");
+        Objects.requireNonNull(config, "config must not be null");
         Map<String, List<TagInfo>> detected = switch (config.getMode()) {
             case FULL_SCAN -> detector.fullScan(filePaths);
             case COMFORT_SCAN -> detector.comfortScan(filePaths);
@@ -83,14 +89,14 @@ public class MetadataManager {
                                 tagInfo.getFormat(), raf, tagInfo.getOffset(), tagInfo.getSize());
                         metadataList.add(metadata);
                     } catch (IOException e) {
-                        Log.warn("Error parsing tag {} in {}: {}", tagInfo.getFormat(), filePath, e.getMessage());
+                        LOG.warn("Error parsing tag {} in {}: {}", tagInfo.getFormat(), filePath, e.getMessage());
                     }
                 } else {
-                    Log.debug("No parser available for format: {}", tagInfo.getFormat());
+                    LOG.debug("No parser available for format: {}", tagInfo.getFormat());
                 }
             }
         } catch (IOException e) {
-            Log.error("Cannot read file {}: {}", filePath, e.getMessage());
+            LOG.error("Cannot read file {}: {}", filePath, e.getMessage());
         }
 
         return metadataList;

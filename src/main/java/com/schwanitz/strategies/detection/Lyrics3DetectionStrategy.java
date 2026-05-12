@@ -27,6 +27,11 @@ import java.util.List;
  */
 public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
 
+    private static final int LYRICS3_END_TAG_LENGTH = 9;
+    private static final int LYRICS3_BEGIN_TAG_LENGTH = 11;
+    private static final int LYRICS3V2_SIZE_LENGTH = 6;
+    private static final int LYRICS3V2_FOOTER_SIZE = LYRICS3_END_TAG_LENGTH + LYRICS3V2_SIZE_LENGTH;
+
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.LYRICS3V1, TagFormat.LYRICS3V2);
@@ -34,52 +39,97 @@ public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
 
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
-        if (endBuffer.length < 9) {
+        if (endBuffer.length < LYRICS3_END_TAG_LENGTH) {
             return false;
         }
-        String endTag = new String(endBuffer, endBuffer.length - 9, 9, StandardCharsets.US_ASCII);
+        String endTag = new String(endBuffer, endBuffer.length - LYRICS3_END_TAG_LENGTH, LYRICS3_END_TAG_LENGTH, StandardCharsets.US_ASCII);
         return endTag.equals("LYRICSEND") || endTag.equals("LYRICS200");
     }
 
     @Override
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath, byte[] startBuffer, byte[] endBuffer) throws IOException {
         List<TagInfo> tags = new ArrayList<>();
-        if (endBuffer.length < 9) {
+        if (endBuffer.length < LYRICS3_END_TAG_LENGTH) {
             return tags;
         }
 
-        String endTag = new String(endBuffer, endBuffer.length - 9, 9, StandardCharsets.US_ASCII);
+        String endTag = new String(endBuffer, endBuffer.length - LYRICS3_END_TAG_LENGTH, LYRICS3_END_TAG_LENGTH, StandardCharsets.US_ASCII);
         if (endTag.equals("LYRICS200")) {
-            // Lyrics3v2: Check size indication and start signature
-            if (endBuffer.length < 15) {
-                return tags;
-            }
-            String sizeStr = new String(endBuffer, endBuffer.length - 15, 6, StandardCharsets.US_ASCII);
-            try {
-                int size = Integer.parseInt(sizeStr);
-                long startOffset = file.length() - 15 - size;
-                if (startOffset >= 0) {
-                    file.seek(startOffset);
-                    byte[] buffer = new byte[11];
-                    file.read(buffer);
-                    if (new String(buffer, StandardCharsets.US_ASCII).equals("LYRICSBEGIN")) {
-                        tags.add(new TagInfo(TagFormat.LYRICS3V2, startOffset, size + 15));
-                    }
-                }
-            } catch (NumberFormatException e) {
-                Log.debug("Invalid Lyrics3v2 size indication: {}", sizeStr);
-            }
+            tags.addAll(detectLyrics3v2(file, endBuffer));
         } else if (endTag.equals("LYRICSEND")) {
-            // Lyrics3v1: Search for "LYRICSBEGIN"
-            long position = file.length() - 9 - 11;
-            if (position >= 0) {
-                file.seek(position);
-                byte[] buffer = new byte[11];
+            tags.addAll(detectLyrics3v1(file));
+        }
+        return tags;
+    }
+
+    private List<TagInfo> detectLyrics3v2(RandomAccessFile file, byte[] endBuffer) throws IOException {
+        List<TagInfo> tags = new ArrayList<>();
+
+        long fileLength = file.length();
+
+        String sizeStr = readSizeFromEndBuffer(endBuffer);
+        if (sizeStr == null) {
+            sizeStr = readSizeFromFile(file, fileLength);
+        }
+
+        if (sizeStr == null) {
+            return tags;
+        }
+
+        try {
+            int size = Integer.parseInt(sizeStr);
+            long startOffset = fileLength - LYRICS3V2_FOOTER_SIZE - size;
+            if (startOffset >= 0) {
+                file.seek(startOffset);
+                byte[] buffer = new byte[LYRICS3_BEGIN_TAG_LENGTH];
                 file.read(buffer);
                 if (new String(buffer, StandardCharsets.US_ASCII).equals("LYRICSBEGIN")) {
-                    long tagSize = file.length() - position;
-                    tags.add(new TagInfo(TagFormat.LYRICS3V1, position, tagSize));
+                    tags.add(new TagInfo(TagFormat.LYRICS3V2, startOffset, size + LYRICS3V2_FOOTER_SIZE));
                 }
+            }
+        } catch (NumberFormatException e) {
+            LOG.debug("Invalid Lyrics3v2 size indication: {}", sizeStr);
+        }
+
+        return tags;
+    }
+
+    private String readSizeFromEndBuffer(byte[] endBuffer) {
+        if (endBuffer.length >= LYRICS3V2_FOOTER_SIZE) {
+            return new String(endBuffer, endBuffer.length - LYRICS3V2_FOOTER_SIZE, LYRICS3V2_SIZE_LENGTH, StandardCharsets.US_ASCII);
+        }
+        return null;
+    }
+
+    private String readSizeFromEndBuffer4KBFallback(RandomAccessFile file, long fileLength) throws IOException {
+        int readSize = (int) Math.min(fileLength, 16384);
+        file.seek(fileLength - readSize);
+        byte[] largerBuffer = new byte[readSize];
+        file.read(largerBuffer);
+        return new String(largerBuffer, largerBuffer.length - LYRICS3V2_FOOTER_SIZE, LYRICS3V2_SIZE_LENGTH, StandardCharsets.US_ASCII);
+    }
+
+    private String readSizeFromFile(RandomAccessFile file, long fileLength) throws IOException {
+        file.seek(fileLength - LYRICS3V2_FOOTER_SIZE);
+        byte[] sizeBytes = new byte[LYRICS3V2_FOOTER_SIZE];
+        int bytesRead = file.read(sizeBytes);
+        if (bytesRead >= LYRICS3V2_SIZE_LENGTH) {
+            return new String(sizeBytes, 0, LYRICS3V2_SIZE_LENGTH, StandardCharsets.US_ASCII);
+        }
+        return null;
+    }
+
+    private List<TagInfo> detectLyrics3v1(RandomAccessFile file) throws IOException {
+        List<TagInfo> tags = new ArrayList<>();
+        long fileLength = file.length();
+        long position = fileLength - LYRICS3_END_TAG_LENGTH - LYRICS3_BEGIN_TAG_LENGTH;
+        if (position >= 0) {
+            file.seek(position);
+            byte[] buffer = new byte[LYRICS3_BEGIN_TAG_LENGTH];
+            file.read(buffer);
+            if (new String(buffer, StandardCharsets.US_ASCII).equals("LYRICSBEGIN")) {
+                long tagSize = fileLength - position;
+                tags.add(new TagInfo(TagFormat.LYRICS3V1, position, tagSize));
             }
         }
         return tags;

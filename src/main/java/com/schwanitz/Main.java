@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 
 public class Main {
 
-    private static final Logger Log = LoggerFactory.getLogger(Main.class);
+    private static final Logger LOG = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) throws IOException {
         //String path = "src/main/resources/musicFiles";
@@ -25,7 +25,7 @@ public class Main {
                 .map(Path::toString)
                 .collect(Collectors.toList());
 
-        Log.info("Files: {}", files.size());
+        LOG.info("Files: {}", files.size());
 
         TagFormatDetector detector = new TagFormatDetector();
         Map<String,List<TagInfo>> results;
@@ -35,7 +35,7 @@ public class Main {
 
         for (String s : results.keySet()){
           for (TagInfo t: results.get(s)){
-              Log.info("File: {}, Tags: {}",s , t.getFormat());
+              LOG.info("File: {}, Tags: {}",s , t.getFormat());
           }
         }
     }

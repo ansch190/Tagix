@@ -19,6 +19,12 @@ public class TagParsingStrategyFactory {
     private static final BWFParsingStrategy BWF_PARSER = new BWFParsingStrategy();
     private static final AIFFMetadataParsingStrategy AIFF_PARSER = new AIFFMetadataParsingStrategy();
     private static final Lyrics3ParsingStrategy LYRICS3_PARSER = new Lyrics3ParsingStrategy();
+    private static final ASFParsingStrategy ASF_PARSER = new ASFParsingStrategy();
+    private static final DSFParsingStrategy DSF_PARSER = new DSFParsingStrategy();
+    private static final DFFParsingStrategy DFF_PARSER = new DFFParsingStrategy();
+    private static final MatroskaParsingStrategy MATROSKA_PARSER = new MatroskaParsingStrategy();
+    private static final WavPackParsingStrategy WAVPACK_PARSER = new WavPackParsingStrategy();
+    private static final FLACApplicationParsingStrategy FLAC_APP_PARSER = new FLACApplicationParsingStrategy();
 
     private static final Map<TagFormat, TagParsingStrategy> FORMAT_TO_STRATEGY = Map.ofEntries(
             Map.entry(TagFormat.ID3V1, ID3_PARSER),
@@ -36,7 +42,15 @@ public class TagParsingStrategyFactory {
             Map.entry(TagFormat.BWF_V2, BWF_PARSER),
             Map.entry(TagFormat.AIFF_METADATA, AIFF_PARSER),
             Map.entry(TagFormat.LYRICS3V1, LYRICS3_PARSER),
-            Map.entry(TagFormat.LYRICS3V2, LYRICS3_PARSER)
+            Map.entry(TagFormat.LYRICS3V2, LYRICS3_PARSER),
+            Map.entry(TagFormat.ASF_CONTENT_DESC, ASF_PARSER),
+            Map.entry(TagFormat.ASF_EXT_CONTENT_DESC, ASF_PARSER),
+            Map.entry(TagFormat.DSF_METADATA, DSF_PARSER),
+            Map.entry(TagFormat.DFF_METADATA, DFF_PARSER),
+            Map.entry(TagFormat.MATROSKA_TAGS, MATROSKA_PARSER),
+            Map.entry(TagFormat.WEBM_TAGS, MATROSKA_PARSER),
+            Map.entry(TagFormat.WAVPACK_NATIVE, WAVPACK_PARSER),
+            Map.entry(TagFormat.FLAC_APPLICATION, FLAC_APP_PARSER)
     );
 
     public static TagParsingStrategy getStrategyForFormat(TagFormat format) {

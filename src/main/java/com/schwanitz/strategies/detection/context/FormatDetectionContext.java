@@ -18,27 +18,45 @@ import java.util.*;
  */
 public class FormatDetectionContext {
 
-    private static final Logger Log = LoggerFactory.getLogger(FormatDetectionContext.class);
+    private static final Logger LOG = LoggerFactory.getLogger(FormatDetectionContext.class);
     private static final int BUFFER_SIZE = 4096;
 
     public List<TagInfo> detectTags(String filePath, ScanConfiguration config) throws IOException {
+        Objects.requireNonNull(filePath, "filePath must not be null");
+        Objects.requireNonNull(config, "config must not be null");
+
         File file = new File(filePath);
         if (!file.exists() || !file.canRead()) {
             throw new IOException("Datei existiert nicht oder ist nicht lesbar: " + filePath);
         }
 
+        if (file.length() == 0) {
+            LOG.debug("Skipping empty file: {}", filePath);
+            return List.of();
+        }
+
         String extension = getFileExtension(filePath);
         List<TagFormat> formatsToCheck = getFormatsToCheck(config, extension);
 
-        Log.debug("Start Tag-Detection with Mode: {} for File: {}", config.getMode(), filePath);
+        if (formatsToCheck == null || formatsToCheck.isEmpty()) {
+            LOG.debug("No formats to check for file: {}", filePath);
+            return List.of();
+        }
+
+        LOG.debug("Start Tag-Detection with Mode: {} for File: {}", config.getMode(), filePath);
 
         try (RandomAccessFile raf = new RandomAccessFile(filePath, "r")) {
             FileBuffers buffers = readFileBuffers(raf);
 
             List<TagDetectionStrategy> strategies = TagDetectionStrategyFactory.getStrategiesForFormats(formatsToCheck);
+            if (strategies.isEmpty()) {
+                LOG.debug("No strategies found for requested formats");
+                return List.of();
+            }
+
             List<TagInfo> detectedTags = performDetection(strategies, formatsToCheck, raf, filePath, buffers);
 
-            Log.info("Detected {} tags in {} using {}", detectedTags.size(), filePath, config.getMode());
+            LOG.info("Detected {} tags in {} using {}", detectedTags.size(), filePath, config.getMode());
             return detectedTags;
         }
     }
@@ -53,7 +71,7 @@ public class FormatDetectionContext {
 
         List<TagInfo> detectedTags = new ArrayList<>();
 
-        Log.debug("Using {} unique strategies for {} formats", strategies.size(), requestedFormats.size());
+        LOG.debug("Using {} unique strategies for {} formats", strategies.size(), requestedFormats.size());
 
         for (TagDetectionStrategy strategy : strategies) {
             try {
@@ -61,18 +79,19 @@ public class FormatDetectionContext {
                     List<TagInfo> strategyTags = strategy.detectTags(raf, filePath,
                             buffers.startBuffer, buffers.endBuffer);
 
-                    // Filter nur die angeforderten Formate
-                    List<TagInfo> filteredTags = strategyTags.stream()
-                            .filter(tag -> requestedFormats.contains(tag.getFormat()))
-                            .toList();
+                    if (strategyTags != null) {
+                        List<TagInfo> filteredTags = strategyTags.stream()
+                                .filter(tag -> tag != null && requestedFormats.contains(tag.getFormat()))
+                                .toList();
 
-                    detectedTags.addAll(filteredTags);
+                        detectedTags.addAll(filteredTags);
 
-                    Log.debug("Strategy {} found {} matching tags",
-                            strategy.getClass().getSimpleName(), filteredTags.size());
+                        LOG.debug("Strategy {} found {} matching tags",
+                                strategy.getClass().getSimpleName(), filteredTags.size());
+                    }
                 }
             } catch (Exception e) {
-                Log.warn("Error in strategy {}: {}", strategy.getClass().getSimpleName(), e.getMessage());
+                LOG.warn("Error in strategy {}: {}", strategy.getClass().getSimpleName(), e.getMessage());
             }
         }
 
@@ -96,16 +115,13 @@ public class FormatDetectionContext {
         byte[] startBuffer = new byte[BUFFER_SIZE];
         byte[] endBuffer = new byte[BUFFER_SIZE];
 
-        // Read start buffer
         raf.seek(0);
         int startRead = raf.read(startBuffer);
 
-        // Read end buffer
         long endPosition = Math.max(0, raf.length() - BUFFER_SIZE);
         raf.seek(endPosition);
         raf.read(endBuffer);
 
-        // If file is smaller than buffer, adjust buffers
         if (raf.length() < BUFFER_SIZE) {
             byte[] actualStartBuffer = new byte[startRead];
             System.arraycopy(startBuffer, 0, actualStartBuffer, 0, startRead);

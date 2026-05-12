@@ -2,8 +2,8 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
-import com.schwanitz.others.MetadataField;
-import com.schwanitz.others.TextFieldHandler;
+import com.schwanitz.metadata.MetadataField;
+import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
 
 public class MP4ParsingStrategy implements TagParsingStrategy {
 
-    private static final Logger Log = LoggerFactory.getLogger(MP4ParsingStrategy.class);
+    private static final Logger LOG = LoggerFactory.getLogger(MP4ParsingStrategy.class);
 
     // MP4 Atom Types für Metadaten
     private static final String MOOV_ATOM = "moov";
@@ -203,7 +203,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         // Navigiere zu udta -> meta -> ilst
         long udtaOffset = findAtom(file, moovOffset + 8, moovSize - 8, UDTA_ATOM);
         if (udtaOffset == -1) {
-            Log.debug("No udta atom found - no metadata available");
+            LOG.debug("No udta atom found - no metadata available");
             return;
         }
 
@@ -212,7 +212,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
 
         long metaOffset = findAtom(file, udtaOffset + 8, udtaSize - 8, META_ATOM);
         if (metaOffset == -1) {
-            Log.debug("No meta atom found in udta");
+            LOG.debug("No meta atom found in udta");
             return;
         }
 
@@ -222,7 +222,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
 
         long ilstOffset = findAtom(file, metaOffset + 12, metaSize - 12, ILST_ATOM);
         if (ilstOffset == -1) {
-            Log.debug("No ilst atom found in meta");
+            LOG.debug("No ilst atom found in meta");
             return;
         }
 
@@ -232,7 +232,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         // Parse metadata items in ilst
         parseMetadataItems(file, metadata, ilstOffset + 8, ilstSize - 8);
 
-        Log.debug("Successfully parsed MP4 metadata");
+        LOG.debug("Successfully parsed MP4 metadata");
     }
 
     private void parseMetadataItems(RandomAccessFile file, MP4Metadata metadata, long offset, long size)
@@ -264,7 +264,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         // Suche nach 'data' Atom innerhalb des Metadata Items
         long dataOffset = findAtom(file, offset, size, DATA_ATOM);
         if (dataOffset == -1) {
-            Log.debug("No data atom found for " + atomType);
+            LOG.debug("No data atom found for " + atomType);
             return;
         }
 
@@ -273,7 +273,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         file.skipBytes(4); // Skip 'data'
 
         if (dataSize < 16) { // 8 bytes header + 8 bytes minimal data header
-            Log.debug("Data atom too small for " + atomType);
+            LOG.debug("Data atom too small for " + atomType);
             return;
         }
 
@@ -283,7 +283,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
 
         long valueSize = dataSize - 16; // Subtract atom header (8) + data header (8)
         if (valueSize <= 0 || valueSize > 65536) { // Sanity check
-            Log.debug("Invalid value size for " + atomType + ": " + valueSize);
+            LOG.debug("Invalid value size for " + atomType + ": " + valueSize);
             return;
         }
 
@@ -297,7 +297,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
             String fieldName = KNOWN_ATOMS.getOrDefault(atomType, atomType);
             addField(metadata, fieldName, value);
 
-            Log.debug("Parsed MP4 field: " + atomType + " (" + fieldName + ") = " +
+            LOG.debug("Parsed MP4 field: " + atomType + " (" + fieldName + ") = " +
                     (value.length() > 50 ? value.substring(0, 50) + "..." : value));
         }
     }
@@ -509,7 +509,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
             // Fallback: TextFieldHandler für unbekannte Felder
             TextFieldHandler textHandler = new TextFieldHandler(key);
             metadata.addField(new MetadataField<>(key, value, textHandler));
-            Log.debug("Created fallback handler for unknown MP4 field: " + key);
+            LOG.debug("Created fallback handler for unknown MP4 field: " + key);
         }
     }
 

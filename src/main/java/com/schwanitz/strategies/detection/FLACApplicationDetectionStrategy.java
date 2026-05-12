@@ -28,6 +28,15 @@ public class FLACApplicationDetectionStrategy extends TagDetectionStrategy {
     // Known FLAC Application IDs (32-bit Big-Endian)
     private static final Map<Integer, String> KNOWN_APPLICATION_IDS = new HashMap<>();
 
+    // FLAC structural constants
+    private static final int FLAC_SIGNATURE_LENGTH = 4;
+    private static final int FLAC_BLOCK_HEADER_SIZE = 4;
+    private static final int FLAC_APPLICATION_BLOCK_TYPE = 2;
+    private static final int FLAC_APPLICATION_ID_SIZE = 4;
+    private static final int MAX_BLOCKS = 1000;
+    private static final int FLAC_LAST_BLOCK_FLAG = 0x80;
+    private static final int FLAC_BLOCK_TYPE_MASK = 0x7F;
+
     static {
         KNOWN_APPLICATION_IDS.put(0x41544348, "Audio Tag (ATCH)");
         KNOWN_APPLICATION_IDS.put(0x42534F4C, "beSolo (BSOL)");
@@ -43,7 +52,7 @@ public class FLACApplicationDetectionStrategy extends TagDetectionStrategy {
 
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
-        if (startBuffer.length < 4) {
+        if (startBuffer.length < FLAC_SIGNATURE_LENGTH) {
             return false;
         }
         return startBuffer[0] == 'f' && startBuffer[1] == 'L' &&
@@ -59,45 +68,42 @@ public class FLACApplicationDetectionStrategy extends TagDetectionStrategy {
             return tags;
         }
 
-        Log.debug("Detecting FLAC Application blocks in file: {}", filePath);
+        LOG.debug("Detecting FLAC Application blocks in file: {}", filePath);
 
         try {
-            long position = 4; // After "fLaC" signature
+            long position = FLAC_SIGNATURE_LENGTH;
             boolean isLastBlock = false;
             int blockCount = 0;
-            final int MAX_BLOCKS = 1000;
 
             while (!isLastBlock && position < file.length() && blockCount < MAX_BLOCKS) {
                 file.seek(position);
 
-                byte[] blockHeader = new byte[4];
+                byte[] blockHeader = new byte[FLAC_BLOCK_HEADER_SIZE];
                 int bytesRead = file.read(blockHeader);
 
-                if (bytesRead != 4) {
-                    Log.debug("Incomplete FLAC block header at position: {}", position);
+                if (bytesRead != FLAC_BLOCK_HEADER_SIZE) {
+                    LOG.debug("Incomplete FLAC block header at position: {}", position);
                     break;
                 }
 
-                isLastBlock = (blockHeader[0] & 0x80) != 0;
-                int blockType = blockHeader[0] & 0x7F;
+                isLastBlock = (blockHeader[0] & FLAC_LAST_BLOCK_FLAG) != 0;
+                int blockType = blockHeader[0] & FLAC_BLOCK_TYPE_MASK;
                 int blockLength = ((blockHeader[1] & 0xFF) << 16) |
                         ((blockHeader[2] & 0xFF) << 8) |
                         (blockHeader[3] & 0xFF);
 
-                if (blockLength < 0 || blockLength > file.length() - position - 4) {
-                    Log.warn("Invalid FLAC block length: {} at position: {}", blockLength, position);
+                if (blockLength < 0 || blockLength > file.length() - position - FLAC_BLOCK_HEADER_SIZE) {
+                    LOG.warn("Invalid FLAC block length: {} at position: {}", blockLength, position);
                     break;
                 }
 
-                // Block Type 2 = APPLICATION Block
-                if (blockType == 2) {
-                    if (blockLength >= 4) {
-                        tags.add(new TagInfo(TagFormat.FLAC_APPLICATION, position, blockLength + 4));
+                if (blockType == FLAC_APPLICATION_BLOCK_TYPE) {
+                    if (blockLength >= FLAC_APPLICATION_ID_SIZE) {
+                        tags.add(new TagInfo(TagFormat.FLAC_APPLICATION, position, blockLength + FLAC_BLOCK_HEADER_SIZE));
 
-                        // Extract Application ID for logging
-                        long appIdPos = position + 4;
+                        long appIdPos = position + FLAC_BLOCK_HEADER_SIZE;
                         file.seek(appIdPos);
-                        byte[] appIdBytes = new byte[4];
+                        byte[] appIdBytes = new byte[FLAC_APPLICATION_ID_SIZE];
                         file.read(appIdBytes);
 
                         int appId = ((appIdBytes[0] & 0xFF) << 24) |
@@ -108,19 +114,19 @@ public class FLACApplicationDetectionStrategy extends TagDetectionStrategy {
                         String appName = KNOWN_APPLICATION_IDS.getOrDefault(appId,
                                 String.format("Unknown (0x%08X)", appId));
 
-                        Log.debug("Found FLAC Application Block: {} at offset: {}, size: {} bytes",
-                                appName, position, blockLength + 4);
+                        LOG.debug("Found FLAC Application Block: {} at offset: {}, size: {} bytes",
+                                appName, position, blockLength + FLAC_BLOCK_HEADER_SIZE);
                     }
                 }
 
-                position += 4 + blockLength;
+                position += FLAC_BLOCK_HEADER_SIZE + blockLength;
                 blockCount++;
             }
 
-            Log.debug("FLAC Application detection completed: found {} blocks", tags.size());
+            LOG.debug("FLAC Application detection completed: found {} blocks", tags.size());
 
         } catch (IOException e) {
-            Log.error("Error detecting FLAC Application blocks in {}: {}", filePath, e.getMessage());
+            LOG.error("Error detecting FLAC Application blocks in {}: {}", filePath, e.getMessage());
             throw e;
         }
 

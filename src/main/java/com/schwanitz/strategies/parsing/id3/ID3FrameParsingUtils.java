@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
  */
 public final class ID3FrameParsingUtils {
 
-    private static final Logger Log = LoggerFactory.getLogger(ID3FrameParsingUtils.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ID3FrameParsingUtils.class);
 
     public static final int ISO_8859_1 = 0;
     public static final int UTF_16 = 1;
@@ -173,11 +173,11 @@ public final class ID3FrameParsingUtils {
                 if (majorVersion >= 4) {
                     yield StandardCharsets.UTF_8;
                 }
-                Log.warn("UTF-8 encoding in ID3v2.{} - treating as ISO-8859-1", majorVersion);
+                LOG.warn("UTF-8 encoding in ID3v2.{} - treating as ISO-8859-1", majorVersion);
                 yield StandardCharsets.ISO_8859_1;
             }
             default -> {
-                Log.warn("Unknown text encoding: {} - using ISO-8859-1", encoding);
+                LOG.warn("Unknown text encoding: {} - using ISO-8859-1", encoding);
                 yield StandardCharsets.ISO_8859_1;
             }
         };
