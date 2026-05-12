@@ -18,7 +18,7 @@ import java.util.Map;
  * WavPack uses a block-based format with 32-byte headers.
  * Block Header Structure:
  * - Magic: "wvpk" (4 bytes)
- * - Block Size: 32-bit LE (4 bytes)
+ * - Block Size: 32-bit LE (4 bytes, includes header)
  * - Version: 16-bit LE (2 bytes)
  * - Track Length: 24-bit LE (3 bytes)
  * - Block Index: 32-bit LE (4 bytes)
@@ -27,27 +27,47 @@ import java.util.Map;
  * - Flags: 32-bit LE (4 bytes)
  * - CRC: 32-bit LE (4 bytes)
  * <p>
+ * The Flags field contains a bit indicating whether this block contains
+ * metadata subblocks (INITIAL_BLOCK flag bit 2). Only blocks with
+ * metadata need to be scanned for subblocks.
+ * <p>
  * Metadata is stored in subblocks with IDs like:
  * - 0x21: RIFF Header (WAV metadata)
  * - 0x22: RIFF Trailer (tags)
  * - 0x26: MD5 Checksum
+ * <p>
+ * Detection strategy: walk top-level blocks by reading only headers
+ * and skipping to the next block. Only scan subblocks in blocks that
+ * contain metadata subblocks (indicated by the INITIAL_BLOCK or
+ * blocks where subblock count > 0).
  */
 public class WavPackDetectionStrategy extends TagDetectionStrategy {
 
     private static final byte[] WAVPACK_SIGNATURE = {'w', 'v', 'p', 'k'};
-    private static final int WAVPACK_HEADER_SIZE = 32;
 
-    // WavPack block/subblock thresholds
-    private static final int MAX_BLOCKS = 10000;
-    private static final int EARLY_EXIT_BLOCK_COUNT = 100;
-    private static final long EARLY_EXIT_FILE_SIZE_THRESHOLD = 100L * 1024 * 1024;
-    private static final long MAX_BLOCK_SIZE = 10L * 1024 * 1024;
-    private static final int SKIP_HEADER_BYTES = 22;
+    // WavPack block header structure
+    private static final int HEADER_SIZE = 32;
+    private static final int SIGNATURE_OFFSET = 0;
+    private static final int BLOCK_SIZE_OFFSET = 4;
+    private static final int VERSION_OFFSET = 8;
+    private static final int BLOCK_INDEX_OFFSET = 12;
+    private static final int TOTAL_SAMPLES_OFFSET = 16;
+    private static final int BLOCK_SAMPLES_OFFSET = 20;
+    private static final int FLAGS_OFFSET = 24;
+    private static final int CRC_OFFSET = 28;
+
+    // WavPack flags
+    private static final int FLAG_INITIAL_BLOCK = 0x02;
+    private static final int FLAG_FINAL_BLOCK = 0x04;
 
     // Subblock flag masks
     private static final int SUBBLOCK_LARGE_FLAG = 0x80;
     private static final int SUBBLOCK_ID_MASK = 0x7F;
     private static final long UNSIGNED_INT_MASK = 0xFFFFFFFFL;
+
+    // Safety limits
+    private static final long MAX_REASONABLE_BLOCK_SIZE = 10L * 1024 * 1024;
+    private static final long MAX_REASONABLE_FILE_SCAN = 500L * 1024 * 1024;
 
     // Important subblock IDs for metadata
     private static final Map<Integer, String> METADATA_SUBBLOCKS = new HashMap<>();
@@ -90,23 +110,47 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
             long fileLength = file.length();
             int blockCount = 0;
 
-            while (currentPos + WAVPACK_HEADER_SIZE < fileLength && blockCount < MAX_BLOCKS) {
+            while (currentPos + HEADER_SIZE < fileLength) {
                 file.seek(currentPos);
 
-                WavPackBlockHeader header = parseBlockHeader(file);
-
-                if (header == null) {
+                byte[] headerBytes = new byte[HEADER_SIZE];
+                int bytesRead = file.read(headerBytes);
+                if (bytesRead != HEADER_SIZE) {
                     break;
                 }
 
-                List<TagInfo> blockTags = searchMetadataSubBlocks(file, currentPos + WAVPACK_HEADER_SIZE,
-                        header.blockSize - WAVPACK_HEADER_SIZE);
-                tags.addAll(blockTags);
+                // Verify magic signature
+                if (!Arrays.equals(headerBytes, SIGNATURE_OFFSET, 4, WAVPACK_SIGNATURE, 0, 4)) {
+                    LOG.debug("Lost WavPack signature at offset {}, stopping scan", currentPos);
+                    break;
+                }
 
-                currentPos += header.blockSize;
+                long blockSize = readLittleEndianInt(headerBytes, BLOCK_SIZE_OFFSET) & UNSIGNED_INT_MASK;
+
+                if (blockSize < HEADER_SIZE || blockSize > MAX_REASONABLE_BLOCK_SIZE) {
+                    LOG.debug("Invalid WavPack block size {} at offset {}, stopping scan", blockSize, currentPos);
+                    break;
+                }
+
+                // Read flags to determine if this block has metadata subblocks
+                int flags = readLittleEndianInt(headerBytes, FLAGS_OFFSET);
+
+                // Metadata subblocks appear in initial blocks of each channel group
+                // We check for metadata in blocks that are INITIAL (first channel of a multi-channel pair)
+                // or in single-channel blocks where INITIAL and FINAL are both set
+                if ((flags & FLAG_INITIAL_BLOCK) != 0) {
+                    List<TagInfo> blockTags = searchMetadataSubBlocks(file, currentPos + HEADER_SIZE,
+                            blockSize - HEADER_SIZE);
+                    tags.addAll(blockTags);
+                }
+
+                // Jump directly to next block using the block size
+                currentPos += blockSize;
                 blockCount++;
 
-                if (blockCount >= EARLY_EXIT_BLOCK_COUNT && fileLength > EARLY_EXIT_FILE_SIZE_THRESHOLD) {
+                // Safety: stop if we scan beyond a reasonable file region
+                if (currentPos > MAX_REASONABLE_FILE_SCAN) {
+                    LOG.debug("WavPack scan reached safety limit at offset {}", currentPos);
                     break;
                 }
             }
@@ -122,27 +166,10 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
         return tags;
     }
 
-    private WavPackBlockHeader parseBlockHeader(RandomAccessFile file) throws IOException {
-        byte[] magic = new byte[4];
-        file.read(magic);
-
-        if (!Arrays.equals(magic, WAVPACK_SIGNATURE)) {
-            return null;
-        }
-
-        long blockSize = readLittleEndianInt(file) & UNSIGNED_INT_MASK;
-        int version = readLittleEndianShort(file);
-
-        file.skipBytes(SKIP_HEADER_BYTES);
-
-        if (blockSize < WAVPACK_HEADER_SIZE || blockSize > MAX_BLOCK_SIZE) {
-            LOG.warn("Invalid WavPack block size: {}", blockSize);
-            return null;
-        }
-
-        return new WavPackBlockHeader(blockSize);
-    }
-
+    /**
+     * Search subblocks for metadata within a single WavPack block.
+     * Only called for blocks that are likely to contain metadata (initial blocks).
+     */
     private List<TagInfo> searchMetadataSubBlocks(RandomAccessFile file, long blockDataStart,
                                                   long blockDataSize) throws IOException {
         List<TagInfo> tags = new ArrayList<>();
@@ -183,9 +210,8 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
 
                 int cleanId = subBlockId & SUBBLOCK_ID_MASK;
                 if (METADATA_SUBBLOCKS.containsKey(cleanId)) {
-                    long subBlockStart = currentPos - 0 + 0;
+                    long subBlockStart = currentPos;
                     long totalSubBlockSize = subBlockSize + headerSize;
-                    subBlockStart = currentPos;
 
                     tags.add(new TagInfo(TagFormat.WAVPACK_NATIVE, subBlockStart, totalSubBlockSize));
 
@@ -196,6 +222,7 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
 
                 currentPos += headerSize + subBlockSize;
 
+                // Word alignment
                 if (currentPos % 2 != 0) {
                     currentPos++;
                 }
@@ -209,26 +236,10 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
         return tags;
     }
 
-    private int readLittleEndianShort(RandomAccessFile file) throws IOException {
-        byte[] bytes = new byte[2];
-        file.read(bytes);
-        return ((bytes[0] & 0xFF)) | ((bytes[1] & 0xFF) << 8);
-    }
-
-    private int readLittleEndianInt(RandomAccessFile file) throws IOException {
-        byte[] bytes = new byte[4];
-        file.read(bytes);
-        return ((bytes[0] & 0xFF)) |
-                ((bytes[1] & 0xFF) << 8) |
-                ((bytes[2] & 0xFF) << 16) |
-                ((bytes[3] & 0xFF) << 24);
-    }
-
-    private static class WavPackBlockHeader {
-        final long blockSize;
-
-        WavPackBlockHeader(long blockSize) {
-            this.blockSize = blockSize;
-        }
+    private int readLittleEndianInt(byte[] data, int offset) {
+        return (data[offset] & 0xFF) |
+                ((data[offset + 1] & 0xFF) << 8) |
+                ((data[offset + 2] & 0xFF) << 16) |
+                ((data[offset + 3] & 0xFF) << 24);
     }
 }
