@@ -1,13 +1,14 @@
 package com.schwanitz.strategies.detection;
 
+import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
 import com.schwanitz.tagging.TagInfo;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -37,38 +38,23 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
     private static final int MAX_VENDOR_LENGTH = 1024 * 1024;
     private static final int MAX_COMMENT_COUNT = 10000;
 
-    // FLAC metadata block constants
     private static final int FLAC_SIGNATURE_LENGTH = 4;
     private static final int FLAC_BLOCK_HEADER_SIZE = 4;
     private static final int FLAC_LAST_BLOCK_FLAG = 0x80;
     private static final int FLAC_BLOCK_TYPE_MASK = 0x7F;
     private static final int FLAC_VORBIS_COMMENT_BLOCK_TYPE = 4;
 
-    // OGG page constants
     private static final int OGG_SIGNATURE_LENGTH = 4;
     private static final int OGG_SEGMENT_COUNT_OFFSET = 26;
     private static final int VORBIS_IDENTIFICATION_PACKET_TYPE = 1;
     private static final int VORBIS_COMMENT_PACKET_TYPE = 3;
     private static final int VORBIS_SIGNATURE_LENGTH = 6;
 
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Gibt das unterstützte Vorbis-Comment-Format zurück: VORBIS_COMMENT.
-     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.VORBIS_COMMENT);
     }
 
-    /**
-     * Prüft, ob die Dateidaten einen Vorbis-Comment enthalten, anhand der
-     * "OggS"- oder "fLaC"-Kennzeichen am Dateianfang.
-     *
-     * @param startBuffer Puffer mit den ersten Bytes der Datei
-     * @param endBuffer   Puffer mit den letzten Bytes der Datei (nicht verwendet)
-     * @return {@code true}, wenn eine OGG- oder FLAC-Signatur erkannt wurde
-     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         if (startBuffer.length < FLAC_SIGNATURE_LENGTH) return false;
@@ -76,43 +62,28 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
         return signature.equals("OggS") || signature.equals("fLaC");
     }
 
-    /**
-     * Analysiert Vorbis-Comments in OGG- oder FLAC-Dateien und ermittelt
-     * Position und Größe des Kommentar-Pakets.
-     * <p>
-     * Für OGG-Dateien wird ein hybrider Ansatz verwendet: direkter Sprung zum
-     * Kommentar-Paket mit Fallback auf sequenzielle Suche.
-     * Für FLAC-Dateien werden die Metadatenblöcke durchlaufen, um den
-     * Vorbis-Comment-Block (Typ 4) zu finden.
-     *
-     * @param file        die geöffnete Datei
-     * @param filePath    der Dateipfad zur Protokollierung
-     * @param startBuffer Puffer mit den ersten Bytes der Datei
-     * @param endBuffer   Puffer mit den letzten Bytes der Datei
-     * @return eine Liste der erkannten {@link TagInfo}-Objekte
-     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
-     */
     @Override
-    public List<TagInfo> detectTags(RandomAccessFile file, String filePath, byte[] startBuffer, byte[] endBuffer) throws IOException {
+    public List<TagInfo> detectTags(SeekableDataSource source, byte[] startBuffer, byte[] endBuffer) throws IOException {
         List<TagInfo> tags = new ArrayList<>();
         if (startBuffer.length < FLAC_SIGNATURE_LENGTH) return tags;
 
         String signature = new String(startBuffer, 0, FLAC_SIGNATURE_LENGTH, StandardCharsets.US_ASCII);
         if (signature.equals("OggS")) {
-            CommentPacketInfo packetInfo = findCommentPacketDirect(file);
-            if (packetInfo != null && validateCommentPacket(file, packetInfo.offset)) {
+            CommentPacketInfo packetInfo = findCommentPacketDirect(source);
+            if (packetInfo != null && validateCommentPacket(source, packetInfo.offset)) {
                 tags.add(new TagInfo(TagFormat.VORBIS_COMMENT, packetInfo.offset, packetInfo.pageSize));
                 LOG.debug("Found Vorbis Comment at offset: {}, size: {} bytes", packetInfo.offset, packetInfo.pageSize);
             }
 
-            LOG.debug("Direct jump failed or seeking more packets, using sequential search in {}", filePath);
-            tags.addAll(fallbackSequentialSearch(file));
+            LOG.debug("Direct jump failed or seeking more packets, using sequential search in {}", source.name());
+            tags.addAll(fallbackSequentialSearch(source));
         } else if (signature.equals("fLaC")) {
             long position = FLAC_SIGNATURE_LENGTH;
-            while (position < file.length()) {
-                file.seek(position);
+            long sourceLength = source.length();
+            while (position < sourceLength) {
                 byte[] blockHeader = new byte[FLAC_BLOCK_HEADER_SIZE];
-                file.read(blockHeader);
+                int bytesRead = source.read(position, blockHeader, 0, FLAC_BLOCK_HEADER_SIZE);
+                if (bytesRead != FLAC_BLOCK_HEADER_SIZE) break;
                 boolean isLast = (blockHeader[0] & FLAC_LAST_BLOCK_FLAG) != 0;
                 int blockType = blockHeader[0] & FLAC_BLOCK_TYPE_MASK;
                 int blockLength = ((blockHeader[1] & 0xFF) << 16) | ((blockHeader[2] & 0xFF) << 8) | (blockHeader[3] & 0xFF);
@@ -127,40 +98,46 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
         return tags;
     }
 
-    private CommentPacketInfo findCommentPacketDirect(RandomAccessFile file) throws IOException {
-        file.seek(0);
+    private CommentPacketInfo findCommentPacketDirect(SeekableDataSource source) throws IOException {
         long position = 0;
 
         byte[] buffer = new byte[OGG_PAGE_HEADER_SIZE];
-        if (file.read(buffer) != OGG_PAGE_HEADER_SIZE || !new String(buffer, 0, OGG_SIGNATURE_LENGTH, StandardCharsets.US_ASCII).equals("OggS")) {
+        if (source.read(position, buffer, 0, OGG_PAGE_HEADER_SIZE) != OGG_PAGE_HEADER_SIZE ||
+                !new String(buffer, 0, OGG_SIGNATURE_LENGTH, StandardCharsets.US_ASCII).equals("OggS")) {
             LOG.debug("Invalid OGG header at position 0");
             return null;
         }
 
         int segmentCount = buffer[OGG_SEGMENT_COUNT_OFFSET] & 0xFF;
         byte[] segments = new byte[segmentCount];
-        file.read(segments);
+        if (source.read(position + OGG_PAGE_HEADER_SIZE, segments, 0, segmentCount) != segmentCount) {
+            return null;
+        }
 
         long pageSize = OGG_PAGE_HEADER_SIZE + segmentCount;
         for (byte segment : segments) pageSize += (segment & 0xFF);
 
-        file.seek(position + OGG_PAGE_HEADER_SIZE + segmentCount);
+        long packetHeaderOffset = position + OGG_PAGE_HEADER_SIZE + segmentCount;
         byte[] packetHeader = new byte[VORBIS_PACKET_HEADER_SIZE];
-        if (file.read(packetHeader) != VORBIS_PACKET_HEADER_SIZE || packetHeader[0] != VORBIS_IDENTIFICATION_PACKET_TYPE || !new String(packetHeader, 1, VORBIS_SIGNATURE_LENGTH, StandardCharsets.US_ASCII).equals("vorbis")) {
-            LOG.debug("Invalid Identification packet at offset: {}", position + OGG_PAGE_HEADER_SIZE + segmentCount);
+        if (source.read(packetHeaderOffset, packetHeader, 0, VORBIS_PACKET_HEADER_SIZE) != VORBIS_PACKET_HEADER_SIZE ||
+                packetHeader[0] != VORBIS_IDENTIFICATION_PACKET_TYPE ||
+                !new String(packetHeader, 1, VORBIS_SIGNATURE_LENGTH, StandardCharsets.US_ASCII).equals("vorbis")) {
+            LOG.debug("Invalid Identification packet at offset: {}", packetHeaderOffset);
             return null;
         }
 
         position += pageSize;
-        file.seek(position);
-        if (file.read(buffer) != OGG_PAGE_HEADER_SIZE || !new String(buffer, 0, OGG_SIGNATURE_LENGTH, StandardCharsets.US_ASCII).equals("OggS")) {
+        if (source.read(position, buffer, 0, OGG_PAGE_HEADER_SIZE) != OGG_PAGE_HEADER_SIZE ||
+                !new String(buffer, 0, OGG_SIGNATURE_LENGTH, StandardCharsets.US_ASCII).equals("OggS")) {
             LOG.debug("Invalid OGG page at offset: {}", position);
             return null;
         }
 
         segmentCount = buffer[OGG_SEGMENT_COUNT_OFFSET] & 0xFF;
         segments = new byte[segmentCount];
-        file.read(segments);
+        if (source.read(position + OGG_PAGE_HEADER_SIZE, segments, 0, segmentCount) != segmentCount) {
+            return null;
+        }
 
         long commentPageSize = OGG_PAGE_HEADER_SIZE + segmentCount;
         for (byte segment : segments) commentPageSize += (segment & 0xFF);
@@ -169,25 +146,26 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
         return new CommentPacketInfo(commentOffset, commentPageSize);
     }
 
-    private List<TagInfo> fallbackSequentialSearch(RandomAccessFile file) throws IOException {
+    private List<TagInfo> fallbackSequentialSearch(SeekableDataSource source) throws IOException {
         List<TagInfo> tags = new ArrayList<>();
         long position = 0;
         int pageCount = 0;
+        long sourceLength = source.length();
 
-        while (position + OGG_PAGE_HEADER_SIZE < file.length() && pageCount < MAX_PAGES) {
-            file.seek(position);
-            byte[] buffer = new byte[OGG_PAGE_HEADER_SIZE];
-            if (file.read(buffer) != OGG_PAGE_HEADER_SIZE || !new String(buffer, 0, OGG_SIGNATURE_LENGTH, StandardCharsets.US_ASCII).equals("OggS")) break;
+        byte[] buffer = new byte[OGG_PAGE_HEADER_SIZE];
+        while (position + OGG_PAGE_HEADER_SIZE < sourceLength && pageCount < MAX_PAGES) {
+            if (source.read(position, buffer, 0, OGG_PAGE_HEADER_SIZE) != OGG_PAGE_HEADER_SIZE) break;
+            if (!new String(buffer, 0, OGG_SIGNATURE_LENGTH, StandardCharsets.US_ASCII).equals("OggS")) break;
 
             int segmentCount = buffer[OGG_SEGMENT_COUNT_OFFSET] & 0xFF;
             byte[] segments = new byte[segmentCount];
-            file.read(segments);
+            if (source.read(position + OGG_PAGE_HEADER_SIZE, segments, 0, segmentCount) != segmentCount) break;
 
             long pageSize = OGG_PAGE_HEADER_SIZE + segmentCount;
             for (byte segment : segments) pageSize += (segment & 0xFF);
 
             long commentOffset = position + OGG_PAGE_HEADER_SIZE + segmentCount;
-            if (validateCommentPacket(file, commentOffset)) {
+            if (validateCommentPacket(source, commentOffset)) {
                 tags.add(new TagInfo(TagFormat.VORBIS_COMMENT, commentOffset, pageSize));
                 LOG.debug("Found Vorbis Comment via sequential search at offset: {}", commentOffset);
             }
@@ -198,13 +176,12 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
         return tags;
     }
 
-    private boolean validateCommentPacket(RandomAccessFile file, long offset) throws IOException {
-        file.seek(offset);
+    private boolean validateCommentPacket(SeekableDataSource source, long offset) throws IOException {
         byte[] packetType = new byte[1];
-        if (file.read(packetType) != 1 || packetType[0] != VORBIS_COMMENT_PACKET_TYPE) return false;
+        if (source.read(offset, packetType, 0, 1) != 1 || packetType[0] != VORBIS_COMMENT_PACKET_TYPE) return false;
 
         byte[] lengthBytes = new byte[4];
-        if (file.read(lengthBytes) != 4) return false;
+        if (source.read(offset + 1, lengthBytes, 0, 4) != 4) return false;
         int vendorLength = ((lengthBytes[0] & 0xFF)) |
                 ((lengthBytes[1] & 0xFF) << 8) |
                 ((lengthBytes[2] & 0xFF) << 16) |
@@ -215,9 +192,9 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
             return false;
         }
 
-        file.skipBytes(vendorLength);
+        long currentPos = offset + 1 + 4 + vendorLength;
 
-        if (file.read(lengthBytes) != 4) return false;
+        if (source.read(currentPos, lengthBytes, 0, 4) != 4) return false;
         int commentCount = ((lengthBytes[0] & 0xFF)) |
                 ((lengthBytes[1] & 0xFF) << 8) |
                 ((lengthBytes[2] & 0xFF) << 16) |

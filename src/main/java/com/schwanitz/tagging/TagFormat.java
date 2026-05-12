@@ -25,7 +25,7 @@ public enum TagFormat {
     /** APEv2-Tag – flexibles Tag-Format mit Unicode-Unterstützung, häufig in Musepack- und WavPack-Dateien. */
     APEV2("APEv2"),
 
-    /** Vorbis Comment – Standard-Tag-Format für OGG Vorbis, FLAC und Opus, Schlüssel-Wert-Paare. */
+    /** Vorbis Comment – Standard-Tag-Format für Ogg Vorbis, FLAC und Opus, Schlüssel-Wert-Paare. */
     VORBIS_COMMENT("VorbisComment"),
 
     /** MP4/iTunes-Tag – Metadaten im MP4-Container-Format, Standard für M4A/M4V-Dateien. */

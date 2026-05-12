@@ -1,11 +1,11 @@
 package com.schwanitz.strategies.detection;
 
+import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
 import com.schwanitz.tagging.TagInfo;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,24 +39,11 @@ public class ID3V2DetectionStrategy extends TagDetectionStrategy {
     private static final int ID3V2_SIGNATURE_LENGTH = 3;
     private static final int SYNCHSAFE_MASK = 0x7F;
 
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Gibt die unterstützten ID3v2-Formate zurück: ID3V2_2, ID3V2_3, ID3V2_4.
-     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.ID3V2_2, TagFormat.ID3V2_3, TagFormat.ID3V2_4);
     }
 
-    /**
-     * Prüft, ob die Dateidaten ein ID3v2-Tag enthalten, anhand des "ID3"-Kennzeichens
-     * am Dateianfang.
-     *
-     * @param startBuffer Puffer mit den ersten Bytes der Datei (mindestens 10 Bytes)
-     * @param endBuffer   Puffer mit den letzten Bytes der Datei (nicht verwendet)
-     * @return {@code true}, wenn das ID3v2-Kennzeichen gefunden wurde
-     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         if (startBuffer.length < ID3V2_HEADER_SIZE) {
@@ -65,21 +52,8 @@ public class ID3V2DetectionStrategy extends TagDetectionStrategy {
         return new String(startBuffer, 0, ID3V2_SIGNATURE_LENGTH, StandardCharsets.US_ASCII).equals("ID3");
     }
 
-    /**
-     * Analysiert das ID3v2-Tag und ermittelt die genaue Version, Position und Größe.
-     * <p>
-     * Liest den Header, dekodiert die Tag-Größe als Synchsafe-Integer und ordnet
-     * die Hauptversion dem entsprechenden {@link TagFormat} zu.
-     *
-     * @param file        die geöffnete Datei
-     * @param filePath    der Dateipfad zur Protokollierung
-     * @param startBuffer Puffer mit den ersten Bytes der Datei
-     * @param endBuffer   Puffer mit den letzten Bytes der Datei
-     * @return eine Liste mit maximal einem {@link TagInfo}-Objekt für das erkannte ID3v2-Tag
-     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
-     */
     @Override
-    public List<TagInfo> detectTags(RandomAccessFile file, String filePath, byte[] startBuffer, byte[] endBuffer) throws IOException {
+    public List<TagInfo> detectTags(SeekableDataSource source, byte[] startBuffer, byte[] endBuffer) throws IOException {
         List<TagInfo> tags = new ArrayList<>();
         if (canDetect(startBuffer, endBuffer)) {
             int majorVersion = startBuffer[3] & 0xFF;
@@ -108,18 +82,6 @@ public class ID3V2DetectionStrategy extends TagDetectionStrategy {
         return tags;
     }
 
-    /**
-     * Dekodiert ein 4-Byte-Synchsafe-Integer, wie es in ID3v2-Tag-Headern verwendet wird.
-     * <p>
-     * Jedes Byte nutzt nur 7 Bits (MSB ist immer 0).
-     * Maximaler Wert: 2^28 - 1 = 268435455 (256 MB - 1).
-     *
-     * @param b0 höchstwertiges Byte
-     * @param b1 zweithöchstes Byte
-     * @param b2 dritthöchstes Byte
-     * @param b3 niedrigstwertiges Byte
-     * @return der dekodierte Integer-Wert
-     */
     private int decodeSynchsafeInt(byte b0, byte b1, byte b2, byte b3) {
         return ((b0 & SYNCHSAFE_MASK) << 21) |
                 ((b1 & SYNCHSAFE_MASK) << 14) |

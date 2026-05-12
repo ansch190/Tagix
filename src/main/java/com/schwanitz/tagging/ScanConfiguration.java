@@ -30,7 +30,7 @@ public class ScanConfiguration {
     }
 
     /**
-     * Erstellt eine Konfiguration für den Vollständigen Scan.
+     * Erstellt eine Konfiguration für den vollständigen Scan.
      * <p>
      * Alle bekannten Tag-Formate werden geprüft, unabhängig von der Dateiendung.
      *

@@ -1,11 +1,11 @@
 package com.schwanitz.strategies.detection;
 
+import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
 import com.schwanitz.tagging.TagInfo;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -37,65 +37,37 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
     private static final int MAX_CHANNELS = 32;
     private static final long HEADER_SEARCH_LIMIT = 65536;
 
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Gibt das unterstützte TTA-Format zurück: TTA_METADATA.
-     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.TTA_METADATA);
     }
 
-    /**
-     * Prüft, ob die Dateidaten eine TrueAudio-Datei enthalten, anhand der
-     * "TTA1"- oder "TTA2"-Kennzeichen. Sucht im Startpuffer nach der Signatur.
-     *
-     * @param startBuffer Puffer mit den ersten Bytes der Datei
-     * @param endBuffer   Puffer mit den letzten Bytes der Datei (nicht verwendet)
-     * @return {@code true}, wenn eine TTA-Signatur erkannt wurde
-     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         return findTTASignature(startBuffer) != -1;
     }
 
-    /**
-     * Analysiert die TTA-Datei und validiert den Header.
-     * <p>
-     * Da TTA keine nativen Metadaten-Chunks hat, fungiert diese Methode als
-     * Formaterkenner und gibt eine leere Liste zurück. Die eigentlichen Tags
-     * (ID3v2, ID3v1, APE) werden von den entsprechenden Strategien erkannt.
-     *
-     * @param file        die geöffnete Datei
-     * @param filePath    der Dateipfad zur Protokollierung
-     * @param startBuffer Puffer mit den ersten Bytes der Datei
-     * @param endBuffer   Puffer mit den letzten Bytes der Datei
-     * @return eine leere Liste (TTA hat keine nativen Metadaten)
-     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
-     */
     @Override
-    public List<TagInfo> detectTags(RandomAccessFile file, String filePath,
-                                    byte[] startBuffer, byte[] endBuffer) throws IOException {
+    public List<TagInfo> detectTags(SeekableDataSource source, byte[] startBuffer, byte[] endBuffer) throws IOException {
         List<TagInfo> tags = new ArrayList<>();
 
         if (!canDetect(startBuffer, endBuffer)) {
             return tags;
         }
 
-        LOG.debug("Detecting TTA metadata in file: {}", filePath);
+        LOG.debug("Detecting TTA metadata in source: {}", source.name());
 
         try {
-            long ttaHeaderOffset = findTTAHeaderOffset(file);
+            long ttaHeaderOffset = findTTAHeaderOffset(source);
 
             if (ttaHeaderOffset == -1) {
-                LOG.debug("No TTA header found in file");
+                LOG.debug("No TTA header found in source");
                 return tags;
             }
 
             LOG.debug("Found TTA header at offset: {}", ttaHeaderOffset);
 
-            TTAHeader header = parseTTAHeader(file, ttaHeaderOffset);
+            TTAHeader header = parseTTAHeader(source, ttaHeaderOffset);
             if (header == null) {
                 LOG.debug("Failed to parse TTA header");
                 return tags;
@@ -105,7 +77,7 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
                     header.version, header.channels, header.sampleRate);
 
         } catch (IOException e) {
-            LOG.error("Error detecting TTA metadata in {}: {}", filePath, e.getMessage());
+            LOG.error("Error detecting TTA metadata in {}: {}", source.name(), e.getMessage());
             throw e;
         }
 
@@ -122,20 +94,15 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
         return -1;
     }
 
-    private long findTTAHeaderOffset(RandomAccessFile file) throws IOException {
+    private long findTTAHeaderOffset(SeekableDataSource source) throws IOException {
         long currentPos = 0;
-        long fileLength = file.length();
-        long searchLimit = Math.min(fileLength, HEADER_SEARCH_LIMIT);
+        long sourceLength = source.length();
+        long searchLimit = Math.min(sourceLength, HEADER_SEARCH_LIMIT);
 
         while (currentPos + 4 <= searchLimit) {
-            file.seek(currentPos);
-
             byte[] signature = new byte[4];
-            int bytesRead = file.read(signature);
-
-            if (bytesRead != 4) {
-                break;
-            }
+            int bytesRead = source.read(currentPos, signature, 0, 4);
+            if (bytesRead != 4) break;
 
             if (Arrays.equals(signature, TTA1_SIGNATURE) ||
                     Arrays.equals(signature, TTA2_SIGNATURE)) {
@@ -148,27 +115,26 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
         return -1;
     }
 
-    private TTAHeader parseTTAHeader(RandomAccessFile file, long offset) throws IOException {
-        file.seek(offset);
-
-        byte[] signature = new byte[4];
-        file.read(signature);
+    private TTAHeader parseTTAHeader(SeekableDataSource source, long offset) throws IOException {
+        byte[] headerBytes = new byte[TTA_HEADER_SIZE];
+        int bytesRead = source.read(offset, headerBytes, 0, TTA_HEADER_SIZE);
+        if (bytesRead != TTA_HEADER_SIZE) return null;
 
         String version;
-        if (Arrays.equals(signature, TTA1_SIGNATURE)) {
+        if (Arrays.equals(Arrays.copyOfRange(headerBytes, 0, 4), TTA1_SIGNATURE)) {
             version = "TTA1";
-        } else if (Arrays.equals(signature, TTA2_SIGNATURE)) {
+        } else if (Arrays.equals(Arrays.copyOfRange(headerBytes, 0, 4), TTA2_SIGNATURE)) {
             version = "TTA2";
         } else {
             return null;
         }
 
-        int audioFormat = readLittleEndianShort(file);
-        int channels = readLittleEndianShort(file);
-        int bitsPerSample = readLittleEndianShort(file);
-        long sampleRate = readLittleEndianInt(file) & 0xFFFFFFFFL;
-        long dataLength = readLittleEndianInt(file) & 0xFFFFFFFFL;
-        long crc32 = readLittleEndianInt(file) & 0xFFFFFFFFL;
+        int audioFormat = readLittleEndianShort(headerBytes, 4);
+        int channels = readLittleEndianShort(headerBytes, 6);
+        int bitsPerSample = readLittleEndianShort(headerBytes, 8);
+        long sampleRate = readLittleEndianInt(headerBytes, 10) & 0xFFFFFFFFL;
+        long dataLength = readLittleEndianInt(headerBytes, 14) & 0xFFFFFFFFL;
+        long crc32 = readLittleEndianInt(headerBytes, 18) & 0xFFFFFFFFL;
 
         if (channels < 1 || channels > MAX_CHANNELS) {
             LOG.warn("Invalid TTA channel count: {}", channels);
@@ -178,19 +144,15 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
         return new TTAHeader(version, audioFormat, channels, bitsPerSample, sampleRate, dataLength, crc32);
     }
 
-    private int readLittleEndianShort(RandomAccessFile file) throws IOException {
-        byte[] bytes = new byte[2];
-        file.read(bytes);
-        return ((bytes[0] & 0xFF)) | ((bytes[1] & 0xFF) << 8);
+    private int readLittleEndianShort(byte[] data, int offset) {
+        return ((data[offset] & 0xFF)) | ((data[offset + 1] & 0xFF) << 8);
     }
 
-    private int readLittleEndianInt(RandomAccessFile file) throws IOException {
-        byte[] bytes = new byte[4];
-        file.read(bytes);
-        return ((bytes[0] & 0xFF)) |
-                ((bytes[1] & 0xFF) << 8) |
-                ((bytes[2] & 0xFF) << 16) |
-                ((bytes[3] & 0xFF) << 24);
+    private int readLittleEndianInt(byte[] data, int offset) {
+        return ((data[offset] & 0xFF)) |
+                ((data[offset + 1] & 0xFF) << 8) |
+                ((data[offset + 2] & 0xFF) << 16) |
+                ((data[offset + 3] & 0xFF) << 24);
     }
 
     private static class TTAHeader {
@@ -203,7 +165,7 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
         final long crc32;
 
         TTAHeader(String version, int audioFormat, int channels, int bitsPerSample,
-                  long sampleRate, long dataLength, long crc32) {
+                   long sampleRate, long dataLength, long crc32) {
             this.version = version;
             this.audioFormat = audioFormat;
             this.channels = channels;

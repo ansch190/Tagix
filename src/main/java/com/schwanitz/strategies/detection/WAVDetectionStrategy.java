@@ -1,13 +1,17 @@
 package com.schwanitz.strategies.detection;
 
+import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
 import com.schwanitz.tagging.TagInfo;
+
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Erkennungsstrategie für WAV-Datei-Metadaten.
@@ -37,34 +41,19 @@ import java.util.List;
  */
 public class WAVDetectionStrategy extends TagDetectionStrategy {
 
-    // Constants for validation and limits
     private static final int MIN_CHUNK_HEADER_SIZE = 8;
-    private static final int MAX_REASONABLE_CHUNK_SIZE = 500 * 1024 * 1024; // 500MB
+    private static final int MAX_REASONABLE_CHUNK_SIZE = 500 * 1024 * 1024;
     private static final int BWF_MIN_CHUNK_SIZE = 602;
-    private static final int BWF_MAX_REASONABLE_SIZE = 50 * 1024; // 50KB for BWF metadata
+    private static final int BWF_MAX_REASONABLE_SIZE = 50 * 1024;
     private static final int RIFF_HEADER_SIZE = 12;
-    private static final int MAX_CHUNKS_TO_PROCESS = 1000; // Prevent infinite loops
-
-    // BWF version field offset within bext chunk
+    private static final int MAX_CHUNKS_TO_PROCESS = 1000;
     private static final int BWF_VERSION_OFFSET = 602;
 
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Gibt die unterstützten WAV-Formate zurück: BWF_V0, BWF_V1, BWF_V2, RIFF_INFO.
-     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.BWF_V0, TagFormat.BWF_V1, TagFormat.BWF_V2, TagFormat.RIFF_INFO);
     }
 
-    /**
-     * Prüft, ob die Dateidaten eine gültige RIFF/WAVE-Datei enthalten.
-     *
-     * @param startBuffer Puffer mit den ersten Bytes der Datei (mindestens 12 Bytes)
-     * @param endBuffer   Puffer mit den letzten Bytes der Datei (nicht verwendet)
-     * @return {@code true}, wenn die RIFF/WAVE-Signatur erkannt wurde
-     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         if (startBuffer.length < RIFF_HEADER_SIZE) {
@@ -73,45 +62,30 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         return isValidRIFFWAVEHeader(startBuffer);
     }
 
-    /**
-     * Analysiert die WAV-Datei und durchsucht alle Chunks nach Metadaten.
-     * <p>
-     * Erkennt LIST/INFO-Chunks (RIFF INFO) und bext-Chunks (BWF) mit
-     * Versionsunterscheidung (v0, v1, v2). Enthält robuste Fehlerbehandlung
-     * mit Chunk-Wiederherstellung bei Beschädigung.
-     *
-     * @param file        die geöffnete Datei
-     * @param filePath    der Dateipfad zur Protokollierung
-     * @param startBuffer Puffer mit den ersten Bytes der Datei
-     * @param endBuffer   Puffer mit den letzten Bytes der Datei
-     * @return eine Liste der erkannten {@link TagInfo}-Objekte
-     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
-     */
     @Override
-    public List<TagInfo> detectTags(RandomAccessFile file, String filePath,
-                                    byte[] startBuffer, byte[] endBuffer) throws IOException {
+    public List<TagInfo> detectTags(SeekableDataSource source, byte[] startBuffer, byte[] endBuffer) throws IOException {
         List<TagInfo> tags = new ArrayList<>();
 
         if (!canDetect(startBuffer, endBuffer)) {
             return tags;
         }
 
-        LOG.debug("Detecting WAV metadata in file: {}", filePath);
+        LOG.debug("Detecting WAV metadata in source: {}", source.name());
 
         try {
-            long fileLength = file.length();
-            long position = RIFF_HEADER_SIZE; // Skip RIFF header (12 bytes)
+            long fileLength = source.length();
+            long position = RIFF_HEADER_SIZE;
             int chunksProcessed = 0;
             int corruptedChunksSkipped = 0;
 
             while (position + MIN_CHUNK_HEADER_SIZE < fileLength &&
                     chunksProcessed < MAX_CHUNKS_TO_PROCESS) {
 
-                ChunkHeader chunkHeader = readChunkHeader(file, position);
+                ChunkHeader chunkHeader = readChunkHeader(source, position);
 
                 if (chunkHeader == null) {
                     LOG.debug("Failed to read chunk header at position {}, attempting recovery", position);
-                    position = attemptChunkRecovery(file, position, fileLength);
+                    position = attemptChunkRecovery(source, position, fileLength);
                     if (position == -1) {
                         LOG.debug("Could not recover from chunk corruption, ending detection");
                         break;
@@ -120,7 +94,6 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                     continue;
                 }
 
-                // Validate a chunk type
                 if (!isValidChunkType(chunkHeader.type)) {
                     LOG.debug("Invalid chunk type '{}' at position {}, skipping",
                             chunkHeader.type, position);
@@ -129,7 +102,6 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                     continue;
                 }
 
-                // Validate chunk size
                 ChunkValidationResult validation = validateChunkSize(chunkHeader.size,
                         position, fileLength);
                 if (!validation.isValid) {
@@ -141,15 +113,13 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                         corruptedChunksSkipped++;
                         continue;
                     } else {
-                        // Critical error - chunk extends beyond file
                         LOG.debug("Chunk '{}' extends beyond file boundary, ending detection",
                                 chunkHeader.type);
                         break;
                     }
                 }
 
-                // Process known metadata chunks
-                TagInfo tagInfo = processMetadataChunk(file, chunkHeader, position);
+                TagInfo tagInfo = processMetadataChunk(source, chunkHeader, position);
                 if (tagInfo != null) {
                     tags.add(tagInfo);
                     LOG.debug("Found {} metadata chunk '{}' at offset: {}, size: {} bytes",
@@ -157,42 +127,34 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                             position, chunkHeader.size + MIN_CHUNK_HEADER_SIZE);
                 }
 
-                // Move to the next chunk with proper alignment
                 position += MIN_CHUNK_HEADER_SIZE + chunkHeader.size;
                 if (chunkHeader.size % 2 != 0) {
-                    position++; // RIFF chunks are word-aligned
+                    position++;
                 }
 
                 chunksProcessed++;
             }
 
-            // Log detection summary
             if (chunksProcessed >= MAX_CHUNKS_TO_PROCESS) {
-                LOG.warn("Reached maximum chunk processing limit in {}", filePath);
+                LOG.warn("Reached maximum chunk processing limit in {}", source.name());
             }
 
             if (corruptedChunksSkipped > 0) {
                 LOG.info("WAV detection in {} completed: found {} metadata chunks, " +
-                        "skipped {} corrupted chunks", filePath, tags.size(), corruptedChunksSkipped);
+                        "skipped {} corrupted chunks", source.name(), tags.size(), corruptedChunksSkipped);
             } else {
                 LOG.debug("WAV detection in {} completed: found {} metadata chunks",
-                        filePath, tags.size());
+                        source.name(), tags.size());
             }
 
         } catch (IOException e) {
-            LOG.error("Error detecting WAV metadata in {}: {}", filePath, e.getMessage());
+            LOG.error("Error detecting WAV metadata in {}: {}", source.name(), e.getMessage());
             throw e;
         }
 
         return tags;
     }
 
-    /**
-     * Validiert den RIFF/WAVE-Header.
-     *
-     * @param startBuffer Puffer mit den ersten Bytes der Datei
-     * @return {@code true}, wenn der Header gültig ist
-     */
     private boolean isValidRIFFWAVEHeader(byte[] startBuffer) {
         try {
             String riffSignature = new String(startBuffer, 0, 4, StandardCharsets.US_ASCII);
@@ -203,18 +165,10 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         }
     }
 
-    /**
-     * Liest und validiert einen Chunk-Header an der angegebenen Position.
-     *
-     * @param file     die geöffnete Datei
-     * @param position die Position des Chunk-Headers
-     * @return den gelesenen {@link ChunkHeader}, oder {@code null} bei Fehlern
-     */
-    private ChunkHeader readChunkHeader(RandomAccessFile file, long position) {
+    private ChunkHeader readChunkHeader(SeekableDataSource source, long position) {
         try {
-            file.seek(position);
             byte[] headerData = new byte[MIN_CHUNK_HEADER_SIZE];
-            int bytesRead = file.read(headerData);
+            int bytesRead = source.read(position, headerData, 0, MIN_CHUNK_HEADER_SIZE);
 
             if (bytesRead != MIN_CHUNK_HEADER_SIZE) {
                 LOG.debug("Incomplete chunk header at position {}: read {} bytes",
@@ -233,19 +187,12 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         }
     }
 
-    /**
-     * Prüft, ob ein Chunk-Typ nur aus druckbaren ASCII-Zeichen und Leerzeichen besteht.
-     *
-     * @param chunkType der 4-Zeichen-Chunk-Typ
-     * @return {@code true}, wenn der Chunk-Typ gültig ist
-     */
     private boolean isValidChunkType(String chunkType) {
         if (chunkType == null || chunkType.length() != 4) {
             return false;
         }
 
         for (char c : chunkType.toCharArray()) {
-            // Allow printable ASCII characters and space
             if (c < 0x20 || c > 0x7E) {
                 return false;
             }
@@ -253,27 +200,16 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         return true;
     }
 
-    /**
-     * Umfassende Validierung der Chunk-Größe.
-     *
-     * @param chunkSize  die zu prüfende Chunk-Größe
-     * @param position    die Position des Chunks in der Datei
-     * @param fileLength  die Gesamtlänge der Datei
-     * @return das Validierungsergebnis mit Gültigkeitsstatus und Grund
-     */
     private ChunkValidationResult validateChunkSize(int chunkSize, long position, long fileLength) {
-        // Check for negative size (corrupted data)
         if (chunkSize < 0) {
             return new ChunkValidationResult(false, true, "negative size");
         }
 
-        // Check for unreasonably large size (likely corruption)
         if (chunkSize > MAX_REASONABLE_CHUNK_SIZE) {
             return new ChunkValidationResult(false, true,
                     String.format("size %d exceeds reasonable limit %d", chunkSize, MAX_REASONABLE_CHUNK_SIZE));
         }
 
-        // Check if chunk extends beyond file
         if (position + MIN_CHUNK_HEADER_SIZE + chunkSize > fileLength) {
             return new ChunkValidationResult(false, false,
                     String.format("chunk extends beyond file (need %d, have %d)",
@@ -283,39 +219,20 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         return new ChunkValidationResult(true, false, "valid");
     }
 
-    /**
-     * Verarbeitet Metadaten-Chunks und erstellt ein {@link TagInfo}.
-     *
-     * @param file     die geöffnete Datei
-     * @param header   der Chunk-Header
-     * @param position die Position des Chunks in der Datei
-     * @return ein {@link TagInfo} für den erkannten Metadaten-Chunk, oder {@code null}
-     * @throws IOException wenn ein Fehler beim Lesen auftritt
-     */
-    private TagInfo processMetadataChunk(RandomAccessFile file, ChunkHeader header, long position)
+    private TagInfo processMetadataChunk(SeekableDataSource source, ChunkHeader header, long position)
             throws IOException {
 
         switch (header.type) {
             case "LIST":
-                return processLISTChunk(file, header, position);
+                return processLISTChunk(source, header, position);
             case "bext":
-                return processBEXTChunk(file, header, position);
+                return processBEXTChunk(source, header, position);
             default:
-                // Not a metadata chunk we're interested in
                 return null;
         }
     }
 
-    /**
-     * Verarbeitet einen LIST-Chunk zur Erkennung von RIFF-INFO-Metadaten.
-     *
-     * @param file     die geöffnete Datei
-     * @param header   der Chunk-Header
-     * @param position die Position des Chunks in der Datei
-     * @return ein {@link TagInfo} für den LIST/INFO-Chunk, oder {@code null}
-     * @throws IOException wenn ein Fehler beim Lesen auftritt
-     */
-    private TagInfo processLISTChunk(RandomAccessFile file, ChunkHeader header, long position)
+    private TagInfo processLISTChunk(SeekableDataSource source, ChunkHeader header, long position)
             throws IOException {
 
         if (header.size < 4) {
@@ -324,9 +241,8 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         }
 
         try {
-            file.seek(position + MIN_CHUNK_HEADER_SIZE);
             byte[] listType = new byte[4];
-            int bytesRead = file.read(listType);
+            int bytesRead = source.read(position + MIN_CHUNK_HEADER_SIZE, listType, 0, 4);
 
             if (bytesRead != 4) {
                 LOG.debug("Could not read LIST type");
@@ -345,19 +261,9 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         return null;
     }
 
-    /**
-     * Verarbeitet einen bext-Chunk zur Erkennung von BWF-Metadaten mit erweiterter Validierung.
-     *
-     * @param file     die geöffnete Datei
-     * @param header   der Chunk-Header
-     * @param position die Position des Chunks in der Datei
-     * @return ein {@link TagInfo} für den bext-Chunk mit entsprechender BWF-Version, oder {@code null}
-     * @throws IOException wenn ein Fehler beim Lesen auftritt
-     */
-    private TagInfo processBEXTChunk(RandomAccessFile file, ChunkHeader header, long position)
+    private TagInfo processBEXTChunk(SeekableDataSource source, ChunkHeader header, long position)
             throws IOException {
 
-        // Validate BWF chunk size
         if (header.size < BWF_MIN_CHUNK_SIZE) {
             LOG.debug("bext chunk too small for BWF: {} bytes (minimum: {})",
                     header.size, BWF_MIN_CHUNK_SIZE);
@@ -369,10 +275,8 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         }
 
         try {
-            // Read BWF version field
-            file.seek(position + MIN_CHUNK_HEADER_SIZE + BWF_VERSION_OFFSET);
             byte[] versionBuffer = new byte[2];
-            int bytesRead = file.read(versionBuffer);
+            int bytesRead = source.read(position + MIN_CHUNK_HEADER_SIZE + BWF_VERSION_OFFSET, versionBuffer, 0, 2);
 
             if (bytesRead != 2) {
                 LOG.debug("Could not read BWF version field");
@@ -386,7 +290,6 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                 return new TagInfo(format, position, header.size + MIN_CHUNK_HEADER_SIZE);
             } else {
                 LOG.debug("Unknown BWF version: {}", version);
-                // Still return a generic BWF format for unknown versions
                 return new TagInfo(TagFormat.BWF_V2, position, header.size + MIN_CHUNK_HEADER_SIZE);
             }
 
@@ -396,12 +299,6 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         }
     }
 
-    /**
-     * Ordnet eine BWF-Versionsnummer dem entsprechenden {@link TagFormat} zu.
-     *
-     * @param version die BWF-Versionsnummer (0, 1 oder 2)
-     * @return das entsprechende TagFormat, oder {@code null} bei unbekannter Version
-     */
     private TagFormat mapBWFVersion(int version) {
         return switch (version) {
             case 0 -> TagFormat.BWF_V0;
@@ -414,29 +311,18 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         };
     }
 
-    /**
-     * Versucht, die Erkennung nach einer Chunk-Beschädigung fortzusetzen,
-     * indem nach dem nächsten gültigen Chunk gesucht wird.
-     *
-     * @param file         die geöffnete Datei
-     * @param startPosition die Startposition für die Suche
-     * @param fileLength    die Gesamtlänge der Datei
-     * @return die Position des nächsten gültigen Chunks, oder -1 wenn kein solcher gefunden wurde
-     * @throws IOException wenn ein Fehler beim Lesen auftritt
-     */
-    private long attemptChunkRecovery(RandomAccessFile file, long startPosition, long fileLength)
+    private long attemptChunkRecovery(SeekableDataSource source, long startPosition, long fileLength)
             throws IOException {
 
         LOG.debug("Attempting chunk recovery from position {}", startPosition);
 
         long searchPosition = startPosition + 1;
-        long maxSearchDistance = Math.min(1024, fileLength - searchPosition); // Search up to 1KB
+        long maxSearchDistance = Math.min(1024, fileLength - searchPosition);
 
         while (searchPosition + MIN_CHUNK_HEADER_SIZE < startPosition + maxSearchDistance) {
             try {
-                file.seek(searchPosition);
                 byte[] candidateHeader = new byte[4];
-                int bytesRead = file.read(candidateHeader);
+                int bytesRead = source.read(searchPosition, candidateHeader, 0, 4);
 
                 if (bytesRead == 4) {
                     String candidateType = new String(candidateHeader, StandardCharsets.US_ASCII);
@@ -458,12 +344,6 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         return -1;
     }
 
-    /**
-     * Prüft, ob ein Chunk-Typ ein bekannter RIFF-Chunk-Typ ist.
-     *
-     * @param chunkType der 4-Zeichen-Chunk-Typ
-     * @return {@code true}, wenn der Chunk-Typ bekannt ist
-     */
     private boolean isKnownChunkType(String chunkType) {
         return switch (chunkType) {
             case "fmt ", "data", "LIST", "bext", "fact", "cue ", "plst", "ltxt", "note", "labl" -> true;
@@ -471,13 +351,6 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         };
     }
 
-    /**
-     * Liest einen 32-Bit-Little-Endian-Integer aus einem Byte-Array.
-     *
-     * @param data   das Byte-Array
-     * @param offset der Offset im Array
-     * @return der gelesene Integer-Wert
-     */
     private int readLittleEndianInt32(byte[] data, int offset) {
         return ((data[offset] & 0xFF)) |
                 ((data[offset + 1] & 0xFF) << 8) |
@@ -485,24 +358,11 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                 ((data[offset + 3] & 0xFF) << 24);
     }
 
-    /**
-     * Liest einen 16-Bit-Little-Endian-Integer aus einem Byte-Array.
-     *
-     * @param data   das Byte-Array
-     * @param offset der Offset im Array
-     * @return der gelesene Integer-Wert
-     */
     private int readLittleEndianInt16(byte[] data, int offset) {
         return ((data[offset] & 0xFF)) |
                 ((data[offset + 1] & 0xFF) << 8);
     }
 
-    /**
- * Datenklasse für Chunk-Header-Informationen.
- *
- * @param type der 4-Zeichen-Chunk-Typ
- * @param size die Chunk-Größe in Bytes (ohne Header)
- */
     private static class ChunkHeader {
         final String type;
         final int size;
@@ -518,16 +378,9 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         }
     }
 
-    /**
- * Datenklasse für Chunk-Validierungsergebnisse.
- *
- * @param isValid     ob die Chunk-Größe gültig ist
- * @param shouldSkip  ob der Chunk übersprungen werden soll (true) oder die Erkennung abgebrochen werden soll (false)
- * @param reason      der Grund für die Validierungsbewertung
- */
     private static class ChunkValidationResult {
         final boolean isValid;
-        final boolean shouldSkip; // true = skip chunk, false = abort detection
+        final boolean shouldSkip;
         final String reason;
 
         ChunkValidationResult(boolean isValid, boolean shouldSkip, String reason) {

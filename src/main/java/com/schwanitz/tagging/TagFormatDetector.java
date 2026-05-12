@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.StructuredTaskScope;
@@ -31,6 +30,9 @@ import java.util.concurrent.StructuredTaskScope;
  *   <li>{@code comfortScan} – prüft nur wahrscheinliche Formate für den Dateityp</li>
  *   <li>{@code customScan} – prüft nur die angegebenen Formate</li>
  * </ul>
+ * <p>
+ * Alle Eingabevarianten delegieren intern an {@link SeekableDataSource}, wodurch
+ * ein einheitlicher Code-Pfad für die Erkennung verwendet wird.
  * <p>
  * Beispiel:
  * <pre>
@@ -86,7 +88,9 @@ public class TagFormatDetector {
      */
     public List<TagInfo> fullScan(String filePath) throws IOException {
         Objects.requireNonNull(filePath, "filePath must not be null");
-        return detectionContext.detectTags(filePath, ScanConfiguration.fullScan());
+        try (SeekableDataSource source = SeekableDataSources.forPath(Path.of(filePath))) {
+            return fullScan(source);
+        }
     }
 
     /**
@@ -101,7 +105,9 @@ public class TagFormatDetector {
      */
     public List<TagInfo> fullScan(Path path) throws IOException {
         Objects.requireNonNull(path, "path must not be null");
-        return detectionContext.detectTags(path.toString(), ScanConfiguration.fullScan());
+        try (SeekableDataSource source = SeekableDataSources.forPath(path)) {
+            return fullScan(source);
+        }
     }
 
     /**
@@ -151,7 +157,7 @@ public class TagFormatDetector {
     public List<TagInfo> fullScan(InputStream inputStream, String extension) throws IOException {
         Objects.requireNonNull(inputStream, "inputStream must not be null");
         try (SeekableDataSource source = SeekableDataSources.forInputStream(inputStream, extension)) {
-            return detectionContext.detectTags(source, ScanConfiguration.fullScan());
+            return fullScan(source);
         }
     }
 
@@ -186,7 +192,9 @@ public class TagFormatDetector {
      */
     public List<TagInfo> comfortScan(String filePath) throws IOException {
         Objects.requireNonNull(filePath, "filePath must not be null");
-        return detectionContext.detectTags(filePath, ScanConfiguration.comfortScan());
+        try (SeekableDataSource source = SeekableDataSources.forPath(Path.of(filePath))) {
+            return comfortScan(source);
+        }
     }
 
     /**
@@ -201,7 +209,9 @@ public class TagFormatDetector {
      */
     public List<TagInfo> comfortScan(Path path) throws IOException {
         Objects.requireNonNull(path, "path must not be null");
-        return detectionContext.detectTags(path.toString(), ScanConfiguration.comfortScan());
+        try (SeekableDataSource source = SeekableDataSources.forPath(path)) {
+            return comfortScan(source);
+        }
     }
 
     /**
@@ -251,7 +261,7 @@ public class TagFormatDetector {
     public List<TagInfo> comfortScan(InputStream inputStream, String extension) throws IOException {
         Objects.requireNonNull(inputStream, "inputStream must not be null");
         try (SeekableDataSource source = SeekableDataSources.forInputStream(inputStream, extension)) {
-            return detectionContext.detectTags(source, ScanConfiguration.comfortScan());
+            return comfortScan(source);
         }
     }
 
@@ -288,7 +298,9 @@ public class TagFormatDetector {
     public List<TagInfo> customScan(String filePath, TagFormat... formats) throws IOException {
         Objects.requireNonNull(filePath, "filePath must not be null");
         Objects.requireNonNull(formats, "formats must not be null");
-        return detectionContext.detectTags(filePath, ScanConfiguration.customScan(formats));
+        try (SeekableDataSource source = SeekableDataSources.forPath(Path.of(filePath))) {
+            return customScan(source, formats);
+        }
     }
 
     /**
@@ -305,7 +317,9 @@ public class TagFormatDetector {
     public List<TagInfo> customScan(Path path, TagFormat... formats) throws IOException {
         Objects.requireNonNull(path, "path must not be null");
         Objects.requireNonNull(formats, "formats must not be null");
-        return detectionContext.detectTags(path.toString(), ScanConfiguration.customScan(formats));
+        try (SeekableDataSource source = SeekableDataSources.forPath(path)) {
+            return customScan(source, formats);
+        }
     }
 
     /**
@@ -361,7 +375,7 @@ public class TagFormatDetector {
         Objects.requireNonNull(inputStream, "inputStream must not be null");
         Objects.requireNonNull(formats, "formats must not be null");
         try (SeekableDataSource source = SeekableDataSources.forInputStream(inputStream, extension)) {
-            return detectionContext.detectTags(source, ScanConfiguration.customScan(formats));
+            return customScan(source, formats);
         }
     }
 
@@ -410,8 +424,8 @@ public class TagFormatDetector {
 
         if (validPaths.size() == 1) {
             String filePath = validPaths.getFirst();
-            try {
-                results.put(filePath, detectionContext.detectTags(filePath, config));
+            try (SeekableDataSource source = SeekableDataSources.forPath(Path.of(filePath))) {
+                results.put(filePath, detectionContext.detectTags(source, config));
             } catch (IOException e) {
                 LOG.error("Error processing file {}: {}", filePath, e.getMessage());
                 results.put(filePath, List.of());
@@ -423,8 +437,8 @@ public class TagFormatDetector {
             Map<String, StructuredTaskScope.Subtask<List<TagInfo>>> tasks = new LinkedHashMap<>();
             for (String filePath : validPaths) {
                 tasks.put(filePath, scope.fork(() -> {
-                    try {
-                        return detectionContext.detectTags(filePath, config);
+                    try (SeekableDataSource source = SeekableDataSources.forPath(Path.of(filePath))) {
+                        return detectionContext.detectTags(source, config);
                     } catch (IOException e) {
                         LOG.error("Error processing file {}: {}", filePath, e.getMessage());
                         return List.<TagInfo>of();

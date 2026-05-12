@@ -1,12 +1,12 @@
 package com.schwanitz.strategies.detection.context;
 
+import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.tagging.TagFormat;
 import com.schwanitz.tagging.TagInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.util.List;
 
 /**
@@ -21,9 +21,9 @@ import java.util.List;
  *       Strategie für die jeweilige Datei zuständig ist. Diese Methode ist ressourcenschonend,
  *       da sie keine Dateizugriffe benötigt.</li>
  *   <li><b>Phase 2 – Detaillierte Tag-Analyse:</b> Wenn die Signaturerkennung erfolgreich ist,
- *       wird {@link #detectTags(RandomAccessFile, String, byte[], byte[])} aufgerufen, um die
- *       genauen Positionen und Größen der Tags zu ermitteln. Diese Methode führt RandomAccessFile-
- *       Operationen durch und ist daher aufwendiger.</li>
+ *       wird {@link #detectTags(SeekableDataSource, byte[], byte[])} aufgerufen, um die
+ *       genauen Positionen und Größen der Tags zu ermitteln. Diese Methode führt Lesezugriffe
+ *       auf der Datenquelle durch und ist daher aufwendiger.</li>
  * </ol>
  * <p>
  * Jede konkrete Strategie implementiert die Erkennung für ein oder mehrere bestimmte
@@ -59,18 +59,17 @@ public abstract class TagDetectionStrategy {
 
     /**
      * Führt die detaillierte Tag-Analyse durch und ermittelt die genauen Positionen
-     * und Größen aller erkannten Tags in der Datei.
+     * und Größen aller erkannten Tags in der Datenquelle.
      * <p>
      * Diese Methode wird nur aufgerufen, wenn {@link #canDetect} {@code true} zurückgegeben hat.
-     * Sie führt RandomAccessFile-Operationen durch, um die genauen Offset- und Größeninformationen
+     * Sie führt Lesezugriffe auf der Datenquelle durch, um die genauen Offset- und Größeninformationen
      * der Tags zu bestimmen.
      *
-     * @param file        die geöffnete {@link RandomAccessFile} für Lesezugriffe
-     * @param filePath    der Dateipfad zur Protokollierung
+     * @param source      die {@link SeekableDataSource} für Lesezugriffe
      * @param startBuffer Puffer mit den ersten Bytes der Datei
      * @param endBuffer   Puffer mit den letzten Bytes der Datei
      * @return eine Liste der erkannten {@link TagInfo}-Objekte; leer, wenn keine Tags gefunden wurden
-     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
+     * @throws IOException wenn ein Fehler beim Lesen der Datenquelle auftritt
      */
-    public abstract List<TagInfo> detectTags(RandomAccessFile file, String filePath, byte[] startBuffer, byte[] endBuffer) throws IOException;
+    public abstract List<TagInfo> detectTags(SeekableDataSource source, byte[] startBuffer, byte[] endBuffer) throws IOException;
 }

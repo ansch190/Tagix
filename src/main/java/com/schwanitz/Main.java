@@ -31,7 +31,7 @@ public class Main {
     public static void main(String[] args) throws IOException {
         //String path = "src/main/resources/musicFiles";
         //String path = "/home/andreas/Musik/tagging/";
-        String path = "/home/andreas/pCloudDrive/Audio/Alben";
+        String path = "/home/andreas/pCloudDrive/Audio/Alben/VA/Musicals/";
         File f = new File(path);
         List<String> files = Files.walk(f.toPath())
                 .filter(Files::isRegularFile)
@@ -46,11 +46,11 @@ public class Main {
         //results = detector.comfortScan(files);
         //results = detector.customScan(files, TagFormat.ID3V2_3, TagFormat.ID3V1_1, TagFormat.ID3V1, TagFormat.ID3V2_4, TagFormat.ID3V2_2);
 
-        for (String s : results.keySet()){
+        /*for (String s : results.keySet()){
           for (TagInfo t: results.get(s)){
               LOG.info("File: {}, Tags: {}",s , t.getFormat());
           }
-        }
+        }*/
     }
 
 }

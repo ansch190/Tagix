@@ -1,10 +1,11 @@
 package com.schwanitz.strategies.detection;
 
+import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
 import com.schwanitz.tagging.TagInfo;
+
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,49 +34,21 @@ public class APEDetectionStrategy extends TagDetectionStrategy {
     private static final int APE_VERSION_1 = 1000;
     private static final int APE_VERSION_2 = 2000;
 
-    // APE header field offsets (relative to start of header)
     private static final int APE_VERSION_OFFSET = 8;
     private static final int APE_TAG_SIZE_OFFSET = 12;
 
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Gibt die unterstützten APE-Formate zurück: APEV1, APEV2.
-     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.APEV1, TagFormat.APEV2);
     }
 
-    /**
-     * Prüft, ob die Dateidaten ein APE-Tag enthalten, anhand des "APETAGEX"-Kennzeichens
-     * am Dateianfang oder am Dateiende.
-     *
-     * @param startBuffer Puffer mit den ersten Bytes der Datei
-     * @param endBuffer   Puffer mit den letzten Bytes der Datei
-     * @return {@code true}, wenn ein APE-Tag-Kennzeichen gefunden wurde
-     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         return checkAPE(startBuffer, 0) || checkAPE(endBuffer, endBuffer.length - APE_HEADER_SIZE);
     }
 
-    /**
-     * Analysiert APE-Tags am Anfang und/oder Ende der Datei und ermittelt Version,
-     * Position und Größe jedes gefundenen Tags.
-     * <p>
-     * APE-Tags können am Anfang und am Ende der Datei gleichzeitig vorhanden sein
-     * (Header und Footer in v2.0).
-     *
-     * @param file        die geöffnete Datei
-     * @param filePath    der Dateipfad zur Protokollierung
-     * @param startBuffer Puffer mit den ersten Bytes der Datei
-     * @param endBuffer   Puffer mit den letzten Bytes der Datei
-     * @return eine Liste der erkannten {@link TagInfo}-Objekte
-     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
-     */
     @Override
-    public List<TagInfo> detectTags(RandomAccessFile file, String filePath, byte[] startBuffer, byte[] endBuffer) throws IOException {
+    public List<TagInfo> detectTags(SeekableDataSource source, byte[] startBuffer, byte[] endBuffer) throws IOException {
         List<TagInfo> tags = new ArrayList<>();
 
         if (checkAPE(startBuffer, 0)) {
@@ -92,7 +65,7 @@ public class APEDetectionStrategy extends TagDetectionStrategy {
             int tagSize = getAPETagSize(endBuffer, endBuffer.length - APE_HEADER_SIZE);
             TagFormat format = getAPEFormat(version);
             if (format != null) {
-                long offset = file.length() - tagSize;
+                long offset = source.length() - tagSize;
                 tags.add(new TagInfo(format, offset, tagSize));
             }
         }
