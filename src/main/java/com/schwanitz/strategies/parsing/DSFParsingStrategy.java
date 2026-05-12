@@ -18,6 +18,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Parsing-Strategie für DSF-Metadaten (DSD Stream File).
+ *
+ * <p>DSF-Dateien speichern Metadaten in einem ID3-vorgelagerten Chunk ({@code ID3 }-Chunk),
+ * der innerhalb der DSD-Dateistruktur liegt. Diese Strategie liest den {@code ID3 }-Chunk-Header,
+ * validiert die ID3v2-Signatur und extrahiert Offset und Größe des eingebetteten ID3-Datenblocks,
+ * sodass dieser von der {@link ID3ParsingStrategy} separat verarbeitet werden kann.</p>
+ *
+ * <p>Unterstütztes Format:</p>
+ * <ul>
+ *   <li>{@link TagFormat#DSF_METADATA}</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ * @see ID3ParsingStrategy
+ */
 public class DSFParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(DSFParsingStrategy.class);
@@ -29,15 +45,37 @@ public class DSFParsingStrategy implements TagParsingStrategy {
 
     private final Map<String, FieldHandler<?>> handlers = new HashMap<>();
 
+    /**
+     * Erzeugt eine neue DSF-Parsing-Strategie mit einem Handler für das DSF_ID3-Feld.
+     */
     public DSFParsingStrategy() {
         handlers.put("DSF_ID3", new TextFieldHandler("DSF_ID3"));
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für {@link TagFormat#DSF_METADATA}
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.DSF_METADATA;
     }
 
+    /**
+     * Parst DSF-Metadaten aus der angegebenen Datei.
+     *
+     * <p>Liest den {@code ID3 }-Chunk-Header am angegebenen Offset, validiert die ID3v2-Signatur
+     * und speichert Offset und Größe des ID3-Datenblocks in den Metadaten zur späteren Verarbeitung.</p>
+     *
+     * @param format das DSF_METADATA-Format
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des ID3-Chunks
+     * @param size   die Größe des Chunks in Bytes
+     * @return die extrahierten {@link DSFMetadata} mit ID3-Offset und -Größe
+     * @throws IOException bei I/O-Fehlern oder ungültigem Chunk-Format
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         DSFMetadata metadata = new DSFMetadata();
@@ -108,6 +146,12 @@ public class DSFParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Innere Klasse für DSF-spezifische Metadaten.
+     *
+     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte sowie Offset und Größe
+     * des eingebetteten ID3-Datenblocks zur späteren Verarbeitung durch die {@link ID3ParsingStrategy}.</p>
+     */
     public static class DSFMetadata implements Metadata {
         private final List<MetadataField<?>> fields = new ArrayList<>();
         private long id3DataOffset = -1;
@@ -128,10 +172,20 @@ public class DSFParsingStrategy implements TagParsingStrategy {
             fields.add(field);
         }
 
+        /**
+         * Liefert den Offset des eingebetteten ID3-Datenblocks in der Datei.
+         *
+         * @return der Offset oder -1, wenn kein ID3-Block gefunden wurde
+         */
         public long getId3DataOffset() {
             return id3DataOffset;
         }
 
+        /**
+         * Liefert die Größe des eingebetteten ID3-Datenblocks in Bytes.
+         *
+         * @return die Größe in Bytes
+         */
         public long getId3DataSize() {
             return id3DataSize;
         }

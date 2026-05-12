@@ -24,6 +24,24 @@ import org.slf4j.LoggerFactory;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Parsing-Strategie für BWF-Metadaten (Broadcast Wave Format, Version 0/1/2).
+ *
+ * <p>Das BWF-Format erweitert das Standard-WAV-Format um einen {@code bext}-Chunk, der professionelle
+ * Audio-Metadaten wie Beschreibung, Urheber, Zeitreferenz (als Samples und als Timecode), UMID und
+ * Loudness-Informationen enthält. Version 2 fügt zusätzlich Loudness-Metadaten (LUFS, dBTP) hinzu.
+ * Diese Strategie liest den kompletten {@code bext}-Chunk und parst optional folgende Extensions:
+ * Cue-List, Peak-Envelope, iXML und Adobe-XML-Metadaten.</p>
+ *
+ * <p>Unterstützte Formate:</p>
+ * <ul>
+ *   <li>{@link TagFormat#BWF_V0} – BWF Version 0 (Grundstruktur ohne Loudness)</li>
+ *   <li>{@link TagFormat#BWF_V1} – BWF Version 1 (Grundstruktur ohne Loudness)</li>
+ *   <li>{@link TagFormat#BWF_V2} – BWF Version 2 (inklusive Loudness-Informationen)</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ */
 public class BWFParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(BWFParsingStrategy.class);
@@ -46,6 +64,9 @@ public class BWFParsingStrategy implements TagParsingStrategy {
 
     private final Map<String, FieldHandler<?>> handlers;
 
+    /**
+     * Erzeugt eine neue BWF-Parsing-Strategie mit Standard-Handlern für alle bekannten BWF-Felder.
+     */
     public BWFParsingStrategy() {
         this.handlers = new HashMap<>();
         initializeDefaultHandlers();
@@ -80,11 +101,27 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         handlers.put("LinkedFiles", new TextFieldHandler("LinkedFiles"));
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für BWF_V0, BWF_V1 und BWF_V2
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.BWF_V0 || format == TagFormat.BWF_V1 || format == TagFormat.BWF_V2;
     }
 
+    /**
+     * Parst einen BWF-bext-Chunk aus der angegebenen Datei.
+     *
+     * @param format die BWF-Version (V0, V1 oder V2)
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des bext-Chunks
+     * @param size   die Größe des Chunks in Bytes
+     * @return die extrahierten {@link BWFMetadata}
+     * @throws IOException bei I/O-Fehlern oder ungültigem bext-Chunk
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         BWFMetadata metadata = new BWFMetadata(format);
@@ -764,11 +801,21 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes BWF-Feld.
+     *
+     * @param key     der Feldname, für den der Handler registriert werden soll
+     * @param handler der zu registrierende Handler
+     */
     public void registerHandler(String key, FieldHandler<?> handler) {
         handlers.put(key, handler);
     }
 
-    // Innere Klasse für BWF Metadata
+    /**
+     * Innere Klasse für BWF-spezifische Metadaten.
+     *
+     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und das zugehörige {@link TagFormat}.</p>
+     */
     public static class BWFMetadata implements Metadata {
         private final List<MetadataField<?>> fields = new ArrayList<>();
         private final TagFormat format;

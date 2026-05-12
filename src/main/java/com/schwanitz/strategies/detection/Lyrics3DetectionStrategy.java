@@ -10,20 +10,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Detection Strategy for Lyrics3 tags (versions 1 and 2)
+ * Erkennungsstrategie für Lyrics3-Tags (Versionen 1 und 2).
  * <p>
- * Lyrics3 tags are located at the end of files, before ID3v1 tags.
+ * Lyrics3-Tags befinden sich am Ende von Dateien, vor etwaigen ID3v1-Tags.
  * <p>
  * Lyrics3v1:
- * - Start: "LYRICSBEGIN"
- * - Lyrics content (variable length)
- * - End: "LYRICSEND"
+ * <ul>
+ *   <li>Start: "LYRICSBEGIN"</li>
+ *   <li>Liedtext-Inhalt (variable Länge)</li>
+ *   <li>Ende: "LYRICSEND"</li>
+ * </ul>
  * <p>
  * Lyrics3v2:
- * - Start: "LYRICSBEGIN"
- * - Field content with size information
- * - Size indication (6 digits)
- * - End: "LYRICS200"
+ * <ul>
+ *   <li>Start: "LYRICSBEGIN"</li>
+ *   <li>Feldinhalt mit Größeninformationen</li>
+ *   <li>Größenangabe (6 Ziffern)</li>
+ *   <li>Ende: "LYRICS200"</li>
+ * </ul>
  */
 public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
 
@@ -32,11 +36,24 @@ public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
     private static final int LYRICS3V2_SIZE_LENGTH = 6;
     private static final int LYRICS3V2_FOOTER_SIZE = LYRICS3_END_TAG_LENGTH + LYRICS3V2_SIZE_LENGTH;
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Gibt die unterstützten Lyrics3-Formate zurück: LYRICS3V1, LYRICS3V2.
+     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.LYRICS3V1, TagFormat.LYRICS3V2);
     }
 
+    /**
+     * Prüft, ob die Dateidaten ein Lyrics3-Tag enthalten, anhand der
+     * Endekennzeichen "LYRICSEND" (v1) oder "LYRICS200" (v2) am Dateiende.
+     *
+     * @param startBuffer Puffer mit den ersten Bytes der Datei (nicht verwendet)
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei (mindestens 9 Bytes)
+     * @return {@code true}, wenn ein Lyrics3-Endekennzeichen gefunden wurde
+     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         if (endBuffer.length < LYRICS3_END_TAG_LENGTH) {
@@ -46,6 +63,20 @@ public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
         return endTag.equals("LYRICSEND") || endTag.equals("LYRICS200");
     }
 
+    /**
+     * Analysiert das Lyrics3-Tag und ermittelt die genaue Version (v1 oder v2),
+     * Position und Größe.
+     * <p>
+     * Unterscheidet anhand des Endekennzeichens zwischen Lyrics3v1 ("LYRICSEND")
+     * und Lyrics3v2 ("LYRICS200").
+     *
+     * @param file        die geöffnete Datei
+     * @param filePath    der Dateipfad zur Protokollierung
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei
+     * @return eine Liste mit maximal einem {@link TagInfo}-Objekt
+     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
+     */
     @Override
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath, byte[] startBuffer, byte[] endBuffer) throws IOException {
         List<TagInfo> tags = new ArrayList<>();

@@ -16,6 +16,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Parsing-Strategie für WavPack-Metadaten-Subblöcke.
+ *
+ * <p>WavPack-Dateien verwenden Metadaten-Subblöcke innerhalb des Block-Headers, um zusätzliche
+ * Informationen wie RIFF-Header, MD5-Prüfsummen und Konfigurationsdaten zu speichern. Jeder Subblock
+ * hat einen 1-Byte-Header mit ID und Größenflag, gefolgt von den Daten. Diese Strategie liest
+ * den Subblock-Header, identifiziert den Typ und extrahiertformatierte Werte wie MD5-Hashes.</p>
+ *
+ * <p>Unterstütztes Format:</p>
+ * <ul>
+ *   <li>{@link TagFormat#WAVPACK_NATIVE}</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ */
 public class WavPackParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(WavPackParsingStrategy.class);
@@ -38,17 +53,36 @@ public class WavPackParsingStrategy implements TagParsingStrategy {
 
     private final Map<String, FieldHandler<?>> handlers = new HashMap<>();
 
+    /**
+     * Erzeugt eine neue WavPack-Parsing-Strategie mit Standard-Handlern für bekannte Subblock-Typen.
+     */
     public WavPackParsingStrategy() {
         for (String fieldName : METADATA_SUBBLOCKS.values()) {
             handlers.put(fieldName, new TextFieldHandler(fieldName));
         }
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für {@link TagFormat#WAVPACK_NATIVE}
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.WAVPACK_NATIVE;
     }
 
+    /**
+     * Parst einen WavPack-Metadaten-Subblock aus der angegebenen Datei.
+     *
+     * @param format das WAVPACK_NATIVE-Format
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des Subblocks
+     * @param size   die verfügbare Größe in Bytes
+     * @return die extrahierten {@link WavPackMetadata}
+     * @throws IOException bei I/O-Fehlern
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         WavPackMetadata metadata = new WavPackMetadata();
@@ -128,6 +162,11 @@ public class WavPackParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Innere Klasse für WavPack-spezifische Metadaten.
+     *
+     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und gibt als Format {@code "WAVPACK_NATIVE"} zurück.</p>
+     */
     public static class WavPackMetadata implements Metadata {
         private final List<MetadataField<?>> fields = new ArrayList<>();
 

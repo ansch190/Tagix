@@ -14,28 +14,35 @@ import java.util.*;
 import java.util.concurrent.StructuredTaskScope;
 
 /**
- * Public API for tag format detection.
+ * Öffentliche API zur Erkennung von Tag-Formaten in Audiodateien.
  * <p>
- * Provides multiple ways to detect tag formats in audio files:
+ * Bietet verschiedene Eingabequellen für die Tag-Format-Erkennung:
  * <ul>
- *   <li>File path (String) - most common usage</li>
- *   <li>{@link Path} - NIO path support</li>
- *   <li>{@link SeekableDataSource} - abstraction over files, byte arrays, and streams</li>
- *   <li>{@code byte[]} - in-memory detection</li>
- *   <li>{@link InputStream} - streams (buffered to temp file internally)</li>
+ *   <li>Dateipfad als Zeichenkette – häufigste Verwendungsweise</li>
+ *   <li>{@link Path} – NIO-Pfad-Unterstützung</li>
+ *   <li>{@link SeekableDataSource} – Abstraktion über Dateien, Byte-Arrays und Streams</li>
+ *   <li>{@code byte[]} – Erkennung im Hauptspeicher</li>
+ *   <li>{@link InputStream} – wird intern in eine temporäre Datei gepuffert</li>
  * </ul>
  * <p>
- * Example usage:
+ * Drei Scan-Modi stehen zur Verfügung:
+ * <ul>
+ *   <li>{@code fullScan} – prüft alle Tag-Formate</li>
+ *   <li>{@code comfortScan} – prüft nur wahrscheinliche Formate für den Dateityp</li>
+ *   <li>{@code customScan} – prüft nur die angegebenen Formate</li>
+ * </ul>
+ * <p>
+ * Beispiel:
  * <pre>
  * TagFormatDetector detector = new TagFormatDetector();
  *
- * // From file path
+ * // Dateipfad
  * List&lt;TagInfo&gt; tags = detector.fullScan("audio.mp3");
  *
- * // From byte array
+ * // Byte-Array
  * List&lt;TagInfo&gt; tags = detector.fullScan(bytes);
  *
- * // From InputStream
+ * // InputStream
  * try (SeekableDataSource source = SeekableDataSources.forInputStream(stream, "mp3")) {
  *     List&lt;TagInfo&gt; tags = detector.fullScan(source);
  * }
@@ -46,10 +53,19 @@ public class TagFormatDetector {
     private static final Logger LOG = LoggerFactory.getLogger(TagFormatDetector.class);
     private final FormatDetectionContext detectionContext;
 
+    /**
+     * Erstellt einen neuen {@code TagFormatDetector} mit Standard-Erkennungskontext.
+     */
     public TagFormatDetector() {
         this.detectionContext = new FormatDetectionContext();
     }
 
+    /**
+     * Erstellt einen neuen {@code TagFormatDetector} mit dem angegebenen Erkennungskontext.
+     *
+     * @param detectionContext der zu verwendende Erkennungskontext, darf nicht {@code null} sein
+     * @throws NullPointerException wenn {@code detectionContext} {@code null} ist
+     */
     public TagFormatDetector(FormatDetectionContext detectionContext) {
         this.detectionContext = Objects.requireNonNull(detectionContext, "detectionContext must not be null");
     }
@@ -59,7 +75,14 @@ public class TagFormatDetector {
     // ================================
 
     /**
-     * Full Scan - single file by path
+     * Führt einen Vollständigen Scan auf einer einzelnen Datei durch.
+     * <p>
+     * Alle bekannten Tag-Formate werden in Reihenfolge ihrer Wahrscheinlichkeit geprüft.
+     *
+     * @param filePath der Pfad zur Audiodatei, darf nicht {@code null} sein
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen der Datei auftritt
+     * @throws NullPointerException wenn {@code filePath} {@code null} ist
      */
     public List<TagInfo> fullScan(String filePath) throws IOException {
         Objects.requireNonNull(filePath, "filePath must not be null");
@@ -67,7 +90,14 @@ public class TagFormatDetector {
     }
 
     /**
-     * Full Scan - single file by NIO Path
+     * Führt einen Vollständigen Scan auf einer einzelnen Datei durch.
+     * <p>
+     * Alle bekannten Tag-Formate werden in Reihenfolge ihrer Wahrscheinlichkeit geprüft.
+     *
+     * @param path der NIO-Pfad zur Audiodatei, darf nicht {@code null} sein
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen der Datei auftritt
+     * @throws NullPointerException wenn {@code path} {@code null} ist
      */
     public List<TagInfo> fullScan(Path path) throws IOException {
         Objects.requireNonNull(path, "path must not be null");
@@ -75,7 +105,14 @@ public class TagFormatDetector {
     }
 
     /**
-     * Full Scan - in-memory byte array
+     * Führt einen Vollständigen Scan auf einem Byte-Array durch.
+     * <p>
+     * Alle bekannten Tag-Formate werden in Reihenfolge ihrer Wahrscheinlichkeit geprüft.
+     *
+     * @param data die Audiodaten als Byte-Array, darf nicht {@code null} sein
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen der Daten auftritt
+     * @throws NullPointerException wenn {@code data} {@code null} ist
      */
     public List<TagInfo> fullScan(byte[] data) throws IOException {
         Objects.requireNonNull(data, "data must not be null");
@@ -85,7 +122,14 @@ public class TagFormatDetector {
     }
 
     /**
-     * Full Scan - seekable data source
+     * Führt einen Vollständigen Scan auf einer Seekable-Datenquelle durch.
+     * <p>
+     * Alle bekannten Tag-Formate werden in Reihenfolge ihrer Wahrscheinlichkeit geprüft.
+     *
+     * @param source die Seekable-Datenquelle, darf nicht {@code null} sein
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen der Quelle auftritt
+     * @throws NullPointerException wenn {@code source} {@code null} ist
      */
     public List<TagInfo> fullScan(SeekableDataSource source) throws IOException {
         Objects.requireNonNull(source, "source must not be null");
@@ -93,10 +137,16 @@ public class TagFormatDetector {
     }
 
     /**
-     * Full Scan - InputStream (buffered to temporary file)
+     * Führt einen Vollständigen Scan auf einem InputStream durch.
+     * <p>
+     * Der Stream wird intern in eine temporäre Datei gepuffert. Alle bekannten Tag-Formate
+     * werden in Reihenfolge ihrer Wahrscheinlichkeit geprüft.
      *
-     * @param inputStream the input stream to read from
-     * @param extension   optional file extension hint (without dot), e.g. "mp3"
+     * @param inputStream der Eingabestrom, darf nicht {@code null} sein
+     * @param extension   optionale Dateiendung (ohne Punkt) als Hinweis für den Dateityp, z. B. "mp3"
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen des Streams auftritt
+     * @throws NullPointerException wenn {@code inputStream} {@code null} ist
      */
     public List<TagInfo> fullScan(InputStream inputStream, String extension) throws IOException {
         Objects.requireNonNull(inputStream, "inputStream must not be null");
@@ -106,7 +156,14 @@ public class TagFormatDetector {
     }
 
     /**
-     * Full Scan - multiple files
+     * Führt einen Vollständigen Scan auf mehreren Dateien durch.
+     * <p>
+     * Die Dateien werden parallel verarbeitet. Dateien, die nicht gelesen werden können,
+     * werden mit einer leeren Liste im Ergebnis aufgeführt.
+     *
+     * @param filePaths die Pfade zu den Audiodateien, darf nicht {@code null} sein
+     * @return eine Zuordnung von Dateipfaden zu Listen von erkannten {@link TagInfo}-Objekten
+     * @throws NullPointerException wenn {@code filePaths} {@code null} ist
      */
     public Map<String, List<TagInfo>> fullScan(List<String> filePaths) {
         Objects.requireNonNull(filePaths, "filePaths must not be null");
@@ -118,7 +175,14 @@ public class TagFormatDetector {
     // ================================
 
     /**
-     * Comfort Scan - single file by path
+     * Führt einen Komfort-Scan auf einer einzelnen Datei durch.
+     * <p>
+     * Nur die für die Dateiendung wahrscheinlichen Tag-Formate werden geprüft.
+     *
+     * @param filePath der Pfad zur Audiodatei, darf nicht {@code null} sein
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen der Datei auftritt
+     * @throws NullPointerException wenn {@code filePath} {@code null} ist
      */
     public List<TagInfo> comfortScan(String filePath) throws IOException {
         Objects.requireNonNull(filePath, "filePath must not be null");
@@ -126,7 +190,14 @@ public class TagFormatDetector {
     }
 
     /**
-     * Comfort Scan - single file by NIO Path
+     * Führt einen Komfort-Scan auf einer einzelnen Datei durch.
+     * <p>
+     * Nur die für die Dateiendung wahrscheinlichen Tag-Formate werden geprüft.
+     *
+     * @param path der NIO-Pfad zur Audiodatei, darf nicht {@code null} sein
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen der Datei auftritt
+     * @throws NullPointerException wenn {@code path} {@code null} ist
      */
     public List<TagInfo> comfortScan(Path path) throws IOException {
         Objects.requireNonNull(path, "path must not be null");
@@ -134,7 +205,14 @@ public class TagFormatDetector {
     }
 
     /**
-     * Comfort Scan - in-memory byte array
+     * Führt einen Komfort-Scan auf einem Byte-Array durch.
+     * <p>
+     * Nur die für den angegebenen Dateityp wahrscheinlichen Tag-Formate werden geprüft.
+     *
+     * @param data die Audiodaten als Byte-Array, darf nicht {@code null} sein
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen der Daten auftritt
+     * @throws NullPointerException wenn {@code data} {@code null} ist
      */
     public List<TagInfo> comfortScan(byte[] data) throws IOException {
         Objects.requireNonNull(data, "data must not be null");
@@ -144,7 +222,14 @@ public class TagFormatDetector {
     }
 
     /**
-     * Comfort Scan - seekable data source
+     * Führt einen Komfort-Scan auf einer Seekable-Datenquelle durch.
+     * <p>
+     * Nur die für den Dateityp wahrscheinlichen Tag-Formate werden geprüft.
+     *
+     * @param source die Seekable-Datenquelle, darf nicht {@code null} sein
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen der Quelle auftritt
+     * @throws NullPointerException wenn {@code source} {@code null} ist
      */
     public List<TagInfo> comfortScan(SeekableDataSource source) throws IOException {
         Objects.requireNonNull(source, "source must not be null");
@@ -152,10 +237,16 @@ public class TagFormatDetector {
     }
 
     /**
-     * Comfort Scan - InputStream (buffered to temporary file)
+     * Führt einen Komfort-Scan auf einem InputStream durch.
+     * <p>
+     * Der Stream wird intern in eine temporäre Datei gepuffert. Nur die für den
+     * angegebenen Dateityp wahrscheinlichen Tag-Formate werden geprüft.
      *
-     * @param inputStream the input stream to read from
-     * @param extension   optional file extension hint (without dot), e.g. "mp3"
+     * @param inputStream der Eingabestrom, darf nicht {@code null} sein
+     * @param extension   optionale Dateiendung (ohne Punkt) als Hinweis für den Dateityp, z. B. "mp3"
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen des Streams auftritt
+     * @throws NullPointerException wenn {@code inputStream} {@code null} ist
      */
     public List<TagInfo> comfortScan(InputStream inputStream, String extension) throws IOException {
         Objects.requireNonNull(inputStream, "inputStream must not be null");
@@ -165,7 +256,14 @@ public class TagFormatDetector {
     }
 
     /**
-     * Comfort Scan - multiple files
+     * Führt einen Komfort-Scan auf mehreren Dateien durch.
+     * <p>
+     * Die Dateien werden parallel verarbeitet. Dateien, die nicht gelesen werden können,
+     * werden mit einer leeren Liste im Ergebnis aufgeführt.
+     *
+     * @param filePaths die Pfade zu den Audiodateien, darf nicht {@code null} sein
+     * @return eine Zuordnung von Dateipfaden zu Listen von erkannten {@link TagInfo}-Objekten
+     * @throws NullPointerException wenn {@code filePaths} {@code null} ist
      */
     public Map<String, List<TagInfo>> comfortScan(List<String> filePaths) {
         Objects.requireNonNull(filePaths, "filePaths must not be null");
@@ -177,7 +275,15 @@ public class TagFormatDetector {
     // ================================
 
     /**
-     * Custom Scan - single file by path
+     * Führt einen benutzerdefinierten Scan auf einer einzelnen Datei durch.
+     * <p>
+     * Nur die angegebenen Tag-Formate werden geprüft, unabhängig von der Dateiendung.
+     *
+     * @param filePath der Pfad zur Audiodatei, darf nicht {@code null} sein
+     * @param formats  die zu prüfenden Tag-Formate, darf nicht {@code null} sein
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen der Datei auftritt
+     * @throws NullPointerException wenn {@code filePath} oder {@code formats} {@code null} ist
      */
     public List<TagInfo> customScan(String filePath, TagFormat... formats) throws IOException {
         Objects.requireNonNull(filePath, "filePath must not be null");
@@ -186,7 +292,15 @@ public class TagFormatDetector {
     }
 
     /**
-     * Custom Scan - single file by NIO Path
+     * Führt einen benutzerdefinierten Scan auf einer einzelnen Datei durch.
+     * <p>
+     * Nur die angegebenen Tag-Formate werden geprüft, unabhängig von der Dateiendung.
+     *
+     * @param path    der NIO-Pfad zur Audiodatei, darf nicht {@code null} sein
+     * @param formats die zu prüfenden Tag-Formate, darf nicht {@code null} sein
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen der Datei auftritt
+     * @throws NullPointerException wenn {@code path} oder {@code formats} {@code null} ist
      */
     public List<TagInfo> customScan(Path path, TagFormat... formats) throws IOException {
         Objects.requireNonNull(path, "path must not be null");
@@ -195,7 +309,15 @@ public class TagFormatDetector {
     }
 
     /**
-     * Custom Scan - in-memory byte array
+     * Führt einen benutzerdefinierten Scan auf einem Byte-Array durch.
+     * <p>
+     * Nur die angegebenen Tag-Formate werden geprüft, unabhängig vom Dateityp.
+     *
+     * @param data    die Audiodaten als Byte-Array, darf nicht {@code null} sein
+     * @param formats die zu prüfenden Tag-Formate, darf nicht {@code null} sein
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen der Daten auftritt
+     * @throws NullPointerException wenn {@code data} oder {@code formats} {@code null} ist
      */
     public List<TagInfo> customScan(byte[] data, TagFormat... formats) throws IOException {
         Objects.requireNonNull(data, "data must not be null");
@@ -206,7 +328,15 @@ public class TagFormatDetector {
     }
 
     /**
-     * Custom Scan - seekable data source
+     * Führt einen benutzerdefinierten Scan auf einer Seekable-Datenquelle durch.
+     * <p>
+     * Nur die angegebenen Tag-Formate werden geprüft, unabhängig vom Dateityp.
+     *
+     * @param source  die Seekable-Datenquelle, darf nicht {@code null} sein
+     * @param formats die zu prüfenden Tag-Formate, darf nicht {@code null} sein
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen der Quelle auftritt
+     * @throws NullPointerException wenn {@code source} oder {@code formats} {@code null} ist
      */
     public List<TagInfo> customScan(SeekableDataSource source, TagFormat... formats) throws IOException {
         Objects.requireNonNull(source, "source must not be null");
@@ -215,11 +345,17 @@ public class TagFormatDetector {
     }
 
     /**
-     * Custom Scan - InputStream (buffered to temporary file)
+     * Führt einen benutzerdefinierten Scan auf einem InputStream durch.
+     * <p>
+     * Der Stream wird intern in eine temporäre Datei gepuffert. Nur die angegebenen
+     * Tag-Formate werden geprüft.
      *
-     * @param inputStream the input stream to read from
-     * @param extension   optional file extension hint (without dot), e.g. "mp3"
-     * @param formats     the tag formats to detect
+     * @param inputStream der Eingabestrom, darf nicht {@code null} sein
+     * @param extension   optionale Dateiendung (ohne Punkt) als Hinweis für den Dateityp, z. B. "mp3"
+     * @param formats     die zu prüfenden Tag-Formate, darf nicht {@code null} sein
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte, niemals {@code null}
+     * @throws IOException wenn ein E/A-Fehler beim Lesen des Streams auftritt
+     * @throws NullPointerException wenn {@code inputStream} oder {@code formats} {@code null} ist
      */
     public List<TagInfo> customScan(InputStream inputStream, String extension, TagFormat... formats) throws IOException {
         Objects.requireNonNull(inputStream, "inputStream must not be null");
@@ -230,7 +366,15 @@ public class TagFormatDetector {
     }
 
     /**
-     * Custom Scan - multiple files
+     * Führt einen benutzerdefinierten Scan auf mehreren Dateien durch.
+     * <p>
+     * Die Dateien werden parallel verarbeitet. Dateien, die nicht gelesen werden können,
+     * werden mit einer leeren Liste im Ergebnis aufgeführt.
+     *
+     * @param filePaths die Pfade zu den Audiodateien, darf nicht {@code null} sein
+     * @param formats   die zu prüfenden Tag-Formate, darf nicht {@code null} sein
+     * @return eine Zuordnung von Dateipfaden zu Listen von erkannten {@link TagInfo}-Objekten
+     * @throws NullPointerException wenn {@code filePaths} oder {@code formats} {@code null} ist
      */
     public Map<String, List<TagInfo>> customScan(List<String> filePaths, TagFormat... formats) {
         Objects.requireNonNull(filePaths, "filePaths must not be null");
@@ -242,6 +386,18 @@ public class TagFormatDetector {
     // BATCH PROCESSING
     // ================================
 
+    /**
+     * Erkennt Tag-Formate in mehreren Dateien parallel.
+     * <p>
+     * Verwendet {@link StructuredTaskScope} zur parallelen Verarbeitung.
+     * Bei Einzeldateien wird die Verarbeitung sequenziell durchgeführt.
+     * Dateien, die nicht verarbeitet werden können, werden mit einer leeren
+     * {@link TagInfo}-Liste im Ergebnis erfasst.
+     *
+     * @param filePaths die Liste der Dateipfade, {@code null}-Einträge werden gefiltert
+     * @param config    die Scan-Konfiguration
+     * @return eine Zuordnung von Dateipfaden zu Listen von erkannten {@link TagInfo}-Objekten
+     */
     private Map<String, List<TagInfo>> detectTagFormats(List<String> filePaths, ScanConfiguration config) {
         Map<String, List<TagInfo>> results = new LinkedHashMap<>();
         List<String> validPaths = filePaths.stream()

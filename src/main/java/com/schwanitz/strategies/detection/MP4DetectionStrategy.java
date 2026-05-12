@@ -11,20 +11,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Detection Strategy for MP4 container metadata
+ * Erkennungsstrategie für MP4-Container-Metadaten.
  * <p>
- * MP4 files use an atom-based (box-based) structure where each atom consists of:
- * - Size: 4 bytes big-endian (total atom size including header)
- * - Type: 4 bytes ASCII (e.g. "ftyp", "moov", "mdat")
- * - If size == 1: Extended size follows as 8 bytes big-endian
- * - If size == 0: Atom extends to end of file
+ * MP4-Dateien verwenden eine Atom-basierte (Box-basierte) Struktur, bei der jedes Atom aus besteht:
+ * <ul>
+ *   <li>Größe: 4 Bytes Big-Endian (Gesamtgröße des Atoms inklusive Header)</li>
+ *   <li>Typ: 4 Bytes ASCII (z. B. "ftyp", "moov", "mdat")</li>
+ *   <li>Wenn Größe == 1: Erweiterte Größe folgt als 8 Bytes Big-Endian</li>
+ *   <li>Wenn Größe == 0: Atom reicht bis zum Dateiende</li>
+ * </ul>
  * <p>
- * Metadata is stored in:
- * moov -> udta -> meta -> ilst
+ * Metadaten werden gespeichert in:
+ * {@code moov -> udta -> meta -> ilst}
  * <p>
- * The moov atom can appear anywhere in the file. In streaming-optimized
- * files it appears near the beginning; in others it appears at the end
- * after the mdat atom.
+ * Das moov-Atom kann an beliebiger Stelle in der Datei stehen. In streaming-optimierten
+ * Dateien steht es nahe dem Anfang, in anderen Dateien am Ende nach dem mdat-Atom.
  */
 public class MP4DetectionStrategy extends TagDetectionStrategy {
 
@@ -42,17 +43,43 @@ public class MP4DetectionStrategy extends TagDetectionStrategy {
     // Safety limit: maximum reasonable atom size (2 GB)
     private static final long MAX_REASONABLE_ATOM_SIZE = 2L * 1024 * 1024 * 1024;
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Gibt das unterstützte MP4-Format zurück: MP4.
+     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.MP4);
     }
 
+    /**
+     * Prüft, ob die Dateidaten ein MP4-Container-Format enthalten, anhand des
+     * "ftyp"-Atoms am Dateianfang.
+     *
+     * @param startBuffer Puffer mit den ersten Bytes der Datei (mindestens 8 Bytes)
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei (nicht verwendet)
+     * @return {@code true}, wenn das "ftyp"-Atom erkannt wurde
+     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         if (startBuffer.length < ATOM_HEADER_SIZE) return false;
         return new String(startBuffer, ATOM_TYPE_LENGTH, ATOM_TYPE_LENGTH, StandardCharsets.US_ASCII).equals("ftyp");
     }
 
+    /**
+     * Durchsucht die MP4-Datei nach dem "moov"-Atom, das die Metadaten enthält.
+     * <p>
+     * Durchläuft alle Top-Level-Atome der Datei und gibt die Position und Größe
+     * des ersten gefundenen "moov"-Atoms zurück.
+     *
+     * @param file        die geöffnete Datei
+     * @param filePath    der Dateipfad zur Protokollierung
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei
+     * @return eine Liste mit maximal einem {@link TagInfo}-Objekt für das moov-Atom
+     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
+     */
     @Override
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath, byte[] startBuffer, byte[] endBuffer) throws IOException {
         List<TagInfo> tags = new ArrayList<>();
@@ -104,12 +131,21 @@ public class MP4DetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Read atom size, handling extended (64-bit) sizes.
+     * Liest die Atom-Größe und verarbeitet erweiterte (64-Bit) Größen.
      * <p>
-     * Per ISO 14496-12:
-     * - size == 0: atom extends to end of file
-     * - size == 1: next 8 bytes contain the actual 64-bit size
-     * - otherwise: size is the 32-bit value from the header
+     * Gemäß ISO 14496-12:
+     * <ul>
+     *   <li>Größe == 0: Atom reicht bis zum Dateiende</li>
+     *   <li>Größe == 1: Die nächsten 8 Bytes enthalten die tatsächliche 64-Bit-Größe</li>
+     *   <li>Sonst: Größe ist der 32-Bit-Wert aus dem Header</li>
+     * </ul>
+     *
+     * @param atomHeader die 8 Bytes des Atom-Headers
+     * @param file       die geöffnete Datei für das Lesen erweiterter Größen
+     * @param position   die Position des Atoms in der Datei
+     * @param fileLength die Gesamtlänge der Datei
+     * @return die gelesene Atom-Größe, 0 für EOF-Atome, oder -1 bei Fehlern
+     * @throws IOException wenn ein Fehler beim Lesen auftritt
      */
     private long readAtomSize(byte[] atomHeader, RandomAccessFile file, long position, long fileLength) throws IOException {
         int rawSize = ((atomHeader[0] & 0xFF) << 24) |

@@ -11,21 +11,23 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Detection Strategy for TrueAudio (.tta) files
+ * Erkennungsstrategie für TrueAudio-(.tta)-Dateien.
  * <p>
- * TrueAudio is a lossless audio codec with its own container structure.
- * Header Structure:
- * - Signature: "TTA1" (4 bytes) or "TTA2" (4 bytes)
- * - Audio Format: 16-bit Integer (2 bytes)
- * - Channels: 16-bit Integer (2 bytes)
- * - Bits Per Sample: 16-bit Integer (2 bytes)
- * - Sample Rate: 32-bit Integer (4 bytes)
- * - Data Length: 32-bit Integer (4 bytes)
- * - CRC32: 32-bit Integer (4 bytes)
+ * TrueAudio ist ein verlustfreier Audio-Codec mit eigener Containerstruktur.
+ * Header-Struktur:
+ * <ul>
+ *   <li>Kennzeichen: "TTA1" (4 Bytes) oder "TTA2" (4 Bytes)</li>
+ *   <li>Audioformat: 16-Bit-Integer (2 Bytes)</li>
+ *   <li>Kanäle: 16-Bit-Integer (2 Bytes)</li>
+ *   <li>Bits pro Sample: 16-Bit-Integer (2 Bytes)</li>
+ *   <li>Abtastrate: 32-Bit-Integer (4 Bytes)</li>
+ *   <li>Datenlänge: 32-Bit-Integer (4 Bytes)</li>
+ *   <li>CRC32: 32-Bit-Integer (4 Bytes)</li>
+ * </ul>
  * <p>
- * TTA files use ID3v2/ID3v1/APE tags for metadata.
- * TTA1 format has no native metadata chunks; this strategy only validates
- * the TTA header and returns no tags, acting as a format recognizer.
+ * TTA-Dateien verwenden ID3v2/ID3v1/APE-Tags für Metadaten.
+ * Das TTA1-Format hat keine nativen Metadaten-Chunks; diese Strategie validiert
+ * nur den TTA-Header und gibt keine Tags zurück, sondern fungiert als Formaterkenner.
  */
 public class TTADetectionStrategy extends TagDetectionStrategy {
 
@@ -35,16 +37,43 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
     private static final int MAX_CHANNELS = 32;
     private static final long HEADER_SEARCH_LIMIT = 65536;
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Gibt das unterstützte TTA-Format zurück: TTA_METADATA.
+     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.TTA_METADATA);
     }
 
+    /**
+     * Prüft, ob die Dateidaten eine TrueAudio-Datei enthalten, anhand der
+     * "TTA1"- oder "TTA2"-Kennzeichen. Sucht im Startpuffer nach der Signatur.
+     *
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei (nicht verwendet)
+     * @return {@code true}, wenn eine TTA-Signatur erkannt wurde
+     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         return findTTASignature(startBuffer) != -1;
     }
 
+    /**
+     * Analysiert die TTA-Datei und validiert den Header.
+     * <p>
+     * Da TTA keine nativen Metadaten-Chunks hat, fungiert diese Methode als
+     * Formaterkenner und gibt eine leere Liste zurück. Die eigentlichen Tags
+     * (ID3v2, ID3v1, APE) werden von den entsprechenden Strategien erkannt.
+     *
+     * @param file        die geöffnete Datei
+     * @param filePath    der Dateipfad zur Protokollierung
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei
+     * @return eine leere Liste (TTA hat keine nativen Metadaten)
+     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
+     */
     @Override
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath,
                                     byte[] startBuffer, byte[] endBuffer) throws IOException {

@@ -17,6 +17,23 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Parsing-Strategie für AIFF-Metadaten-Chunks.
+ *
+ * <p>AIFF-Dateien (Audio Interchange File Format) speichern Metadaten in benannten Chunks
+ * wie {@code NAME} (Titel), {@code AUTH} (Künstler), {@code (c) } (Copyright), {@code ANNO}
+ * (Annotation) und {@code COMT} (strukturierte Kommentare). Diese Strategie liest die Chunk-Struktur
+ * und wandelt Text-Chunks in Metadatenfelder um. Der {@code ID3}-Chunk wird ignoriert, da er
+ * von der separaten {@link ID3ParsingStrategy} behandelt wird.</p>
+ *
+ * <p>Unterstütztes Format:</p>
+ * <ul>
+ *   <li>{@link TagFormat#AIFF_METADATA}</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ * @see ID3ParsingStrategy
+ */
 public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(AIFFMetadataParsingStrategy.class);
@@ -39,6 +56,9 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
 
     private final Map<String, FieldHandler<?>> handlers;
 
+    /**
+     * Erzeugt eine neue AIFF-Parsing-Strategie mit Standard-Handlern.
+     */
     public AIFFMetadataParsingStrategy() {
         this.handlers = new HashMap<>();
         initializeDefaultHandlers();
@@ -53,11 +73,27 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für {@link TagFormat#AIFF_METADATA}
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.AIFF_METADATA;
     }
 
+    /**
+     * Parst AIFF-Metadaten aus der angegebenen Datei.
+     *
+     * @param format das AIFF_METADATA-Format
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des AIFF-Chunks
+     * @param size   die Größe des Chunks in Bytes
+     * @return die extrahierten {@link AIFFMetadata}
+     * @throws IOException bei I/O-Fehlern oder ungültigem Chunk-Format
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         AIFFMetadata metadata = new AIFFMetadata();
@@ -286,11 +322,21 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes AIFF-Feld.
+     *
+     * @param key     der Feldname, für den der Handler registriert werden soll
+     * @param handler der zu registrierende Handler
+     */
     public void registerHandler(String key, FieldHandler<?> handler) {
         handlers.put(key, handler);
     }
 
-    // Innere Klasse für AIFF Metadata
+    /**
+     * Innere Klasse für AIFF-spezifische Metadaten.
+     *
+     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und gibt als Format {@code "AIFF_METADATA"} zurück.</p>
+     */
     public static class AIFFMetadata implements Metadata {
         private final List<MetadataField<?>> fields = new ArrayList<>();
 

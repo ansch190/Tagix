@@ -17,12 +17,32 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Parsing-Strategie für Lyrics3-Tags (Version 1 und 2).
+ *
+ * <p>Lyrics3 ist ein Tag-Format, das Liedtexte und erweiterte Metadaten am Ende von MP3-Dateien
+ * speichert. Lyrics3v1 besteht aus einem einfachen Textblock zwischen {@code LYRICSBEGIN} und
+ * {@code LYRICSEND}-Markierungen. Lyrics3v2 verwendet strukturierte Felder mit 3-Zeichen-IDs
+ * und 2-stelligen Größenangaben. Diese Strategie unterstützt Multi-Encoding (ISO-8859-1,
+ * Windows-1252, UTF-8) und CRC-Validierung.</p>
+ *
+ * <p>Unterstützte Formate:</p>
+ * <ul>
+ *   <li>{@link TagFormat#LYRICS3V1} – einfacher Textblock mit Markierungen</li>
+ *   <li>{@link TagFormat#LYRICS3V2} – strukturierte Felder mit IDs und Größenangaben</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ */
 public class Lyrics3ParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(Lyrics3ParsingStrategy.class);
 
     private final Map<String, FieldHandler<?>> handlers;
 
+    /**
+     * Erzeugt eine neue Lyrics3-Parsing-Strategie mit Standard-Handlern.
+     */
     public Lyrics3ParsingStrategy() {
         this.handlers = new HashMap<>();
         initializeDefaultHandlers();
@@ -51,11 +71,27 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         handlers.put("LYRICS", new TextFieldHandler("LYRICS")); // Für v1 Format
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für Lyrics3V1 und Lyrics3V2
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.LYRICS3V1 || format == TagFormat.LYRICS3V2;
     }
 
+    /**
+     * Parst einen Lyrics3-Tag aus der angegebenen Datei.
+     *
+     * @param format das Lyrics3-Format (V1 oder V2)
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des Tags
+     * @param size   die Größe des Tags in Bytes
+     * @return die extrahierten {@link Lyrics3Metadata}
+     * @throws IOException bei I/O-Fehlern oder ungültigem Tag-Format
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         Lyrics3Metadata metadata = new Lyrics3Metadata(format);
@@ -488,6 +524,12 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes Lyrics3-Feld.
+     *
+     * @param key     das Feld-ID (z.&nbsp;B. "LYR", "INF", "AUT"), für das der Handler registriert werden soll
+     * @param handler der zu registrierende Handler
+     */
     public void registerHandler(String key, FieldHandler<?> handler) {
         handlers.put(key, handler);
     }

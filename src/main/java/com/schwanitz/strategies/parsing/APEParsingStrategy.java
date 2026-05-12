@@ -18,6 +18,23 @@ import java.util.Map;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
+/**
+ * Parsing-Strategie für APE-Tags (APEv1 und APEv2).
+ *
+ * <p>Das APE-Tag-Format (Audio Profile Enhancement) wurde für das Musepack-Format entwickelt,
+ * wird aber auch in anderen Formaten wie WavPack verwendet. APE-Tags bestehen aus einem Header,
+ * der die Preamble „APETAGEX", die Version und die Item-Anzahl enthält, gefolgt von Schlüssel-Wert-Paaren.
+ * Es unterstützt UTF-8-Textfelder (auch Multi-Value), Binärdaten (z.&nbsp;B. Cover-Art) und
+ * externe Referenzen.</p>
+ *
+ * <p>Unterstützte Formate:</p>
+ * <ul>
+ *   <li>{@link TagFormat#APEV1} – APE Tag Version 1000</li>
+ *   <li>{@link TagFormat#APEV2} – APE Tag Version 2000 (häufigste Version)</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ */
 public class APEParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(APEParsingStrategy.class);
@@ -37,6 +54,9 @@ public class APEParsingStrategy implements TagParsingStrategy {
     private final Map<String, FieldHandler<?>> handlers;
     private final Map<String, String> keyNormalizations;
 
+    /**
+     * Erzeugt eine neue APE-Parsing-Strategie mit Standard-Handlern und Schlüsselnormalisierung.
+     */
     public APEParsingStrategy() {
         this.handlers = new HashMap<>();
         this.keyNormalizations = new HashMap<>();
@@ -133,11 +153,27 @@ public class APEParsingStrategy implements TagParsingStrategy {
         keyNormalizations.put("musicbrainz_releasegroupid", "MUSICBRAINZ_RELEASEGROUPID");
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für APEV1 und APEV2
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.APEV1 || format == TagFormat.APEV2;
     }
 
+    /**
+     * Parst ein APE-Tag aus der angegebenen Datei.
+     *
+     * @param format das APE-Format (APEV1 oder APEV2)
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des Tags
+     * @param size   die Größe des Tags in Bytes
+     * @return die extrahierten {@link APEMetadata}
+     * @throws IOException bei I/O-Fehlern oder ungültigem Tag-Format
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         APEMetadata metadata = new APEMetadata(format);
@@ -521,11 +557,21 @@ public class APEParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Registriert einen benutzerdefinierten {@link FieldHandler} für einen bestimmten APE-Schlüssel.
+     *
+     * @param key     der APE-Schlüssel, für den der Handler registriert werden soll
+     * @param handler der zu registrierende Handler
+     */
     public void registerHandler(String key, FieldHandler<?> handler) {
         handlers.put(key, handler);
     }
 
-    // Innere Klasse für APE Metadata
+    /**
+     * Innere Klasse für APE-spezifische Metadaten.
+     *
+     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und das zugehörige {@link TagFormat}.</p>
+     */
     public static class APEMetadata implements Metadata {
         private final List<MetadataField<?>> fields = new ArrayList<>();
         private final TagFormat format;

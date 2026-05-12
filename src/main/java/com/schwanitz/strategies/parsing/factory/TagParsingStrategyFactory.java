@@ -7,7 +7,18 @@ import com.schwanitz.tagging.TagFormat;
 import java.util.Map;
 
 /**
- * Factory die TagFormate auf ihre Parsing-Strategies mapped.
+ * Factory, die {@link TagFormat}-Werte auf die zugehörigen {@link TagParsingStrategy}-Implementierungen abbildet.
+ *
+ * <p>Diese Factory zentralisiert die Zuordnung zwischen Tag-Formaten und deren Parser-Strategien.
+ * Jedes unterstützte Format wird einem Instanz-Feld zugeordnet, sodass Mehrfachformate
+ * (z.&nbsp;B. ID3V1 und ID3V2) denselben Parser teilen können. Die Zuordnung erfolgt über eine
+ * unveränderliche {@link Map}, die bei Klassenladung initialisiert wird.</p>
+ *
+ * <p>Die Factory ist als Singleton-Konstrukt ohne Instanziierung konzipiert; ausschließlich die
+ * statische Methode {@link #getStrategyForFormat(TagFormat)} wird verwendet.</p>
+ *
+ * @see TagParsingStrategy
+ * @see TagFormat
  */
 public class TagParsingStrategyFactory {
 
@@ -53,6 +64,12 @@ public class TagParsingStrategyFactory {
             Map.entry(TagFormat.FLAC_APPLICATION, FLAC_APP_PARSER)
     );
 
+    /**
+     * Liefert die passende {@link TagParsingStrategy} für das angegebene {@link TagFormat}.
+     *
+     * @param format das gewünschte Tag-Format
+     * @return die zugehörige Parsing-Strategie oder {@code null}, wenn kein Parser registriert ist
+     */
     public static TagParsingStrategy getStrategyForFormat(TagFormat format) {
         return FORMAT_TO_STRATEGY.get(format);
     }

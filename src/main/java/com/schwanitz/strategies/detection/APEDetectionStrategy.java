@@ -10,19 +10,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Detection Strategy for APE tags (versions 1.0 and 2.0)
+ * Erkennungsstrategie für APE-Tags (Versionen 1.0 und 2.0).
  * <p>
- * APE tags can be located at the beginning or end of files.
- * Structure:
- * - Preamble: "APETAGEX" (8 bytes)
- * - Version: 4 bytes little-endian (1000 for v1.0, 2000 for v2.0)
- * - Tag Size: 4 bytes little-endian (size without header)
- * - Item Count: 4 bytes little-endian
- * - Flags: 4 bytes little-endian
- * - Reserved: 8 bytes
+ * APE-Tags können am Anfang oder am Ende von Dateien stehen.
+ * Struktur:
+ * <ul>
+ *   <li>Präambel: "APETAGEX" (8 Bytes)</li>
+ *   <li>Version: 4 Bytes Little-Endian (1000 für v1.0, 2000 für v2.0)</li>
+ *   <li>Tag-Größe: 4 Bytes Little-Endian (Größe ohne Header)</li>
+ *   <li>Elementanzahl: 4 Bytes Little-Endian</li>
+ *   <li>Flags: 4 Bytes Little-Endian</li>
+ *   <li>Reserviert: 8 Bytes</li>
+ * </ul>
  * <p>
- * APE v2.0 can have both header and footer, while v1.0 only has footer.
- * The flags indicate the presence of header/footer and read-only status.
+ * APE v2.0 kann sowohl Header als auch Footer haben, während v1.0 nur einen Footer besitzt.
+ * Die Flags geben das Vorhandensein von Header/Footer und den Schreibschutz-Status an.
  */
 public class APEDetectionStrategy extends TagDetectionStrategy {
 
@@ -35,16 +37,43 @@ public class APEDetectionStrategy extends TagDetectionStrategy {
     private static final int APE_VERSION_OFFSET = 8;
     private static final int APE_TAG_SIZE_OFFSET = 12;
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Gibt die unterstützten APE-Formate zurück: APEV1, APEV2.
+     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.APEV1, TagFormat.APEV2);
     }
 
+    /**
+     * Prüft, ob die Dateidaten ein APE-Tag enthalten, anhand des "APETAGEX"-Kennzeichens
+     * am Dateianfang oder am Dateiende.
+     *
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei
+     * @return {@code true}, wenn ein APE-Tag-Kennzeichen gefunden wurde
+     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         return checkAPE(startBuffer, 0) || checkAPE(endBuffer, endBuffer.length - APE_HEADER_SIZE);
     }
 
+    /**
+     * Analysiert APE-Tags am Anfang und/oder Ende der Datei und ermittelt Version,
+     * Position und Größe jedes gefundenen Tags.
+     * <p>
+     * APE-Tags können am Anfang und am Ende der Datei gleichzeitig vorhanden sein
+     * (Header und Footer in v2.0).
+     *
+     * @param file        die geöffnete Datei
+     * @param filePath    der Dateipfad zur Protokollierung
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte
+     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
+     */
     @Override
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath, byte[] startBuffer, byte[] endBuffer) throws IOException {
         List<TagInfo> tags = new ArrayList<>();

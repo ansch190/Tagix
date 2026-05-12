@@ -18,6 +18,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Parsing-Strategie für Matroska/WebM-Tag-Metadaten.
+ *
+ * <p>Matroska-Dateien (MKV) und WebM-Dateien verwenden eine EBML-basierte (Extensible Binary
+ * Markup Language) Struktur zur Speicherung von Metadaten. Tags befinden sich im {@code Tags}-Element
+ * und bestehen aus verschachtelten {@code Tag}- und {@code SimpleTag}-Elementen. Jeder SimpleTag
+ * enthält einen {@code TagName} (Schlüssel) und einen {@code TagString} (Wert). Element-IDs und
+ * Größen werden als Variable-Length-Integer (VLI) kodiert.</p>
+ *
+ * <p>Unterstützte Formate:</p>
+ * <ul>
+ *   <li>{@link TagFormat#MATROSKA_TAGS} – MKV-Dateien</li>
+ *   <li>{@link TagFormat#WEBM_TAGS} – WebM-Dateien</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ */
 public class MatroskaParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(MatroskaParsingStrategy.class);
@@ -71,17 +88,39 @@ public class MatroskaParsingStrategy implements TagParsingStrategy {
 
     private final Map<String, FieldHandler<?>> handlers = new HashMap<>();
 
+    /**
+     * Erzeugt eine neue Matroska-Parsing-Strategie mit Standard-Handlern für alle bekannten Matroska-Tag-Felder.
+     */
     public MatroskaParsingStrategy() {
         for (String fieldName : MATROSKA_FIELD_MAPPING.values()) {
             handlers.put(fieldName, new TextFieldHandler(fieldName));
         }
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für MATROSKA_TAGS und WEBM_TAGS
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.MATROSKA_TAGS || format == TagFormat.WEBM_TAGS;
     }
 
+    /**
+     * Parst Matroska/WebM-Tag-Metadaten aus der angegebenen Datei.
+     *
+     * <p>Sucht nach dem {@code Tags}-Element am angegebenen Offset und iteriert über alle
+     * {@code Tag}- und {@code SimpleTag}-Sub-Elemente, um Schlüssel-Wert-Paare zu extrahieren.</p>
+     *
+     * @param format das Matroska- oder WebM-Tag-Format
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des Tags-Elements
+     * @param size   die Größe des Elements in Bytes
+     * @return die extrahierten {@link MatroskaMetadata}
+     * @throws IOException bei I/O-Fehlern oder ungültiger EBML-Struktur
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         MatroskaMetadata metadata = new MatroskaMetadata(format);
@@ -230,10 +269,20 @@ public class MatroskaParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Innere Klasse für Matroska/WebM-spezifische Metadaten.
+     *
+     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und das zugehörige {@link TagFormat}.</p>
+     */
     public static class MatroskaMetadata implements Metadata {
         private final List<MetadataField<?>> fields = new ArrayList<>();
         private final TagFormat format;
 
+        /**
+         * Erzeugt Matroska-Metadaten für das angegebene Format.
+         *
+         * @param format das Tag-Format (MATROSKA_TAGS oder WEBM_TAGS)
+         */
         public MatroskaMetadata(TagFormat format) {
             this.format = format;
         }

@@ -13,14 +13,25 @@ import java.util.regex.Pattern;
 
 /**
  * Gemeinsame Hilfsmethoden und Konstanten für ID3v2 Frame-Parser.
+ *
+ * <p>Diese Utility-Klasse stellt zentrale Funktionalitäten bereit, die von mehreren
+ * ID3v2 Frame-Parsern gemeinsam genutzt werden, darunter Textdekodierung,
+ * Null-Terminator-Suche, Genre-Auflösung und Bildtyp-Beschreibungen.</p>
  */
 public final class ID3FrameParsingUtils {
 
     private static final Logger LOG = LoggerFactory.getLogger(ID3FrameParsingUtils.class);
 
+    /** Kodierungskennzeichen für ISO-8859-1 (Latin-1). */
     public static final int ISO_8859_1 = 0;
+
+    /** Kodierungskennzeichen für UTF-16 mit BOM. */
     public static final int UTF_16 = 1;
+
+    /** Kodierungskennzeichen für UTF-16BE (Big Endian, ohne BOM). */
     public static final int UTF_16BE = 2;
+
+    /** Kodierungskennzeichen für UTF-8. */
     public static final int UTF_8 = 3;
 
     // Genre-Mapping für ID3v1 (Standard + Winamp Extension)
@@ -67,6 +78,16 @@ public final class ID3FrameParsingUtils {
         // Utility-Klasse
     }
 
+    /**
+     * Löst Genre-Referenzen in Klammern (z.B. "(7)") zu den entsprechenden Genre-Namen auf.
+     *
+     * <p>Unterstützt auch Kombinationen wie "(7)(13)" oder Mischformen wie "(7)Rock".
+     * Doppelte Einträge werden automatisch entfernt, die Reihenfolge bleibt erhalten.</p>
+     *
+     * @param genre Der Genre-String aus dem ID3-Tag, der nummerische Referenzen in Klammern enthalten kann
+     * @return Der aufgelöste Genre-String mit Semikolon getrennten Werten, oder den Original-String wenn keine Referenzen gefunden wurden;
+     *         {@code null} oder leerer String werden unverändert zurückgegeben
+     */
     public static String parseGenre(String genre) {
         if (genre == null || genre.isEmpty()) {
             return genre;
@@ -109,6 +130,12 @@ public final class ID3FrameParsingUtils {
         return String.join("; ", new LinkedHashSet<>(parts));
     }
 
+    /**
+     * Gibt die menschenlesbare Beschreibung für einen ID3-Bildtyp-Code zurück.
+     *
+     * @param type Der numerische Bildtyp-Code gemäß ID3v2-Spezifikation (0–20)
+     * @return Die Beschreibung des Bildtyps als String, oder "Unknown(N)" für unbekannte Codes
+     */
     public static String getPictureTypeDescription(int type) {
         return switch (type) {
             case 0 -> "Other";
@@ -136,6 +163,17 @@ public final class ID3FrameParsingUtils {
         };
     }
 
+    /**
+     * Sucht die Position des nächsten Null-Terminators in den Daten ab der angegebenen Position.
+     *
+     * <p>Für UTF-16- und UTF-16BE-Kodierungen wird ein Null-Terminator als zwei
+     * aufeinanderfolgende Null-Bytes erwartet, für alle anderen Kodierungen als ein einzelnes Null-Byte.</p>
+     *
+     * @param data      Das Byte-Array in dem gesucht wird
+     * @param start     Die Startposition für die Suche (inklusiv)
+     * @param encoding  Das Kodierungskennzeichen (0=ISO-8859-1, 1=UTF-16, 2=UTF-16BE, 3=UTF-8)
+     * @return Die Position des Null-Terminators, oder -1 wenn kein Null-Terminator gefunden wurde
+     */
     public static int findNullTerminator(byte[] data, int start, int encoding) {
         int nullSize = getNullTerminatorSize(encoding);
         for (int i = start; i <= data.length - nullSize; i++) {
@@ -153,6 +191,12 @@ public final class ID3FrameParsingUtils {
         return -1;
     }
 
+    /**
+     * Bestimmt die Größe des Null-Terminators in Bytes für die angegebene Textkodierung.
+     *
+     * @param encoding Das Kodierungskennzeichen (0=ISO-8859-1, 1=UTF-16, 2=UTF-16BE, 3=UTF-8)
+     * @return Die Anzahl der Bytes für einen Null-Terminator: 2 für UTF-16/UTF-16BE, 1 für alle anderen
+     */
     public static int getNullTerminatorSize(int encoding) {
         return switch (encoding) {
             case UTF_16, UTF_16BE -> 2;
@@ -160,6 +204,19 @@ public final class ID3FrameParsingUtils {
         };
     }
 
+    /**
+     * Dekodiert Textdaten anhand des angegebenen Kodierungskennzeichens.
+     *
+     * <p>Für UTF-8-Kodierung (Encoding=3) wird diese nur ab ID3v2.4 unterstützt;
+     * bei früheren Versionen wird eine Warnung geloggt und auf ISO-8859-1 zurückgegriffen.
+     * Unbekannte Kodierungen werden ebenfalls auf ISO-8859-1 fallback-erstellt.</p>
+     *
+     * @param data          Die zu dekodierenden Textdaten (ohne Kodierungsbyte)
+     * @param encoding      Das Kodierungskennzeichen (0=ISO-8859-1, 1=UTF-16, 2=UTF-16BE, 3=UTF-8)
+     * @param majorVersion  Die ID3v2-Hauptversion (2, 3 oder 4)
+     * @return Der dekodierte und getrimmte Text-String; bei eingebetteten Null-Zeichen wird nur der Teil vor dem ersten Null-Zeichen zurückgegeben;
+     *         ein leeres Ergebnis wird bei leeren Eingabedaten zurückgegeben
+     */
     public static String decodeText(byte[] data, int encoding, int majorVersion) {
         if (data.length == 0) {
             return "";
@@ -190,6 +247,17 @@ public final class ID3FrameParsingUtils {
         return result;
     }
 
+    /**
+     * Extrahiert einen festlängigen String aus den Daten an der angegebenen Position.
+     *
+     * <p>Die Extraktion stoppt automatisch beim ersten Null-Byte innerhalb des angegebenen Bereichs.
+     * Das Ergebnis wird als ISO-8859-1 dekodiert und getrimmt.</p>
+     *
+     * @param data   Das Quell-Byte-Array
+     * @param offset Die Startposition im Byte-Array
+     * @param length Die maximale Länge des zu extrahierenden Strings in Bytes
+     * @return Der extrahierte und getrimmte String, oder ein leerer String wenn der Offset außerhalb der Daten liegt oder das erste Byte Null ist
+     */
     public static String extractFixedString(byte[] data, int offset, int length) {
         if (offset + length > data.length) {
             return "";

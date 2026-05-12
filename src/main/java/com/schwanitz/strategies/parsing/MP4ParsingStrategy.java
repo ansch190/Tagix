@@ -18,6 +18,22 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Parsing-Strategie für MP4/M4A-Metadaten (iTunes-Atom-Struktur).
+ *
+ * <p>MP4-Dateien verwenden eine hierarchische Atom-Struktur (auch Boxen genannt), in der
+ * Metadaten im Pfad {@code moov → udta → meta → ilst} gespeichert werden. Jedes Metadata-Atom
+ * enthält ein {@code data}-Sub-Atom mit Typinformationen (UTF-8-Text, UTF-16-Text, Ganzzahlen,
+ * Bilder, etc.) und dem eigentlichen Wert. Diese Strategie navigiert durch die Atom-Hierarchie
+ * und extrahiert alle bekannten iTunes-Metadatenfelder.</p>
+ *
+ * <p>Unterstütztes Format:</p>
+ * <ul>
+ *   <li>{@link TagFormat#MP4}</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ */
 public class MP4ParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(MP4ParsingStrategy.class);
@@ -165,6 +181,9 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
 
     private final Map<String, FieldHandler<?>> handlers;
 
+    /**
+     * Erzeugt eine neue MP4-Parsing-Strategie mit Standard-Handlern für alle bekannten iTunes-Atom-Felder.
+     */
     public MP4ParsingStrategy() {
         this.handlers = new HashMap<>();
         initializeDefaultHandlers();
@@ -177,11 +196,27 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für {@link TagFormat#MP4}
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.MP4;
     }
 
+    /**
+     * Parst MP4-Metadaten aus der angegebenen Datei.
+     *
+     * @param format das MP4-Format
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des moov-Atoms
+     * @param size   die Größe des zu lesenden Bereichs in Bytes
+     * @return die extrahierten {@link MP4Metadata}
+     * @throws IOException bei I/O-Fehlern oder wenn kein moov-Atom gefunden wird
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         MP4Metadata metadata = new MP4Metadata();
@@ -513,11 +548,21 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes MP4-Feld.
+     *
+     * @param key     der Feldname, für den der Handler registriert werden soll
+     * @param handler der zu registrierende Handler
+     */
     public void registerHandler(String key, FieldHandler<?> handler) {
         handlers.put(key, handler);
     }
 
-    // Innere Klasse für MP4 Metadata
+    /**
+     * Innere Klasse für MP4-spezifische Metadaten.
+     *
+     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und gibt als Format {@code "MP4"} zurück.</p>
+     */
     public static class MP4Metadata implements Metadata {
         private final List<MetadataField<?>> fields = new ArrayList<>();
 

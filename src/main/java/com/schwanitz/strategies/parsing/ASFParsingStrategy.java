@@ -17,6 +17,28 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Parsing-Strategie für ASF-Metadaten (Advanced Systems Format).
+ *
+ * <p>ASF-Dateien (Windows Media) verwenden GUID-basierte Objekte zur Speicherung von Metadaten.
+ * Diese Strategie unterstützt drei relevante Objekttypen:</p>
+ * <ul>
+ *   <li><b>Content Description Object</b> – einfache Felder wie Titel, Autor, Copyright, Beschreibung
+ *       und Bewertung alsnull-terminierte UTF-16LE-Strings mit Längenangaben</li>
+ *   <li><b>Extended Content Description Object</b> – erweiterte Felder mit lokalisierten Namen
+ *       und verschiedenen Datentypen (String, DWORD, QWORD, WORD, Bool)</li>
+ *   <li><b>Metadata Object / Metadata Library Object</b> – ähnlich Extended Content Description,
+ *       wird auf dieselbe Weise geparst</li>
+ * </ul>
+ *
+ * <p>Unterstützte Formate:</p>
+ * <ul>
+ *   <li>{@link TagFormat#ASF_CONTENT_DESC}</li>
+ *   <li>{@link TagFormat#ASF_EXT_CONTENT_DESC}</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ */
 public class ASFParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(ASFParsingStrategy.class);
@@ -89,6 +111,10 @@ public class ASFParsingStrategy implements TagParsingStrategy {
 
     private final Map<String, FieldHandler<?>> handlers = new HashMap<>();
 
+    /**
+     * Erzeugt eine neue ASF-Parsing-Strategie mit Standard-Handlern für Content Description
+     * und Extended Content Description-Felder.
+     */
     public ASFParsingStrategy() {
         initializeDefaultHandlers();
     }
@@ -102,11 +128,31 @@ public class ASFParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für ASF_CONTENT_DESC und ASF_EXT_CONTENT_DESC
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.ASF_CONTENT_DESC || format == TagFormat.ASF_EXT_CONTENT_DESC;
     }
 
+    /**
+     * Parst ASF-Metadaten aus der angegebenen Datei.
+     *
+     * <p>Erkennt anhand der GUID am Offset, ob es sich um ein Content Description Object,
+     * Extended Content Description Object, Metadata Object oder Metadata Library Object handelt,
+     * und delegiert an die entsprechende Parse-Methode.</p>
+     *
+     * @param format das ASF-Format
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des ASF-Objekts
+     * @param size   die Größe des Objekts in Bytes
+     * @return die extrahierten {@link ASFMetadata}
+     * @throws IOException bei I/O-Fehlern oder ungültigem ASF-Format
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         ASFMetadata metadata = new ASFMetadata(format);
@@ -273,14 +319,30 @@ public class ASFParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes ASF-Feld.
+     *
+     * @param key     der Feldname, für den der Handler registriert werden soll
+     * @param handler der zu registrierende Handler
+     */
     public void registerHandler(String key, FieldHandler<?> handler) {
         handlers.put(key, handler);
     }
 
+    /**
+     * Innere Klasse für ASF-spezifische Metadaten.
+     *
+     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und das zugehörige {@link TagFormat}.</p>
+     */
     public static class ASFMetadata implements Metadata {
         private final List<MetadataField<?>> fields = new ArrayList<>();
         private final TagFormat format;
 
+        /**
+         * Erzeugt ASF-Metadaten für das angegebene Format.
+         *
+         * @param format das ASF-Tag-Format
+         */
         public ASFMetadata(TagFormat format) {
             this.format = format;
         }

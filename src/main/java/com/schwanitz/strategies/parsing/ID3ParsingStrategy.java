@@ -20,31 +20,81 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Parsing-Strategie für ID3-Tags (ID3v1, ID3v1.1, ID3v2.2, ID3v2.3 und ID3v2.4).
+ *
+ * <p>Diese Strategie liest ID3-Metadaten aus Audiodateien und wandelt sie in {@link ID3Metadata}-Objekte um.
+ * ID3v1-Tags werden als fester 128-Byte-Block am Dateiende gelesen, während ID3v2-Tags einen
+ * variablen Header gefolgt von Frames verwenden. Für ID3v2-Frames wird ein separates
+ * {@link ID3FrameParserRegistry}-System genutzt, das jedem Frame-ID einen spezialisierten Parser zuordnet.</p>
+ *
+ * <p>Unterstützte Formate:</p>
+ * <ul>
+ *   <li>{@link TagFormat#ID3V1} – fester 128-Byte-Tag am Dateiende</li>
+ *   <li>{@link TagFormat#ID3V1_1} – erweitert um Tracknummer-Feld</li>
+ *   <li>{@link TagFormat#ID3V2_2} – 3-Zeichen-Frame-IDs, kein Extended Header</li>
+ *   <li>{@link TagFormat#ID3V2_3} – 4-Zeichen-Frame-IDs, 4-Byte-Größen (syncsafe=False)</li>
+ *   <li>{@link TagFormat#ID3V2_4} – 4-Zeichen-Frame-IDs, syncsafe-Größen, erweiterter Header</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ * @see ID3FrameParserRegistry
+ * @see ID3FrameParsingUtils
+ */
 public class ID3ParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(ID3ParsingStrategy.class);
 
+    /**
+     * Initialisiert die Standard-{@link FieldHandler} für alle bekannten ID3-Frames.
+     * Abhängig vom Handler-Typ (Text, Kommentar, etc.) wird der passende Handler erzeugt.
+     */
     private final Map<String, FieldHandler<?>> handlers;
     private final ID3FrameParserRegistry frameParserRegistry;
 
+    /**
+     * Erzeugt eine neue ID3-Parsing-Strategie mit Standard-Handlern und der Frame-Parser-Registry.
+     */
     public ID3ParsingStrategy() {
         this.handlers = new HashMap<>();
         this.frameParserRegistry = new ID3FrameParserRegistry();
         initializeDefaultHandlers();
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für ID3V1, ID3V1_1, ID3V2_2, ID3V2_3 und ID3V2_4
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.ID3V1 || format == TagFormat.ID3V1_1 ||
                 format == TagFormat.ID3V2_2 || format == TagFormat.ID3V2_3 || format == TagFormat.ID3V2_4;
     }
 
+    /**
+     * Parst ein ID3-Tag aus der angegebenen Datei.
+     *
+     * @param format das ID3-Format (v1, v1.1, v2.2, v2.3 oder v2.4)
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des Tags
+     * @param size   die Größe des Tags in Bytes
+     * @return die extrahierten {@link ID3Metadata}
+     * @throws IOException bei I/O-Fehlern oder ungültigem Tag-Format
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         TagInfo tagInfo = new TagInfo(format, offset, size);
         return parseID3Tag(file, tagInfo);
     }
 
+    /**
+     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes Frame-ID.
+     *
+     * @param key     das Frame-ID, für das der Handler registriert werden soll
+     * @param handler der zu registrierende Handler
+     */
     public void registerHandler(String key, FieldHandler<?> handler) {
         handlers.put(key, handler);
     }

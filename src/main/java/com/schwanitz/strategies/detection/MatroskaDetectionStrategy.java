@@ -14,28 +14,34 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Detection Strategy for Matroska/WebM Container
+ * Erkennungsstrategie für Matroska/WebM-Container.
  * <p>
- * Matroska uses EBML (Extensible Binary Meta Language) as container format.
- * WebM is a subset of Matroska specifically for web video.
+ * Matroska verwendet EBML (Extensible Binary Meta Language) als Containerformat.
+ * WebM ist eine Teilmenge von Matroska speziell für Web-Video.
  * <p>
- * EBML element structure:
- * - Element ID: Variable Length Integer (VLI)
- * - Element Size: Variable Length Integer (VLI)
- * - Element Content: size bytes
+ * EBML-Elementstruktur:
+ * <ul>
+ *   <li>Element-ID: Variable-Length Integer (VLI)</li>
+ *   <li>Element-Größe: Variable-Length Integer (VLI)</li>
+ *   <li>Element-Inhalt: Größe in Bytes</li>
+ * </ul>
  * <p>
- * Top-level Matroska structure:
- * - EBML Header: 0x1A45DFA3 (always first element at offset 0)
- * - Segment: 0x18538067 (immediately follows EBML header)
- * - The Segment contains all other elements (Info, Tracks, Tags, etc.)
+ * Matroska-Struktur auf oberster Ebene:
+ * <ul>
+ *   <li>EBML-Header: 0x1A45DFA3 (immer erstes Element an Offset 0)</li>
+ *   <li>Segment: 0x18538067 (folgt direkt nach EBML-Header)</li>
+ *   <li>Das Segment enthält alle anderen Elemente (Info, Tracks, Tags usw.)</li>
+ * </ul>
  * <p>
- * Important Element IDs:
- * - EBML: 0x1A45DFA3
- * - Segment: 0x18538067
- * - Info: 0x1549A966
- * - Tags: 0x1254C367
- * - Tag: 0x7373
- * - SimpleTag: 0x67C8
+ * Wichtige Element-IDs:
+ * <ul>
+ *   <li>EBML: 0x1A45DFA3</li>
+ *   <li>Segment: 0x18538067</li>
+ *   <li>Info: 0x1549A966</li>
+ *   <li>Tags: 0x1254C367</li>
+ *   <li>Tag: 0x7373</li>
+ *   <li>SimpleTag: 0x67C8</li>
+ * </ul>
  */
 public class MatroskaDetectionStrategy extends TagDetectionStrategy {
 
@@ -82,11 +88,24 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
         EBML_ELEMENTS.put("6484", "TagLanguage");
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Gibt die unterstützten Matroska-Formate zurück: MATROSKA_TAGS, WEBM_TAGS.
+     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.MATROSKA_TAGS, TagFormat.WEBM_TAGS);
     }
 
+    /**
+     * Prüft, ob die Dateidaten einen Matroska/WebM-Container enthalten, anhand
+     * der EBML-Header-Kennung am Dateianfang.
+     *
+     * @param startBuffer Puffer mit den ersten Bytes der Datei (mindestens 4 Bytes)
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei (nicht verwendet)
+     * @return {@code true}, wenn der EBML-Header erkannt wurde
+     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         if (startBuffer.length < EBML_HEADER_ID_SIZE) {
@@ -96,6 +115,20 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
         return Arrays.equals(Arrays.copyOfRange(startBuffer, 0, EBML_HEADER_ID_SIZE), EBML_HEADER);
     }
 
+    /**
+     * Analysiert die Matroska/WebM-Datei und ermittelt alle Tags-Elemente.
+     * <p>
+     * Liest den EBML-Header, bestimmt den DocType (matroska oder webm),
+     * sucht das Segment-Element und durchsucht dessen Inhalt nach
+     * Tags-Elementen (Element-ID 0x1254C367).
+     *
+     * @param file        die geöffnete Datei
+     * @param filePath    der Dateipfad zur Protokollierung
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte
+     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
+     */
     @Override
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath,
                                     byte[] startBuffer, byte[] endBuffer) throws IOException {
@@ -172,7 +205,13 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Extract DocType from EBML Header by seeking to the content area.
+     * Extrahiert den DocType aus dem EBML-Header durch Suche im Inhaltsbereich.
+     *
+     * @param file                die geöffnete Datei
+     * @param headerContentStart  die Startposition des Header-Inhalts
+     * @param headerSize          die Größe des EBML-Headers
+     * @return der DocType-String, oder "unknown" wenn nicht gefunden
+     * @throws IOException wenn ein Fehler beim Lesen auftritt
      */
     private String extractDocType(RandomAccessFile file, long headerContentStart, long headerSize) throws IOException {
         long headerEnd = headerContentStart + headerSize;
@@ -217,9 +256,14 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
     private static final long SEGMENT_ELEMENT_ID = 0x18538067L;
 
     /**
-     * Find the Segment element by scanning top-level elements starting
-     * from the end of the EBML header. This is O(k) where k is the
-     * number of top-level elements before Segment (typically 1).
+     * Sucht das Segment-Element durch Scannen der Top-Level-Elemente ab dem
+     * Ende des EBML-Headers. Die Laufzeit ist O(k), wobei k die Anzahl der
+     * Top-Level-Elemente vor dem Segment ist (typischerweise 1).
+     *
+     * @param file         die geöffnete Datei
+     * @param searchStart  die Startposition für die Suche
+     * @return der Offset des Segment-Elements, oder -1 wenn nicht gefunden
+     * @throws IOException wenn ein Fehler beim Lesen auftritt
      */
     private long findSegmentAfterHeader(RandomAccessFile file, long searchStart) throws IOException {
         long currentPos = searchStart;

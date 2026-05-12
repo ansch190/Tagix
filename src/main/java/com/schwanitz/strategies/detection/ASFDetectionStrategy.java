@@ -11,20 +11,24 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Detection Strategy for ASF (Advanced Systems Format) files
+ * Erkennungsstrategie für ASF-Dateien (Advanced Systems Format).
  * <p>
- * ASF is used for .wma, .asf, .wmv files with Windows Media metadata.
- * Structure:
- * - ASF Header Object GUID: 75B22630-668E-11CF-A6D9-00AA0062CE6C
- * - Header Object Size (8 bytes little-endian)
- * - Number of Header Objects (4 bytes)
- * - Reserved (2 bytes)
+ * ASF wird für .wma-, .asf- und .wmv-Dateien mit Windows-Media-Metadaten verwendet.
+ * Struktur:
+ * <ul>
+ *   <li>ASF Header Object GUID: 75B22630-668E-11CF-A6D9-00AA0062CE6C</li>
+ *   <li>Header Object Größe (8 Bytes Little-Endian)</li>
+ *   <li>Anzahl der Header-Objekte (4 Bytes)</li>
+ *   <li>Reserviert (2 Bytes)</li>
+ * </ul>
  * <p>
- * Key metadata objects:
- * - Content Description: Basic metadata (title, author, etc.)
- * - Extended Content Description: Extended metadata fields
- * - Metadata Object: Additional metadata
- * - Metadata Library Object: Large metadata collections
+ * Wichtige Metadaten-Objekte:
+ * <ul>
+ *   <li>Content Description: Grundlegende Metadaten (Titel, Autor usw.)</li>
+ *   <li>Extended Content Description: Erweiterte Metadatenfelder</li>
+ *   <li>Metadata Object: Zusätzliche Metadaten</li>
+ *   <li>Metadata Library Object: Große Metadatensammlungen</li>
+ * </ul>
  */
 public class ASFDetectionStrategy extends TagDetectionStrategy {
 
@@ -71,11 +75,24 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
     private static final int ASF_HEADER_EXT_DATA_OFFSET = 46; // Header ext: GUID(16) + size(8) + reserved1(16) + reserved2(2) + data_size(4)
     private static final int MAX_HEADER_OBJECTS = 10000;
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Gibt die unterstützten ASF-Formate zurück: ASF_CONTENT_DESC, ASF_EXT_CONTENT_DESC.
+     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.ASF_CONTENT_DESC, TagFormat.ASF_EXT_CONTENT_DESC);
     }
 
+    /**
+     * Prüft, ob die Dateidaten ein ASF-Format enthalten, anhand der
+     * ASF-Header-Object-GUID am Dateianfang.
+     *
+     * @param startBuffer Puffer mit den ersten Bytes der Datei (mindestens 16 Bytes)
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei (nicht verwendet)
+     * @return {@code true}, wenn die ASF-Header-GUID erkannt wurde
+     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         if (startBuffer.length < GUID_SIZE) {
@@ -84,6 +101,19 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
         return Arrays.equals(Arrays.copyOfRange(startBuffer, 0, GUID_SIZE), ASF_HEADER_GUID);
     }
 
+    /**
+     * Analysiert die ASF-Header-Objekte und ermittelt alle Metadaten-Objekte
+     * (Content Description, Extended Content Description, Metadata, Metadata Library).
+     * <p>
+     * Durchläuft alle Header-Objekte und die Header Extension, um ASF-Metadaten zu finden.
+     *
+     * @param file        die geöffnete Datei
+     * @param filePath    der Dateipfad zur Protokollierung
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte
+     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
+     */
     @Override
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath,
                                     byte[] startBuffer, byte[] endBuffer) throws IOException {

@@ -16,12 +16,31 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Parsing-Strategie für Vorbis-Comment-Metadaten (Vorbis Comment).
+ *
+ * <p>Das Vorbis-Comment-Format (auch Vorbis Comment Block genannt) wird in Ogg Vorbis-
+ * und FLAC-Dateien verwendet. Es besteht aus einem Vendor-String gefolgt von einer Liste
+ * von Schlüssel=Wert-Paaren (z.&nbsp;B. {@code TITLE=Mein Titel}), die null-terminierte
+ * UTF-8-Zeichenketten sind. Alle Schlüssel werden case-insensitive behandelt und
+ * normalisiert.</p>
+ *
+ * <p>Unterstütztes Format:</p>
+ * <ul>
+ *   <li>{@link TagFormat#VORBIS_COMMENT}</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ */
 public class VorbisParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(VorbisParsingStrategy.class);
 
     private final Map<String, FieldHandler<?>> handlers;
 
+    /**
+     * Erzeugt eine neue Vorbis-Parsing-Strategie mit Standard-Handlern.
+     */
     public VorbisParsingStrategy() {
         this.handlers = new HashMap<>();
         initializeDefaultHandlers();
@@ -111,11 +130,27 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         handlers.put("GROUPING", new TextFieldHandler("GROUPING"));
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für {@link TagFormat#VORBIS_COMMENT}
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.VORBIS_COMMENT;
     }
 
+    /**
+     * Parst einen Vorbis-Comment-Block aus der angegebenen Datei.
+     *
+     * @param format das Vorbis-Comment-Format
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des Comment-Blocks
+     * @param size   die Größe des Blocks in Bytes
+     * @return die extrahierten {@link VorbisMetadata}
+     * @throws IOException bei I/O-Fehlern oder ungültigem Tag-Format
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         VorbisMetadata metadata = new VorbisMetadata();
@@ -335,6 +370,13 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Registriert einen benutzerdefinierten {@link FieldHandler} für einen bestimmten Vorbis-Schlüssel.
+     * Der Schlüssel wird automatisch in Großbuchstaben normalisiert.
+     *
+     * @param key     der Feldschlüssel (wird in Großbuchstaben umgewandelt)
+     * @param handler der zu registrierende Handler
+     */
     public void registerHandler(String key, FieldHandler<?> handler) {
         handlers.put(key.toUpperCase(), handler);
     }

@@ -12,16 +12,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Detection Strategy for FLAC Application Blocks
+ * Erkennungsstrategie für FLAC-Application-Blöcke.
  * <p>
- * FLAC Application Blocks allow applications to store proprietary metadata.
- * Structure:
- * - FLAC signature: "fLaC" (4 bytes)
- * - Metadata blocks with type and size
- * - Application blocks have type 2
- * - Application ID (4 bytes) + application data
+ * FLAC-Application-Blöcke ermöglichen es Anwendungen, proprietäre Metadaten zu speichern.
+ * Struktur:
+ * <ul>
+ *   <li>FLAC-Kennzeichen: "fLaC" (4 Bytes)</li>
+ *   <li>Metadatenblöcke mit Typ und Größe</li>
+ *   <li>Application-Blöcke haben den Typ 2</li>
+ *   <li>Application-ID (4 Bytes) + Anwendungsdaten</li>
+ * </ul>
  * <p>
- * Known Application IDs include ATCH, BSOL, RAGA (ReplayGain), etc.
+ * Bekannte Application-IDs sind unter anderem ATCH, BSOL, RAGA (ReplayGain) usw.
  */
 public class FLACApplicationDetectionStrategy extends TagDetectionStrategy {
 
@@ -45,11 +47,24 @@ public class FLACApplicationDetectionStrategy extends TagDetectionStrategy {
         KNOWN_APPLICATION_IDS.put(0x55554944, "UUID Application Block (UUID)");
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Gibt das unterstützte FLAC-Format zurück: FLAC_APPLICATION.
+     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.FLAC_APPLICATION);
     }
 
+    /**
+     * Prüft, ob die Dateidaten eine FLAC-Datei enthalten, anhand des
+     * "fLaC"-Kennzeichens am Dateianfang.
+     *
+     * @param startBuffer Puffer mit den ersten Bytes der Datei (mindestens 4 Bytes)
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei (nicht verwendet)
+     * @return {@code true}, wenn das FLAC-Kennzeichen erkannt wurde
+     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         if (startBuffer.length < FLAC_SIGNATURE_LENGTH) {
@@ -59,6 +74,20 @@ public class FLACApplicationDetectionStrategy extends TagDetectionStrategy {
                 startBuffer[2] == 'a' && startBuffer[3] == 'C';
     }
 
+    /**
+     * Analysiert die FLAC-Datei und durchsucht alle Metadatenblöcke nach
+     * Application-Blöcken (Typ 2).
+     * <p>
+     * Ermittelt die Application-ID jedes gefundenen Blocks und ordnet sie
+     * bekannten Anwendungen zu.
+     *
+     * @param file        die geöffnete Datei
+     * @param filePath    der Dateipfad zur Protokollierung
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte für Application-Blöcke
+     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
+     */
     @Override
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath,
                                     byte[] startBuffer, byte[] endBuffer) throws IOException {

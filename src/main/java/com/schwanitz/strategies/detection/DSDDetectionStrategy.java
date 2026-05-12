@@ -12,18 +12,25 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Detection Strategy for DSD (Direct Stream Digital) formats
+ * Erkennungsstrategie für DSD-Formate (Direct Stream Digital).
  * <p>
- * Supports two DSD container formats:
- * 1. DSF (DSD Stream File):
- *    - Header: "DSD " (0x44534420)
- *    - Chunk-based structure similar to WAV/RIFF
- *    - Metadata in "ID3 " chunk (ID3v2 tags)
- * <p>
- * 2. DFF (DSDIFF - DSD Interchange File Format):
- *    - Header: "FRM8" + "DSD " (AIFF-like)
- *    - Chunk-based structure
- *    - Metadata in various chunks (DIIN, DITI, etc.)
+ * Unterstützt zwei DSD-Containerformate:
+ * <ol>
+ *   <li><b>DSF</b> (DSD Stream File):
+ *       <ul>
+ *         <li>Kennzeichen: "DSD " (0x44534420)</li>
+ *         <li>Chunk-basierte Struktur ähnlich WAV/RIFF</li>
+ *         <li>Metadaten im "ID3 "-Chunk (ID3v2-Tags)</li>
+ *       </ul>
+ *   </li>
+ *   <li><b>DFF</b> (DSDIFF - DSD Interchange File Format):
+ *       <ul>
+ *         <li>Kennzeichen: "FRM8" + "DSD " (AIFF-ähnlich)</li>
+ *         <li>Chunk-basierte Struktur</li>
+ *         <li>Metadaten in verschiedenen Chunks (DIIN, DITI, ID3 usw.)</li>
+ *       </ul>
+ *   </li>
+ * </ol>
  */
 public class DSDDetectionStrategy extends TagDetectionStrategy {
 
@@ -53,11 +60,24 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
     private static final int DSF_MIN_BUFFER = 8;
     private static final int DFF_MIN_BUFFER = 12;
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Gibt die unterstützten DSD-Formate zurück: DSF_METADATA, DFF_METADATA.
+     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.DSF_METADATA, TagFormat.DFF_METADATA);
     }
 
+    /**
+     * Prüft, ob die Dateidaten ein DSD-Format (DSF oder DFF) enthalten, anhand
+     * der Kennzeichen "DSD " bzw. "FRM8"+"DSD " am Dateianfang.
+     *
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei (nicht verwendet)
+     * @return {@code true}, wenn ein DSF- oder DFF-Kennzeichen erkannt wurde
+     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         if (startBuffer.length < DSF_MIN_BUFFER) {
@@ -77,6 +97,21 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
         return false;
     }
 
+    /**
+     * Analysiert DSD-Dateien (DSF oder DFF) und ermittelt die Metadaten-Positionen
+     * und -größen.
+     * <p>
+     * Für DSF-Dateien wird der ID3-Metadaten-Zeiger gelesen, der auf den
+     * ID3-Chunk zeigt. Für DFF-Dateien werden die Chunks durchlaufen, um
+     * DIIN-, DITI- und ID3-Metadaten-Chunks zu finden.
+     *
+     * @param file        die geöffnete Datei
+     * @param filePath    der Dateipfad zur Protokollierung
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte
+     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
+     */
     @Override
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath,
                                     byte[] startBuffer, byte[] endBuffer) throws IOException {

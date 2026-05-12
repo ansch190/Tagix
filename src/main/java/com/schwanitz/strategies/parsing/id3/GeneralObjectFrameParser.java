@@ -4,9 +4,28 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Parser für General Encapsulated Object Frames (GEOB / GEO).
+ *
+ * <p>General Object Frames enthalten ein eingebettetes binäres Objekt mit Metadaten:
+ * MIME-Typ, Dateiname, Beschreibung und die eigentlichen Objektdaten.
+ * Da die Objektdaten binär sind, wird nur die Größe ausgegeben.</p>
+ *
+ * <p>Der Aufbau ist: Kodierungsbyte | MIME-Typ (null-terminiert, ISO-8859-1) |
+ * Dateiname (null-terminiert) | Beschreibung (null-terminiert) | Objektdaten.</p>
  */
 public class GeneralObjectFrameParser implements ID3FrameParser {
 
+    /**
+     * Parst die Rohdaten eines General-Encapsulated-Object-Frames und gibt eine formatierte Information zurück.
+     *
+     * <p>Das Ergebnis hat das Format "[OBJECT:MIME-Typ, N bytes, file:Dateiname, desc:Beschreibung]",
+     * wobei Dateiname und Beschreibung nur bei Vorhandensein angegeben werden.</p>
+     *
+     * @param data         Roh-Frame-Daten inklusive Kodierungsbyte
+     * @param frameId      Die Frame-ID ("GEOB" für ID3v2.3/4 oder "GEO" für ID3v2.2)
+     * @param majorVersion ID3v2 Hauptversion (2, 3 oder 4), verwendet für die Textdekodierung von Dateiname und Beschreibung
+     * @return Die formatierte Objekt-Information, oder eine Fehlermeldung bei ungültigem MIME-Typ;
+     *         ein leerer String bei zu kurzen Daten
+     */
     @Override
     public String parse(byte[] data, String frameId, int majorVersion) {
         if (data.length < 2) {

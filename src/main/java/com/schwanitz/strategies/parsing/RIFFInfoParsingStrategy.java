@@ -17,6 +17,22 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Parsing-Strategie für RIFF-INFO-Metadaten in WAV-Dateien.
+ *
+ * <p>Das RIFF-INFO-Format speichert Metadaten als LIST-Chunk des Typs „INFO" innerhalb
+ * einer RIFF/WAV-Datei. Jedes Feld ist ein Sub-Chunk mit einem 4-Zeichen-Identifier (z.&nbsp;B.
+ * {@code INAM} für Titel, {@code IART} für Künstler), gefolgt von einem Little-Endian-Größenwort
+ * und dem null-terminierten Textwert. Diese Strategie navigiert durch die Sub-Chunks und
+ * extrahiert alle bekannten RIFF-INFO-Felder als {@link RIFFInfoMetadata}.</p>
+ *
+ * <p>Unterstütztes Format:</p>
+ * <ul>
+ *   <li>{@link TagFormat#RIFF_INFO}</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ */
 public class RIFFInfoParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(RIFFInfoParsingStrategy.class);
@@ -69,6 +85,9 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
 
     private final Map<String, FieldHandler<?>> handlers;
 
+    /**
+     * Erzeugt eine neue RIFF-INFO-Parsing-Strategie mit Standard-Handlern.
+     */
     public RIFFInfoParsingStrategy() {
         this.handlers = new HashMap<>();
         initializeDefaultHandlers();
@@ -81,11 +100,27 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für {@link TagFormat#RIFF_INFO}
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.RIFF_INFO;
     }
 
+    /**
+     * Parst einen RIFF-INFO-Chunk aus der angegebenen Datei.
+     *
+     * @param format das RIFF_INFO-Format
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des LIST-Chunks
+     * @param size   die Größe des Chunks in Bytes
+     * @return die extrahierten {@link RIFFInfoMetadata}
+     * @throws IOException bei I/O-Fehlern oder wenn der Chunk keine gültige INFO-Struktur enthält
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         RIFFInfoMetadata metadata = new RIFFInfoMetadata();
@@ -236,11 +271,21 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes RIFF-INFO-Feld.
+     *
+     * @param key     der Feldname, für den der Handler registriert werden soll
+     * @param handler der zu registrierende Handler
+     */
     public void registerHandler(String key, FieldHandler<?> handler) {
         handlers.put(key, handler);
     }
 
-    // Innere Klasse für RIFF INFO Metadata
+    /**
+     * Innere Klasse für RIFF-INFO-spezifische Metadaten.
+     *
+     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und gibt als Format {@code "RIFF_INFO"} zurück.</p>
+     */
     public static class RIFFInfoMetadata implements Metadata {
         private final List<MetadataField<?>> fields = new ArrayList<>();
 

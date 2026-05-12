@@ -8,7 +8,18 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Einfache Strategy Factory: TagFormat(s) -> Strategy List
+ * Fabrik zur Erstellung von Tag-Erkennungsstrategien anhand angeforderter Tag-Formate.
+ * <p>
+ * Diese Klasse implementiert das Factory-Pattern und ordnet jedes bekannte {@link TagFormat}
+ * einer entsprechenden {@link TagDetectionStrategy}-Instanz zu. Da die Strategien zustandslos
+ * und unveränderlich sind, werden sie als Singletons vorgehalten und thread-sicher verwendet.
+ * <p>
+ * Mehrere Tag-Formate können derselben Strategie-Instanz zugeordnet sein (z. B. werden
+ * ID3V1 und ID3V1_1 beide von {@link ID3V1DetectionStrategy} erkannt). Bei der Abfrage
+ * erfolgt eine automatische Deduplizierung, sodass jede Strategie nur einmal zurückgegeben wird.
+ *
+ * @see TagDetectionStrategy
+ * @see TagFormat
  */
 public class TagDetectionStrategyFactory {
 
@@ -69,10 +80,14 @@ public class TagDetectionStrategyFactory {
     );
 
     /**
-     * Konvertiert eine Liste von TagFormats zu einer Liste von eindeutigen Strategies
+     * Konvertiert eine Liste von TagFormats zu einer Liste von eindeutigen Strategien.
+     * <p>
+     * Die zurückgegebenen Strategien werden automatisch dedupliziert, da mehrere
+     * Tag-Formate auf dieselbe Strategie-Instanz abgebildet werden können.
      *
-     * @param formats Liste der gewünschten TagFormate
-     * @return Liste von Strategies (automatisch dedupliziert)
+     * @param formats Liste der gewünschten {@link TagFormat}-Werte
+     * @return Liste von eindeutigen {@link TagDetectionStrategy}-Instanzen; leer,
+     *         wenn keine passenden Strategien gefunden wurden
      */
     public static List<TagDetectionStrategy> getStrategiesForFormats(List<TagFormat> formats) {
         return formats.stream()

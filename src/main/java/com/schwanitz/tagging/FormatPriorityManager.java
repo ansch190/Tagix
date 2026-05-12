@@ -7,271 +7,265 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Verwaltet die Prioritäten von Tag-Formaten für verschiedene Dateitypen
- * Erweitert um neue Formate: ASF, FLAC Application, Matroska/WebM, DSD, TTA, WavPack
+ * Verwaltet die Prioritäten von Tag-Formaten für verschiedene Dateitypen.
+ * <p>
+ * Stellt die Reihenfolge bereit, in der Tag-Formate bei der Erkennung geprüft werden,
+ * sowohl für den Vollständigen Scan (allgemeine Priorität nach Häufigkeit) als auch
+ * für den Komfort-Scan (dateitypspezifische Priorität).
+ * <p>
+ * Unterstützte Formate umfassen: ID3, APE, Vorbis Comment, MP4, RIFF/BWF,
+ * AIFF, Lyrics3, ASF/WMA, FLAC Application, Matroska/WebM, DSD, TTA und WavPack.
  */
 public class FormatPriorityManager {
 
-    // Allgemeine Prioritätsliste für Full Scan (nach Häufigkeit/Wahrscheinlichkeit)
+    /** Allgemeine Prioritätsliste für den Full Scan, sortiert nach Häufigkeit und Wahrscheinlichkeit. */
     private static final List<TagFormat> FULL_SCAN_PRIORITY = Arrays.asList(
-            // ID3 Formate (sehr häufig)
-            TagFormat.ID3V2_3,        // Häufigstes ID3 Format
-            TagFormat.ID3V2_4,        // Modernes ID3 Format
-            TagFormat.ID3V1,          // Legacy ID3
-            TagFormat.ID3V1_1,        // ID3v1 mit Track-Nummer
-            TagFormat.ID3V2_2,        // Älteres ID3v2
+            TagFormat.ID3V2_3,
+            TagFormat.ID3V2_4,
+            TagFormat.ID3V1,
+            TagFormat.ID3V1_1,
+            TagFormat.ID3V2_2,
 
-            // Vorbis Comments (OGG/FLAC - sehr verbreitet)
             TagFormat.VORBIS_COMMENT,
 
-            // MP4/iTunes Tags (sehr verbreitet bei Apple-Ökosystem)
             TagFormat.MP4,
 
-            // APE Tags (bei verlustfreien Formaten beliebt)
             TagFormat.APEV2,
             TagFormat.APEV1,
 
-            // ASF/WMA Tags (Windows Media)
             TagFormat.ASF_CONTENT_DESC,
             TagFormat.ASF_EXT_CONTENT_DESC,
 
-            // RIFF/WAV Formate
             TagFormat.RIFF_INFO,
-            TagFormat.BWF_V2,         // Neueste BWF Version
+            TagFormat.BWF_V2,
             TagFormat.BWF_V1,
             TagFormat.BWF_V0,
 
-            // FLAC Application Blocks
             TagFormat.FLAC_APPLICATION,
 
-            // Container-spezifische Formate
-            TagFormat.MATROSKA_TAGS,  // MKV-Dateien
-            TagFormat.WEBM_TAGS,      // WebM-Dateien
+            TagFormat.MATROSKA_TAGS,
+            TagFormat.WEBM_TAGS,
 
-            // High-End Audio Formate
-            TagFormat.DSF_METADATA,   // DSF Container
-            TagFormat.DFF_METADATA,   // DFF Container
+            TagFormat.DSF_METADATA,
+            TagFormat.DFF_METADATA,
 
-            // Spezialisierte Formate
-            TagFormat.WAVPACK_NATIVE, // WavPack Native
-            TagFormat.TTA_METADATA,   // TrueAudio
+            TagFormat.WAVPACK_NATIVE,
+            TagFormat.TTA_METADATA,
 
-            // Seltener verwendete Formate
             TagFormat.AIFF_METADATA,
             TagFormat.LYRICS3V2,
             TagFormat.LYRICS3V1
     );
 
-    // Prioritätslisten nach Dateiendung
+    /** Prioritätslisten nach Dateiendung für den Komfort-Scan. */
     private static final Map<String, List<TagFormat>> FILE_EXTENSION_PRIORITIES = new HashMap<>();
 
     static {
-        // MP3 Dateien
         FILE_EXTENSION_PRIORITIES.put("mp3", Arrays.asList(
-                TagFormat.ID3V2_3,        // Standard für MP3
-                TagFormat.ID3V2_4,        // Moderner Standard
-                TagFormat.ID3V1,          // Legacy Support
-                TagFormat.ID3V1_1,        // ID3v1 mit Track
-                TagFormat.ID3V2_2,        // Ältere Version
-                TagFormat.APEV2,          // Alternative zu ID3
-                TagFormat.APEV1,          // Ältere APE Version
-                TagFormat.LYRICS3V2,      // Lyrics Support
-                TagFormat.LYRICS3V1       // Legacy Lyrics
+                TagFormat.ID3V2_3,
+                TagFormat.ID3V2_4,
+                TagFormat.ID3V1,
+                TagFormat.ID3V1_1,
+                TagFormat.ID3V2_2,
+                TagFormat.APEV2,
+                TagFormat.APEV1,
+                TagFormat.LYRICS3V2,
+                TagFormat.LYRICS3V1
         ));
 
-        // WAV Dateien
         FILE_EXTENSION_PRIORITIES.put("wav", Arrays.asList(
-                TagFormat.RIFF_INFO,      // Standard für WAV
-                TagFormat.BWF_V2,         // Broadcast Wave (modern)
-                TagFormat.BWF_V1,         // Broadcast Wave
-                TagFormat.BWF_V0,         // Broadcast Wave (legacy)
-                TagFormat.ID3V2_3,        // ID3 in WAV möglich
-                TagFormat.ID3V2_4,        // ID3 in WAV
-                TagFormat.ID3V1,          // ID3v1 in WAV
-                TagFormat.ID3V1_1         // ID3v1.1 in WAV
+                TagFormat.RIFF_INFO,
+                TagFormat.BWF_V2,
+                TagFormat.BWF_V1,
+                TagFormat.BWF_V0,
+                TagFormat.ID3V2_3,
+                TagFormat.ID3V2_4,
+                TagFormat.ID3V1,
+                TagFormat.ID3V1_1
         ));
 
-        // OGG Dateien (Ogg Vorbis, Speex, Opus)
         FILE_EXTENSION_PRIORITIES.put("ogg", List.of(
-                TagFormat.VORBIS_COMMENT  // Einziger Standard für OGG
+                TagFormat.VORBIS_COMMENT
         ));
 
         FILE_EXTENSION_PRIORITIES.put("spx", List.of(
-                TagFormat.VORBIS_COMMENT  // Speex verwendet Vorbis Comments
+                TagFormat.VORBIS_COMMENT
         ));
 
         FILE_EXTENSION_PRIORITIES.put("opus", List.of(
-                TagFormat.VORBIS_COMMENT  // Opus verwendet Vorbis Comments
+                TagFormat.VORBIS_COMMENT
         ));
 
-        // FLAC Dateien
         FILE_EXTENSION_PRIORITIES.put("flac", Arrays.asList(
-                TagFormat.VORBIS_COMMENT, // Standard für FLAC
-                TagFormat.FLAC_APPLICATION, // FLAC Application Blocks (NEU)
-                TagFormat.ID3V2_3,        // Manchmal auch ID3 in FLAC
-                TagFormat.ID3V2_4,        // ID3v2.4 in FLAC
-                TagFormat.APEV2,          // APE Tags in FLAC
-                TagFormat.APEV1           // APE v1 in FLAC
+                TagFormat.VORBIS_COMMENT,
+                TagFormat.FLAC_APPLICATION,
+                TagFormat.ID3V2_3,
+                TagFormat.ID3V2_4,
+                TagFormat.APEV2,
+                TagFormat.APEV1
         ));
 
-        // MP4/M4A Dateien
         FILE_EXTENSION_PRIORITIES.put("mp4", List.of(
-                TagFormat.MP4             // Einziger Standard für MP4
+                TagFormat.MP4
         ));
 
         FILE_EXTENSION_PRIORITIES.put("m4a", List.of(
-                TagFormat.MP4             // iTunes/AAC Standard
+                TagFormat.MP4
         ));
 
         FILE_EXTENSION_PRIORITIES.put("m4v", List.of(
-                TagFormat.MP4             // Video MP4
+                TagFormat.MP4
         ));
 
-        // ASF/WMA Dateien
         FILE_EXTENSION_PRIORITIES.put("wma", Arrays.asList(
-                TagFormat.ASF_CONTENT_DESC,     // Standard WMA Tags
-                TagFormat.ASF_EXT_CONTENT_DESC  // Erweiterte WMA Tags
+                TagFormat.ASF_CONTENT_DESC,
+                TagFormat.ASF_EXT_CONTENT_DESC
         ));
 
         FILE_EXTENSION_PRIORITIES.put("asf", Arrays.asList(
-                TagFormat.ASF_CONTENT_DESC,     // Standard ASF Tags
-                TagFormat.ASF_EXT_CONTENT_DESC  // Erweiterte ASF Tags
+                TagFormat.ASF_CONTENT_DESC,
+                TagFormat.ASF_EXT_CONTENT_DESC
         ));
 
         FILE_EXTENSION_PRIORITIES.put("wmv", Arrays.asList(
-                TagFormat.ASF_CONTENT_DESC,     // Video ASF Tags
-                TagFormat.ASF_EXT_CONTENT_DESC  // Erweiterte Video Tags
+                TagFormat.ASF_CONTENT_DESC,
+                TagFormat.ASF_EXT_CONTENT_DESC
         ));
 
-        // Matroska/WebM Dateien
         FILE_EXTENSION_PRIORITIES.put("mkv", List.of(
-                TagFormat.MATROSKA_TAGS   // Matroska Video
+                TagFormat.MATROSKA_TAGS
         ));
 
         FILE_EXTENSION_PRIORITIES.put("mka", List.of(
-                TagFormat.MATROSKA_TAGS   // Matroska Audio
+                TagFormat.MATROSKA_TAGS
         ));
 
         FILE_EXTENSION_PRIORITIES.put("mks", List.of(
-                TagFormat.MATROSKA_TAGS   // Matroska Subtitles
+                TagFormat.MATROSKA_TAGS
         ));
 
         FILE_EXTENSION_PRIORITIES.put("webm", List.of(
-                TagFormat.WEBM_TAGS       // WebM Video/Audio
+                TagFormat.WEBM_TAGS
         ));
 
-        // DSD Dateien
         FILE_EXTENSION_PRIORITIES.put("dsf", List.of(
-                TagFormat.DSF_METADATA    // DSF Container
+                TagFormat.DSF_METADATA
         ));
 
         FILE_EXTENSION_PRIORITIES.put("dff", List.of(
-                TagFormat.DFF_METADATA    // DFF/DSDIFF Container
+                TagFormat.DFF_METADATA
         ));
 
         FILE_EXTENSION_PRIORITIES.put("dsd", Arrays.asList(
-                TagFormat.DSF_METADATA,   // DSF Format
-                TagFormat.DFF_METADATA    // DFF Format
+                TagFormat.DSF_METADATA,
+                TagFormat.DFF_METADATA
         ));
 
-        // TrueAudio Dateien
         FILE_EXTENSION_PRIORITIES.put("tta", Arrays.asList(
-                TagFormat.TTA_METADATA,   // Native TTA Tags
-                TagFormat.APEV2,          // APE Tags in TTA
-                TagFormat.APEV1,          // APE v1 in TTA
-                TagFormat.ID3V2_3,        // ID3 in TTA
-                TagFormat.ID3V2_4,        // ID3v2.4 in TTA
-                TagFormat.ID3V1,          // ID3v1 in TTA
-                TagFormat.ID3V1_1         // ID3v1.1 in TTA
+                TagFormat.TTA_METADATA,
+                TagFormat.APEV2,
+                TagFormat.APEV1,
+                TagFormat.ID3V2_3,
+                TagFormat.ID3V2_4,
+                TagFormat.ID3V1,
+                TagFormat.ID3V1_1
         ));
 
-        // WavPack Dateien
         FILE_EXTENSION_PRIORITIES.put("wv", Arrays.asList(
-                TagFormat.WAVPACK_NATIVE, // Native WavPack Metadata
-                TagFormat.APEV2,          // Standard für WavPack
-                TagFormat.APEV1,          // Legacy APE
-                TagFormat.ID3V2_3,        // Fallback
-                TagFormat.ID3V2_4,        // Fallback
-                TagFormat.ID3V1,          // Fallback
-                TagFormat.ID3V1_1         // Fallback
+                TagFormat.WAVPACK_NATIVE,
+                TagFormat.APEV2,
+                TagFormat.APEV1,
+                TagFormat.ID3V2_3,
+                TagFormat.ID3V2_4,
+                TagFormat.ID3V1,
+                TagFormat.ID3V1_1
         ));
 
-        // AIFF Dateien
         FILE_EXTENSION_PRIORITIES.put("aiff", Arrays.asList(
-                TagFormat.AIFF_METADATA,  // AIFF Standard
-                TagFormat.ID3V2_3,        // ID3 in AIFF möglich
-                TagFormat.ID3V2_4,        // ID3v2.4 in AIFF
-                TagFormat.ID3V1,          // ID3v1 in AIFF
-                TagFormat.ID3V1_1         // ID3v1.1 in AIFF
+                TagFormat.AIFF_METADATA,
+                TagFormat.ID3V2_3,
+                TagFormat.ID3V2_4,
+                TagFormat.ID3V1,
+                TagFormat.ID3V1_1
         ));
 
         FILE_EXTENSION_PRIORITIES.put("aif", Arrays.asList(
-                TagFormat.AIFF_METADATA,  // AIFF Standard
-                TagFormat.ID3V2_3,        // ID3 in AIFF möglich
-                TagFormat.ID3V2_4,        // ID3v2.4 in AIFF
-                TagFormat.ID3V1,          // ID3v1 in AIFF
-                TagFormat.ID3V1_1         // ID3v1.1 in AIFF
+                TagFormat.AIFF_METADATA,
+                TagFormat.ID3V2_3,
+                TagFormat.ID3V2_4,
+                TagFormat.ID3V1,
+                TagFormat.ID3V1_1
         ));
 
-        // APE Dateien (Monkey's Audio)
         FILE_EXTENSION_PRIORITIES.put("ape", Arrays.asList(
-                TagFormat.APEV2,          // Standard für APE
-                TagFormat.APEV1,          // Legacy APE
-                TagFormat.ID3V2_3,        // Fallback
-                TagFormat.ID3V2_4,        // Fallback
-                TagFormat.ID3V1,          // Fallback
-                TagFormat.ID3V1_1         // Fallback
+                TagFormat.APEV2,
+                TagFormat.APEV1,
+                TagFormat.ID3V2_3,
+                TagFormat.ID3V2_4,
+                TagFormat.ID3V1,
+                TagFormat.ID3V1_1
         ));
 
-        // Musepack Dateien
         FILE_EXTENSION_PRIORITIES.put("mpc", Arrays.asList(
-                TagFormat.APEV2,          // Standard für Musepack
-                TagFormat.APEV1,          // Legacy APE
-                TagFormat.ID3V2_3,        // Fallback
-                TagFormat.ID3V2_4,        // Fallback
-                TagFormat.ID3V1,          // Fallback
-                TagFormat.ID3V1_1         // Fallback
+                TagFormat.APEV2,
+                TagFormat.APEV1,
+                TagFormat.ID3V2_3,
+                TagFormat.ID3V2_4,
+                TagFormat.ID3V1,
+                TagFormat.ID3V1_1
         ));
 
-        // OptimFROG Dateien
         FILE_EXTENSION_PRIORITIES.put("ofr", Arrays.asList(
-                TagFormat.APEV2,          // Standard für OptimFROG
-                TagFormat.APEV1,          // Legacy APE
-                TagFormat.ID3V2_3,        // Fallback
-                TagFormat.ID3V2_4         // Fallback
+                TagFormat.APEV2,
+                TagFormat.APEV1,
+                TagFormat.ID3V2_3,
+                TagFormat.ID3V2_4
         ));
 
-        // Shorten Dateien
         FILE_EXTENSION_PRIORITIES.put("shn", Arrays.asList(
-                TagFormat.APEV2,          // APE Tags für Shorten
-                TagFormat.APEV1,          // Legacy APE
-                TagFormat.ID3V2_3,        // Fallback
-                TagFormat.ID3V2_4         // Fallback
+                TagFormat.APEV2,
+                TagFormat.APEV1,
+                TagFormat.ID3V2_3,
+                TagFormat.ID3V2_4
         ));
     }
 
     /**
-     * Gibt die Prioritätsliste für Full Scan zurück
+     * Gibt die Prioritätsliste für den Vollständigen Scan zurück.
+     * <p>
+     * Die Liste ist nach allgemeiner Häufigkeit und Wahrscheinlichkeit der Formate sortiert.
+     * Die zurückgegebene Liste ist eine Kopie und kann frei modifiziert werden.
+     *
+     * @return eine neue Zeichenkette mit Tag-Formaten in Prioritätsreihenfolge
      */
     public static List<TagFormat> getFullScanPriority() {
         return new ArrayList<>(FULL_SCAN_PRIORITY);
     }
 
     /**
-     * Gibt die Prioritätsliste für eine bestimmte Dateiendung zurück (Comfort Scan)
+     * Gibt die Prioritätsliste für eine bestimmte Dateiendung zurück (Komfort-Scan).
+     * <p>
+     * Wenn die Dateiendung nicht bekannt ist, wird als Fallback die vollständige
+     * Prioritätsliste von {@link #getFullScanPriority()} zurückgegeben.
+     *
+     * @param fileExtension die Dateiendung ohne Punkt (z. B. "mp3", "flac"),
+     *                      Groß-/Kleinschreibung wird ignoriert
+     * @return eine neue Liste mit Tag-Formaten in Prioritätsreihenfolge für den Dateityp
      */
     public static List<TagFormat> getComfortScanPriority(String fileExtension) {
         String extension = fileExtension.toLowerCase();
         List<TagFormat> priorities = FILE_EXTENSION_PRIORITIES.get(extension);
         if (priorities == null) {
-            // Fallback: Wenn Dateiendung unbekannt, verwende Full Scan Priorität
             return getFullScanPriority();
         }
         return new ArrayList<>(priorities);
     }
 
     /**
-     * Gibt alle unterstützten Dateiendungen zurück
+     * Gibt alle unterstützten Dateiendungen zurück, für die eine Komfort-Scan-Priorität
+     * definiert ist.
+     *
+     * @return eine Liste aller unterstützten Dateiendungen
      */
     public static List<String> getSupportedExtensions() {
         return new ArrayList<>(FILE_EXTENSION_PRIORITIES.keySet());

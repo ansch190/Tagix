@@ -4,26 +4,26 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 
 /**
- * Abstraction over seekable data sources for tag detection and parsing.
+ * Abstraktionsschicht für seekable (positionierbare) Datenquellen zur Tag-Erkennung und - Analyse.
  * <p>
- * Provides random access read capabilities similar to {@link RandomAccessFile}
- * but can be backed by different sources (files, in-memory buffers, etc.).
+ * Bietet wahlfreien Lesezugriff ähnlich {@link RandomAccessFile}, kann jedoch auf
+ * unterschiedlichen Quellen basieren (Dateien, In-Memory-Puffer, Streams usw.).
  * <p>
- * Usage with a file:
+ * Beispiel mit einer Datei:
  * <pre>
  * try (SeekableDataSource source = SeekableDataSource.forPath(Path.of("audio.mp3"))) {
  *     List&lt;TagInfo&gt; tags = detector.detectTags(source, config);
  * }
  * </pre>
  * <p>
- * Usage with an InputStream (buffers to temp file):
+ * Beispiel mit einem InputStream (wird in temporäre Datei gepuffert):
  * <pre>
  * try (SeekableDataSource source = SeekableDataSource.forInputStream(inputStream, "mp3")) {
  *     List&lt;TagInfo&gt; tags = detector.detectTags(source, config);
  * }
  * </pre>
  * <p>
- * Usage with a byte array (in-memory):
+ * Beispiel mit einem Byte-Array (im Speicher):
  * <pre>
  * try (SeekableDataSource source = SeekableDataSource.forBytes(bytes)) {
  *     List&lt;TagInfo&gt; tags = detector.detectTags(source, config);
@@ -33,32 +33,32 @@ import java.io.RandomAccessFile;
 public interface SeekableDataSource extends AutoCloseable {
 
     /**
-     * Returns the length of the data source in bytes.
+     * Gibt die Länge der Datenquelle in Bytes zurück.
      *
-     * @return the length, or -1 if unknown
-     * @throws IOException if an I/O error occurs
+     * @return die Länge in Bytes, oder -1 wenn unbekannt
+     * @throws IOException bei Ein-/Ausgabefehlern
      */
     long length() throws IOException;
 
     /**
-     * Reads up to {@code len} bytes from the data source starting at
-     * position {@code offset}, into the byte array starting at {@code bufOff}.
+     * Liest bis zu {@code len} Bytes ab der Position {@code offset} aus der Datenquelle
+     * und schreibt sie in das Byte-Array ab dem Index {@code bufOff}.
      *
-     * @param offset the file offset to start reading from
-     * @param buf    the destination buffer
-     * @param bufOff the start offset in the destination buffer
-     * @param len    the maximum number of bytes to read
-     * @return the actual number of bytes read, or -1 if end of file is reached
-     * @throws IOException if an I/O error occurs
+     * @param offset die Dateiposition, ab der gelesen werden soll
+     * @param buf    der Zielpuffer
+     * @param bufOff der Startindex im Zielpuffer
+     * @param len    die maximale Anzahl der zu lesenden Bytes
+     * @return die tatsächliche Anzahl der gelesenen Bytes, oder -1 wenn das Ende der Datei erreicht ist
+     * @throws IOException bei Ein-/Ausgabefehlern
      */
     int read(long offset, byte[] buf, int bufOff, int len) throws IOException;
 
     /**
-     * Reads the entire data source into a byte array.
-     * For large files this allocates significant memory; use with caution.
+     * Liest die gesamte Datenquelle in ein Byte-Array ein.
+     * Bei großen Dateien wird erheblicher Speicher allokiert; mit Vorsicht verwenden.
      *
-     * @return the data as a byte array
-     * @throws IOException if an I/O error occurs
+     * @return die Daten als Byte-Array
+     * @throws IOException bei Ein-/Ausgabefehlern oder wenn die Datenquelle zu groß ist
      */
     default byte[] readAll() throws IOException {
         long len = length();
@@ -76,12 +76,17 @@ public interface SeekableDataSource extends AutoCloseable {
     }
 
     /**
-     * Returns a display name for this data source (e.g., file path or "memory buffer").
+     * Gibt einen Anzeigenamen für diese Datenquelle zurück (z. B. Dateipfad oder „memory buffer").
      *
-     * @return a human-readable name
+     * @return ein menschenlesbarer Name
      */
     String name();
 
+    /**
+     * Schließt die Datenquelle und gibt alle zugehörigen Ressourcen frei.
+     *
+     * @throws IOException bei Ein-/Ausgabefehlern beim Schließen
+     */
     @Override
     void close() throws IOException;
 }

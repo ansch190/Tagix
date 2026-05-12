@@ -17,6 +17,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Parsing-Strategie für FLAC-Application-Metadaten-Blöcke.
+ *
+ * <p>FLAC-Dateien können Application-spezifische Metadaten in speziellen METADATA_BLOCK-Strukturen
+ * speichern. Ein Application-Block enthält eine 4-Byte-ID (regstriert bei FLAC) gefolgt von
+ * anwendungspezifischen Daten. Diese Strategie liest den Block-Header, validiert den Block-Typ
+ * (0x02 = APPLICATION) und extrahiert die Application-ID sowie die Datenlänge.</p>
+ *
+ * <p>Bekannte Application-IDs sind in {@link #KNOWN_APPLICATION_IDS} hinterlegt.</p>
+ *
+ * <p>Unterstütztes Format:</p>
+ * <ul>
+ *   <li>{@link TagFormat#FLAC_APPLICATION}</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ */
 public class FLACApplicationParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(FLACApplicationParsingStrategy.class);
@@ -41,16 +58,38 @@ public class FLACApplicationParsingStrategy implements TagParsingStrategy {
 
     private final Map<String, FieldHandler<?>> handlers = new HashMap<>();
 
+    /**
+     * Erzeugt eine neue FLAC-Application-Parsing-Strategie mit Standard-Handlern.
+     */
     public FLACApplicationParsingStrategy() {
         handlers.put("ApplicationId", new TextFieldHandler("ApplicationId"));
         handlers.put("ApplicationData", new TextFieldHandler("ApplicationData"));
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für {@link TagFormat#FLAC_APPLICATION}
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.FLAC_APPLICATION;
     }
 
+    /**
+     * Parst einen FLAC-Application-Metadaten-Block aus der angegebenen Datei.
+     *
+     * <p>Liest den 4-Byte-Block-Header, validiert den Block-Typ, extrahiert die Application-ID
+     * und speichert die Datengröße in den Metadaten.</p>
+     *
+     * @param format das FLAC_APPLICATION-Format
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des Application-Blocks
+     * @param size   die Größe des Blocks in Bytes
+     * @return die extrahierten {@link FLACApplicationMetadata}
+     * @throws IOException bei I/O-Fehlern oder wenn der Block-Typ nicht APPLICATION entspricht
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         FLACApplicationMetadata metadata = new FLACApplicationMetadata();
@@ -108,6 +147,11 @@ public class FLACApplicationParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Innere Klasse für FLAC-Application-spezifische Metadaten.
+     *
+     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und gibt als Format {@code "FLAC_APPLICATION"} zurück.</p>
+     */
     public static class FLACApplicationMetadata implements Metadata {
         private final List<MetadataField<?>> fields = new ArrayList<>();
 

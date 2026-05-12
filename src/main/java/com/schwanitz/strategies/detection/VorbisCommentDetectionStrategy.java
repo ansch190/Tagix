@@ -11,18 +11,23 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Detection Strategy for Vorbis Comments in OGG and FLAC files
+ * Erkennungsstrategie für Vorbis Comments in OGG- und FLAC-Dateien.
  * <p>
- * Vorbis Comments are used in:
- * - OGG files: Embedded in Ogg pages with packet type 0x03
- * - FLAC files: As metadata block type 4
+ * Vorbis Comments werden verwendet in:
+ * <ul>
+ *   <li>OGG-Dateien: Eingebettet in Ogg-Seiten mit Pakettyp 0x03</li>
+ *   <li>FLAC-Dateien: Als Metadatenblock-Typ 4</li>
+ * </ul>
  * <p>
- * Structure varies by container but content format is standardized:
- * - Vendor string (length + UTF-8 text)
- * - Comment count (32-bit little-endian)
- * - Comments (length + UTF-8 key=value pairs)
+ * Der Inhalt ist standardisiert:
+ * <ul>
+ *   <li>Vendor-String (Länge + UTF-8-Text)</li>
+ *   <li>Kommentaranzahl (32-Bit Little-Endian)</li>
+ *   <li>Kommentare (Länge + UTF-8 Schlüssel=Wert-Paare)</li>
+ * </ul>
  * <p>
- * Uses hybrid approach for OGG: direct jump to a comment packet with fallback to sequential search
+ * Verwendet einen hybriden Ansatz für OGG: direkter Sprung zum Kommentar-Paket
+ * mit Fallback auf sequenzielle Suche.
  */
 public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
 
@@ -46,11 +51,24 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
     private static final int VORBIS_COMMENT_PACKET_TYPE = 3;
     private static final int VORBIS_SIGNATURE_LENGTH = 6;
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Gibt das unterstützte Vorbis-Comment-Format zurück: VORBIS_COMMENT.
+     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.VORBIS_COMMENT);
     }
 
+    /**
+     * Prüft, ob die Dateidaten einen Vorbis-Comment enthalten, anhand der
+     * "OggS"- oder "fLaC"-Kennzeichen am Dateianfang.
+     *
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei (nicht verwendet)
+     * @return {@code true}, wenn eine OGG- oder FLAC-Signatur erkannt wurde
+     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         if (startBuffer.length < FLAC_SIGNATURE_LENGTH) return false;
@@ -58,6 +76,22 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
         return signature.equals("OggS") || signature.equals("fLaC");
     }
 
+    /**
+     * Analysiert Vorbis-Comments in OGG- oder FLAC-Dateien und ermittelt
+     * Position und Größe des Kommentar-Pakets.
+     * <p>
+     * Für OGG-Dateien wird ein hybrider Ansatz verwendet: direkter Sprung zum
+     * Kommentar-Paket mit Fallback auf sequenzielle Suche.
+     * Für FLAC-Dateien werden die Metadatenblöcke durchlaufen, um den
+     * Vorbis-Comment-Block (Typ 4) zu finden.
+     *
+     * @param file        die geöffnete Datei
+     * @param filePath    der Dateipfad zur Protokollierung
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei
+     * @return eine Liste der erkannten {@link TagInfo}-Objekte
+     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
+     */
     @Override
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath, byte[] startBuffer, byte[] endBuffer) throws IOException {
         List<TagInfo> tags = new ArrayList<>();

@@ -5,12 +5,23 @@ import java.util.Map;
 
 /**
  * Registry die Frame-IDs auf spezialisierte ID3FrameParser mapped.
+ *
+ * <p>Die Registry unterstützt zwei Arten von Zuordnungen: exakte Übereinstimmungen
+ * für spezifische Frame-IDs (z.B. "TXXX", "APIC") und Präfix-Matches für
+ * Frame-Familien (z.B. alle Frames die mit "T" beginnen).</p>
+ *
+ * <p>Bei der Suche wird zuerst die exakte Übereinstimmung geprüft, dann
+ * die Präfix-Matches. Dadurch können spezifische Parser (wie TXXX) Vorrang
+ * vor dem generischen Text-Parser haben.</p>
  */
 public class ID3FrameParserRegistry {
 
     private final Map<String, ID3FrameParser> exactParsers = new HashMap<>();
     private final Map<String, ID3FrameParser> prefixParsers = new HashMap<>();
 
+    /**
+     * Erstellt eine neue Registry und registriert die Standard-Parser für alle bekannten ID3v2-Frames.
+     */
     public ID3FrameParserRegistry() {
         registerDefaults();
     }
@@ -57,6 +68,9 @@ public class ID3FrameParserRegistry {
     /**
      * Gibt den passenden Parser für eine Frame-ID zurück.
      * Prüft zuerst exakte Übereinstimmungen, dann Präfix-Matches.
+     *
+     * @param frameId Die Frame-ID (z.B. "TIT2", "APIC", "WCOM")
+     * @return Der zugehörige ID3FrameParser, oder {@code null} wenn kein passender Parser gefunden wurde
      */
     public ID3FrameParser getParser(String frameId) {
         ID3FrameParser exact = exactParsers.get(frameId);
@@ -73,6 +87,14 @@ public class ID3FrameParserRegistry {
         return null;
     }
 
+    /**
+     * Registriert einen Parser für eine exakte Frame-ID.
+     *
+     * <p>Ein bereits für diese Frame-ID registrierter Parser wird überschrieben.</p>
+     *
+     * @param frameId Die exakte Frame-ID, für die der Parser gelten soll (z.B. "TXXX")
+     * @param parser  Der Parser, der für diese Frame-ID verwendet werden soll
+     */
     public void registerExact(String frameId, ID3FrameParser parser) {
         exactParsers.put(frameId, parser);
     }

@@ -5,9 +5,34 @@ import java.util.Base64;
 
 /**
  * Parser für Attached Picture Frames (APIC / PIC).
+ *
+ * <p>Dieser Parser extrahiert Metadaten aus Bild-Frames einschließlich MIME-Typ,
+ * Bildtyp, Beschreibung und einer Base64-kodierten Vorschau der Bilddaten.
+ * Die Ausgabe erfolgt in einem strukturierten Format: [PICTURE:MIME-Typ,Bildtyp,Größe bytes,desc:Beschreibung,preview:Base64...]</p>
+ *
+ * <p>Für APIC-Frames (ID3v2.3/4) wird der MIME-Typ als null-terminierter ISO-8859-1-String gelesen.
+ * Für PIC-Frames (ID3v2.2) wird das Bildformat als 3-Zeichen-String gelesen.</p>
  */
 public class PictureFrameParser implements ID3FrameParser {
 
+    /**
+     * Parst die Rohdaten eines Bild-Frames und gibt eine formatierte Bildinformation zurück.
+     *
+     * <p>Der Aufbau unterscheidet sich je nach Frame-ID:
+     * <ul>
+     *   <li>APIC: Kodierungsbyte | MIME-Typ (null-terminiert) | Bildtyp (1 Byte) |
+     *       Beschreibung (null-terminiert) | Bilddaten</li>
+     *   <li>PIC: Kodierungsbyte | Bildformat (3 Bytes) | Bildtyp (1 Byte) |
+     *       Beschreibung (null-terminiert) | Bilddaten</li>
+     * </ul></p>
+     *
+     * @param data         Roh-Frame-Daten inklusive Kodierungsbyte
+     * @param frameId      Die Frame-ID ("APIC" für ID3v2.3/4 oder "PIC" für ID3v2.2)
+     * @param majorVersion ID3v2 Hauptversion (2, 3 oder 4)
+     * @return Eine formatierte Bildinformation im Format [PICTURE:...] mit MIME-Typ/Bildformat,
+     *         Bildtyp-Beschreibung, Datengröße und Base64-Vorschau;
+     *         ein leerer String bei ungültigen Daten, oder eine Fehlermeldung bei Parsing-Fehlern
+     */
     @Override
     public String parse(byte[] data, String frameId, int majorVersion) {
         if (data.length < 2) {
@@ -77,6 +102,21 @@ public class PictureFrameParser implements ID3FrameParser {
         return "[PICTURE:" + data.length + " bytes]";
     }
 
+    /**
+     * Erstellt eine formatierte Informationszeichenkette für ein Bild.
+     *
+     * <p>Die Ausgabe enthält MIME-Typ/Bildformat, Bildtyp, Datengröße und
+     * eine Base64-kodierte Vorschau (maximal 100 Bytes). Wenn die Bilddaten
+     * größer als die Vorschau sind, wird "..." angehängt.</p>
+     *
+     * @param format           Der MIME-Typ (bei APIC) oder das Bildformat (bei PIC)
+     * @param pictureTypeStr   Die menschenlesbare Bildtyp-Beschreibung
+     * @param description      Die Bildbeschreibung, kann leer sein
+     * @param pictureDataSize  Die Größe der Bilddaten in Bytes
+     * @param data             Das vollständige Frame-Daten-Array
+     * @param pos              Die Startposition der Bilddaten im Array
+     * @return Die formatierte Bildinformation im Format [PICTURE:...]
+     */
     private String buildPictureInfo(String format, String pictureTypeStr, String description,
                                     int pictureDataSize, byte[] data, int pos) {
         if (pictureDataSize > 0) {

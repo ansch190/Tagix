@@ -18,6 +18,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Parsing-Strategie für DFF-Metadaten (DSD Interchange File Format / DSDIFF).
+ *
+ * <p>DSDIFF-Dateien verwenden eine IFF-ähnliche Chunk-Struktur mit Big-Endian-Größenangaben.
+ * Metadaten werden im {@code DIIN}-Chunk gespeichert, der Sub-Chunks wie {@code DITI} (Titel),
+ * {@code DIAR} (Künstler), {@code DIAL} (Album) und weitere Textfelder enthalten kann.
+ * Diese Strategie navigiert durch die Chunk-Hierarchie und extrahiert alle bekannten
+ * DSDIFF-Metadatenfelder.</p>
+ *
+ * <p>Unterstütztes Format:</p>
+ * <ul>
+ *   <li>{@link TagFormat#DFF_METADATA}</li>
+ * </ul>
+ *
+ * @see TagParsingStrategy
+ */
 public class DFFParsingStrategy implements TagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(DFFParsingStrategy.class);
@@ -44,17 +60,39 @@ public class DFFParsingStrategy implements TagParsingStrategy {
 
     private final Map<String, FieldHandler<?>> handlers = new HashMap<>();
 
+    /**
+     * Erzeugt eine neue DFF-Parsing-Strategie mit Standard-Handlern für alle bekannten DSDIFF-Felder.
+     */
     public DFFParsingStrategy() {
         for (String fieldName : DFF_FIELD_MAPPING.values()) {
             handlers.put(fieldName, new TextFieldHandler(fieldName));
         }
     }
 
+    /**
+     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
+     *
+     * @param format das zu prüfende Tag-Format
+     * @return {@code true} für {@link TagFormat#DFF_METADATA}
+     */
     @Override
     public boolean canHandle(TagFormat format) {
         return format == TagFormat.DFF_METADATA;
     }
 
+    /**
+     * Parst DFF-Metadaten aus der angegebenen Datei.
+     *
+     * <p>Erkennt den Chunk-Typ am Offset ({@code DIIN} oder {@code DITI}) und delegiert
+     * an die entsprechende Parse-Methode.</p>
+     *
+     * @param format das DFF_METADATA-Format
+     * @param file   die Datei, aus der gelesen wird
+     * @param offset der Start-Offset des Chunks
+     * @param size   die Größe des Chunks in Bytes
+     * @return die extrahierten {@link DFFMetadata}
+     * @throws IOException bei I/O-Fehlern oder ungültigem Chunk-Format
+     */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
         DFFMetadata metadata = new DFFMetadata();
@@ -164,6 +202,11 @@ public class DFFParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    /**
+     * Innere Klasse für DFF-spezifische Metadaten.
+     *
+     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und gibt als Format {@code "DFF_METADATA"} zurück.</p>
+     */
     public static class DFFMetadata implements Metadata {
         private final List<MetadataField<?>> fields = new ArrayList<>();
 

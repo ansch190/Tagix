@@ -13,33 +13,36 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Detection Strategy for WavPack (.wv) native metadata
+ * Erkennungsstrategie für WavPack-(.wv)-Native-Metadaten.
  * <p>
- * WavPack uses a block-based format with 32-byte headers.
- * Block Header Structure:
- * - Magic: "wvpk" (4 bytes)
- * - Block Size: 32-bit LE (4 bytes, includes header)
- * - Version: 16-bit LE (2 bytes)
- * - Track Length: 24-bit LE (3 bytes)
- * - Block Index: 32-bit LE (4 bytes)
- * - Total Samples: 32-bit LE (4 bytes)
- * - Block Samples: 32-bit LE (4 bytes)
- * - Flags: 32-bit LE (4 bytes)
- * - CRC: 32-bit LE (4 bytes)
+ * WavPack verwendet ein blockbasiertes Format mit 32-Byte-Headern.
+ * Block-Header-Struktur:
+ * <ul>
+ *   <li>Kennzeichen: "wvpk" (4 Bytes)</li>
+ *   <li>Blockgröße: 32-Bit LE (4 Bytes, inklusive Header)</li>
+ *   <li>Version: 16-Bit LE (2 Bytes)</li>
+ *   <li>Spurlänge: 24-Bit LE (3 Bytes)</li>
+ *   <li>Blockindex: 32-Bit LE (4 Bytes)</li>
+ *   <li>Gesamt Samples: 32-Bit LE (4 Bytes)</li>
+ *   <li>Block-Samples: 32-Bit LE (4 Bytes)</li>
+ *   <li>Flags: 32-Bit LE (4 Bytes)</li>
+ *   <li>CRC: 32-Bit LE (4 Bytes)</li>
+ * </ul>
  * <p>
- * The Flags field contains a bit indicating whether this block contains
- * metadata subblocks (INITIAL_BLOCK flag bit 2). Only blocks with
- * metadata need to be scanned for subblocks.
+ * Das Flags-Feld enthält ein Bit, das angibt, ob dieser Block Metadaten-Unterblöcke
+ * enthält (INITIAL_BLOCK-Flag, Bit 2). Nur Blöcke mit Metadaten müssen nach
+ * Unterblöcken durchsucht werden.
  * <p>
- * Metadata is stored in subblocks with IDs like:
- * - 0x21: RIFF Header (WAV metadata)
- * - 0x22: RIFF Trailer (tags)
- * - 0x26: MD5 Checksum
+ * Metadaten werden in Unterblöcken mit folgenden IDs gespeichert:
+ * <ul>
+ *   <li>0x21: RIFF Header (WAV-Metadaten)</li>
+ *   <li>0x22: RIFF Trailer (Tags)</li>
+ *   <li>0x26: MD5-Prüfsumme</li>
+ * </ul>
  * <p>
- * Detection strategy: walk top-level blocks by reading only headers
- * and skipping to the next block. Only scan subblocks in blocks that
- * contain metadata subblocks (indicated by the INITIAL_BLOCK or
- * blocks where subblock count > 0).
+ * Erkennungsstrategie: Top-Level-Blöcke werden durch Lesen der Header durchlaufen,
+ * wobei direkt zum nächsten Block gesprungen wird. Nur Blöcke mit dem INITIAL_BLOCK-Flag
+ * werden nach Metadaten-Unterblöcken durchsucht.
  */
 public class WavPackDetectionStrategy extends TagDetectionStrategy {
 
@@ -81,11 +84,24 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
         METADATA_SUBBLOCKS.put(0x26, "MD5 Checksum");
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Gibt das unterstützte WavPack-Format zurück: WAVPACK_NATIVE.
+     */
     @Override
     public List<TagFormat> getSupportedTagFormats() {
         return List.of(TagFormat.WAVPACK_NATIVE);
     }
 
+    /**
+     * Prüft, ob die Dateidaten eine WavPack-Datei enthalten, anhand des
+     * "wvpk"-Kennzeichens am Dateianfang.
+     *
+     * @param startBuffer Puffer mit den ersten Bytes der Datei (mindestens 4 Bytes)
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei (nicht verwendet)
+     * @return {@code true}, wenn das WavPack-Kennzeichen erkannt wurde
+     */
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
         if (startBuffer.length < 4) {
@@ -94,6 +110,19 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
         return Arrays.equals(Arrays.copyOfRange(startBuffer, 0, 4), WAVPACK_SIGNATURE);
     }
 
+    /**
+     * Analysiert die WavPack-Datei und durchsucht Blöcke nach Metadaten-Unterblöcken.
+     * <p>
+     * Durchläuft Top-Level-Blöcke und prüft nur Blöcke mit dem INITIAL_BLOCK-Flag
+     * auf Metadaten-Unterblöcke.
+     *
+     * @param file        die geöffnete Datei
+     * @param filePath    der Dateipfad zur Protokollierung
+     * @param startBuffer Puffer mit den ersten Bytes der Datei
+     * @param endBuffer   Puffer mit den letzten Bytes der Datei
+     * @return eine Liste der erkannten Metadaten-{@link TagInfo}-Objekte
+     * @throws IOException wenn ein Fehler beim Lesen der Datei auftritt
+     */
     @Override
     public List<TagInfo> detectTags(RandomAccessFile file, String filePath,
                                     byte[] startBuffer, byte[] endBuffer) throws IOException {
@@ -167,8 +196,15 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
     }
 
     /**
-     * Search subblocks for metadata within a single WavPack block.
-     * Only called for blocks that are likely to contain metadata (initial blocks).
+     * Durchsucht Unterblöcke nach Metadaten innerhalb eines einzelnen WavPack-Blocks.
+     * <p>
+     * Wird nur für Blöcke aufgerufen, die wahrscheinlich Metadaten enthalten (Initialblöcke).
+     *
+     * @param file            die geöffnete Datei
+     * @param blockDataStart  die Startposition der Blockdaten (nach dem 32-Byte-Header)
+     * @param blockDataSize   die Größe der Blockdaten
+     * @return eine Liste der gefundenen Metadaten-{@link TagInfo}-Objekte
+     * @throws IOException wenn ein Fehler beim Lesen auftritt
      */
     private List<TagInfo> searchMetadataSubBlocks(RandomAccessFile file, long blockDataStart,
                                                   long blockDataSize) throws IOException {
