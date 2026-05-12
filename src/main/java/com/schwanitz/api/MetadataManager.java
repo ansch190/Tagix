@@ -14,10 +14,11 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.StructuredTaskScope;
 
 /**
  * Central API for detecting and parsing metadata in audio files.
@@ -179,20 +180,59 @@ public class MetadataManager {
 
     /**
      * Reads metadata from multiple files with the given configuration.
+     * <p>
+     * Uses virtual threads and structured concurrency for parallel processing.
+     * Detection and parsing for each file run concurrently across all files.
      */
     public Map<String, List<Metadata>> readFromFiles(List<String> filePaths, ScanConfiguration config) {
         Objects.requireNonNull(filePaths, "filePaths must not be null");
         Objects.requireNonNull(config, "config must not be null");
-        Map<String, List<TagInfo>> detected = switch (config.getMode()) {
-            case FULL_SCAN -> detector.fullScan(filePaths);
-            case COMFORT_SCAN -> detector.comfortScan(filePaths);
-            case CUSTOM_SCAN -> detector.customScan(filePaths, config.getCustomFormats().toArray(new TagFormat[0]));
-        };
-
-        Map<String, List<Metadata>> results = new HashMap<>();
-        for (Map.Entry<String, List<TagInfo>> entry : detected.entrySet()) {
-            results.put(entry.getKey(), parseTags(entry.getKey(), entry.getValue()));
+        List<String> validPaths = filePaths.stream().filter(Objects::nonNull).toList();
+        if (validPaths.isEmpty()) {
+            return Map.of();
         }
+
+        if (validPaths.size() == 1) {
+            String filePath = validPaths.getFirst();
+            try {
+                List<TagInfo> detected = detectFromFile(filePath, config);
+                return Map.of(filePath, parseTags(filePath, detected));
+            } catch (IOException e) {
+                LOG.error("Error processing file {}: {}", filePath, e.getMessage());
+                return Map.of(filePath, List.of());
+            }
+        }
+
+        Map<String, List<Metadata>> results = new LinkedHashMap<>();
+        try (var scope = StructuredTaskScope.open(StructuredTaskScope.Joiner.awaitAll())) {
+            Map<String, StructuredTaskScope.Subtask<List<Metadata>>> tasks = new LinkedHashMap<>();
+            for (String filePath : validPaths) {
+                tasks.put(filePath, scope.fork(() -> {
+                    try {
+                        List<TagInfo> detected = detectFromFile(filePath, config);
+                        return parseTags(filePath, detected);
+                    } catch (IOException e) {
+                        LOG.error("Error processing file {}: {}", filePath, e.getMessage());
+                        return List.<Metadata>of();
+                    }
+                }));
+            }
+            scope.join();
+
+            for (var entry : tasks.entrySet()) {
+                var subtask = entry.getValue();
+                if (subtask.state() == StructuredTaskScope.Subtask.State.SUCCESS) {
+                    results.put(entry.getKey(), subtask.get());
+                } else {
+                    LOG.error("Error processing file {}: {}", entry.getKey(), subtask.exception());
+                    results.put(entry.getKey(), List.of());
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.warn("Batch processing interrupted");
+        }
+
         return results;
     }
 
@@ -205,6 +245,14 @@ public class MetadataManager {
             case FULL_SCAN -> detector.fullScan(source);
             case COMFORT_SCAN -> detector.comfortScan(source);
             case CUSTOM_SCAN -> detector.customScan(source, config.getCustomFormats().toArray(new TagFormat[0]));
+        };
+    }
+
+    private List<TagInfo> detectFromFile(String filePath, ScanConfiguration config) throws IOException {
+        return switch (config.getMode()) {
+            case FULL_SCAN -> detector.fullScan(filePath);
+            case COMFORT_SCAN -> detector.comfortScan(filePath);
+            case CUSTOM_SCAN -> detector.customScan(filePath, config.getCustomFormats().toArray(new TagFormat[0]));
         };
     }
 

@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.StructuredTaskScope;
 
 /**
  * Public API for tag format detection.
@@ -242,20 +243,52 @@ public class TagFormatDetector {
     // ================================
 
     private Map<String, List<TagInfo>> detectTagFormats(List<String> filePaths, ScanConfiguration config) {
-        Map<String, List<TagInfo>> results = new HashMap<>();
+        Map<String, List<TagInfo>> results = new LinkedHashMap<>();
+        List<String> validPaths = filePaths.stream()
+                .filter(Objects::nonNull)
+                .toList();
 
-        for (String filePath : filePaths) {
-            if (filePath == null) {
-                LOG.warn("Skipping null file path in batch");
-                continue;
-            }
+        if (validPaths.isEmpty()) {
+            return results;
+        }
+
+        if (validPaths.size() == 1) {
+            String filePath = validPaths.getFirst();
             try {
-                List<TagInfo> tags = detectionContext.detectTags(filePath, config);
-                results.put(filePath, tags);
+                results.put(filePath, detectionContext.detectTags(filePath, config));
             } catch (IOException e) {
                 LOG.error("Error processing file {}: {}", filePath, e.getMessage());
                 results.put(filePath, List.of());
             }
+            return results;
+        }
+
+        try (var scope = StructuredTaskScope.open(StructuredTaskScope.Joiner.awaitAll())) {
+            Map<String, StructuredTaskScope.Subtask<List<TagInfo>>> tasks = new LinkedHashMap<>();
+            for (String filePath : validPaths) {
+                tasks.put(filePath, scope.fork(() -> {
+                    try {
+                        return detectionContext.detectTags(filePath, config);
+                    } catch (IOException e) {
+                        LOG.error("Error processing file {}: {}", filePath, e.getMessage());
+                        return List.<TagInfo>of();
+                    }
+                }));
+            }
+            scope.join();
+
+            for (var entry : tasks.entrySet()) {
+                var subtask = entry.getValue();
+                if (subtask.state() == StructuredTaskScope.Subtask.State.SUCCESS) {
+                    results.put(entry.getKey(), subtask.get());
+                } else {
+                    LOG.error("Error processing file {}: {}", entry.getKey(), subtask.exception());
+                    results.put(entry.getKey(), List.of());
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.warn("Batch processing interrupted");
         }
 
         return results;
