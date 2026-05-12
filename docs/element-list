@@ -1,0 +1,14 @@
+com.schwanitz
+com.schwanitz.api
+com.schwanitz.examples
+com.schwanitz.interfaces
+com.schwanitz.io
+com.schwanitz.metadata
+com.schwanitz.strategies.detection
+com.schwanitz.strategies.detection.context
+com.schwanitz.strategies.detection.factory
+com.schwanitz.strategies.parsing
+com.schwanitz.strategies.parsing.context
+com.schwanitz.strategies.parsing.factory
+com.schwanitz.strategies.parsing.id3
+com.schwanitz.tagging
