@@ -44,7 +44,7 @@ public class APEDetectionStrategy extends TagDetectionStrategy {
 
     @Override
     public boolean canDetect(byte[] startBuffer, byte[] endBuffer) {
-        return checkAPE(startBuffer, 0) || checkAPE(endBuffer, endBuffer.length - APE_HEADER_SIZE);
+        return checkAPE(startBuffer, 0) || (endBuffer.length >= APE_HEADER_SIZE && checkAPE(endBuffer, endBuffer.length - APE_HEADER_SIZE));
     }
 
     @Override

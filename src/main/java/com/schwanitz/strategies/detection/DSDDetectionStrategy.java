@@ -52,7 +52,7 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
     private static final int DFF_MIN_TYPE_LENGTH = 8;
 
     private static final int DSF_MIN_BUFFER = 8;
-    private static final int DFF_MIN_BUFFER = 12;
+    private static final int DFF_MIN_BUFFER = 16;
 
     @Override
     public List<TagFormat> getSupportedTagFormats() {
@@ -71,7 +71,7 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
 
         if (Arrays.equals(Arrays.copyOfRange(startBuffer, 0, 4), DFF_FORM_SIGNATURE) &&
                 startBuffer.length >= DFF_MIN_BUFFER &&
-                Arrays.equals(Arrays.copyOfRange(startBuffer, 8, 12), DFF_DSD_TYPE)) {
+                Arrays.equals(Arrays.copyOfRange(startBuffer, 12, 16), DFF_DSD_TYPE)) {
             return true;
         }
 
