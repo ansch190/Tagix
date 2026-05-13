@@ -98,16 +98,53 @@ class Lyrics3DetectionStrategyTest {
         }
 
         @Test
-        @DisplayName("Lyrics3v1")
-        void lyrics3v1() throws Exception {
+        @DisplayName("LYRICS200 before ID3v1 at end")
+        void lyrics200BeforeID3v1() throws Exception {
+            String content = "Some lyrics content here";
+            int contentLen = content.length();
+            int tagBodySize = 11 + contentLen;
+            String sizeStr = String.format("%06d", tagBodySize);
+            byte[] id3v1 = builder()
+                    .writeString("TAG")
+                    .writeBytes(30).writeBytes(30).writeBytes(30).writeBytes(4)
+                    .writeBytes(28).writeByte(0).writeByte(7).writeByte(17)
+                    .build();
+            assertEquals(128, id3v1.length);
+            byte[] data = builder()
+                    .writeBytes(200)
+                    .writeString("LYRICSBEGIN")
+                    .writeString(content)
+                    .writeString(sizeStr)
+                    .writeString("LYRICS200")
+                    .write(id3v1)
+                    .build();
+            Buffers bufs = readBuffers(forBytes(data));
+            assertTrue(strategy.canDetect(bufs.startBuffer(), bufs.endBuffer()));
+            SeekableDataSource src = forBytes(data);
+            List<TagInfo> tags = strategy.detectTags(src, bufs.startBuffer(), bufs.endBuffer());
+            assertEquals(1, tags.size());
+            assertEquals(TagFormat.LYRICS3V2, tags.get(0).getFormat());
+        }
+
+        @Test
+        @DisplayName("LYRICSEND before ID3v1 at end")
+        void lyricsendBeforeID3v1() throws Exception {
+            byte[] id3v1 = builder()
+                    .writeString("TAG")
+                    .writeBytes(30).writeBytes(30).writeBytes(30).writeBytes(4)
+                    .writeBytes(28).writeByte(0).writeByte(7).writeByte(17)
+                    .build();
+            assertEquals(128, id3v1.length);
             byte[] data = builder()
                     .writeBytes(200)
                     .writeString("LYRICSBEGIN")
                     .writeBytes(50)
                     .writeString("LYRICSEND")
+                    .write(id3v1)
                     .build();
+            Buffers bufs = readBuffers(forBytes(data));
+            assertTrue(strategy.canDetect(bufs.startBuffer(), bufs.endBuffer()));
             SeekableDataSource src = forBytes(data);
-            Buffers bufs = readBuffers(src);
             List<TagInfo> tags = strategy.detectTags(src, bufs.startBuffer(), bufs.endBuffer());
             if (!tags.isEmpty()) {
                 assertEquals(TagFormat.LYRICS3V1, tags.get(0).getFormat());

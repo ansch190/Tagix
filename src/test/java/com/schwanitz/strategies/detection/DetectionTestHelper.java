@@ -4,6 +4,7 @@ import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.io.SeekableDataSources;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 public final class DetectionTestHelper {
@@ -14,6 +15,30 @@ public final class DetectionTestHelper {
 
     public static SeekableDataSource forBytes(byte[] data) {
         return SeekableDataSources.forBytes(data);
+    }
+
+    public static SeekableDataSource withName(SeekableDataSource source, String name) {
+        return new SeekableDataSource() {
+            @Override
+            public long length() throws IOException {
+                return source.length();
+            }
+
+            @Override
+            public int read(long offset, byte[] buf, int bufOff, int len) throws IOException {
+                return source.read(offset, buf, bufOff, len);
+            }
+
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public void close() throws IOException {
+                source.close();
+            }
+        };
     }
 
     public static Buffers readBuffers(SeekableDataSource source) throws Exception {
@@ -93,6 +118,14 @@ public final class DetectionTestHelper {
         };
     }
 
+    public static byte[] be24(int value) {
+        return new byte[]{
+                (byte) ((value >> 16) & 0xFF),
+                (byte) ((value >> 8) & 0xFF),
+                (byte) (value & 0xFF)
+        };
+    }
+
     public static byte[] be64(long value) {
         return new byte[]{
                 (byte) ((value >> 56) & 0xFF),
@@ -141,6 +174,7 @@ public final class DetectionTestHelper {
         public Builder writeLE64(long v) { return write(le64(v)); }
         public Builder writeBE16(int v) { return write(be16(v)); }
         public Builder writeBE32(int v) { return write(be32(v)); }
+        public Builder writeBE24(int v) { return write(be24(v)); }
         public Builder writeBE64(long v) { return write(be64(v)); }
         public Builder writeSynchsafe4(int v) { return write(synchsafe4(v)); }
         public Builder writeString(String s) { return write(ascii(s)); }
