@@ -1,7 +1,8 @@
-package com.schwanitz.strategies.detection.context;
+package com.schwanitz.strategies.detection.integration;
 
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.DetectionTestHelper;
+import com.schwanitz.strategies.detection.context.FormatDetectionContext;
 import com.schwanitz.tagging.FormatPriorityManager;
 import com.schwanitz.tagging.ScanConfiguration;
 import com.schwanitz.tagging.TagFormat;

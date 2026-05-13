@@ -1,4 +1,6 @@
-package com.schwanitz.strategies.detection;
+package com.schwanitz.strategies.detection.unit;
+
+import com.schwanitz.strategies.detection.WavPackDetectionStrategy;
 
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.tagging.TagFormat;
