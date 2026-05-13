@@ -36,6 +36,7 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
     private static final int TTA_HEADER_SIZE = 22;
     private static final int MAX_CHANNELS = 32;
     private static final long HEADER_SEARCH_LIMIT = 65536;
+    private static final int SEARCH_CHUNK_SIZE = 8192;
 
     @Override
     public List<TagFormat> getSupportedTagFormats() {
@@ -86,30 +87,54 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
 
     private int findTTASignature(byte[] buffer) {
         for (int i = 0; i <= buffer.length - 4; i++) {
-            if (Arrays.equals(Arrays.copyOfRange(buffer, i, i + 4), TTA1_SIGNATURE) ||
-                    Arrays.equals(Arrays.copyOfRange(buffer, i, i + 4), TTA2_SIGNATURE)) {
+            if (matchesTTASignature(buffer, i)) {
                 return i;
             }
         }
         return -1;
     }
 
+    private static boolean matchesTTASignature(byte[] buf, int offset) {
+        return (buf[offset] == 'T' && buf[offset + 1] == 'T' && buf[offset + 2] == 'A' &&
+                (buf[offset + 3] == '1' || buf[offset + 3] == '2'));
+    }
+
+    /**
+     * Sucht den TTA-Header durch Bulk-Lesen: liest den Suchbereich in
+     * {@link #SEARCH_CHUNK_SIZE} großen Blöcken und sucht im Speicher.
+     * Reduziert die Anzahl der {@code source.read()}-Aufrufe von bis zu 65.536
+     * auf typischerweise 1-8.
+     */
     private long findTTAHeaderOffset(SeekableDataSource source) throws IOException {
-        long currentPos = 0;
         long sourceLength = source.length();
         long searchLimit = Math.min(sourceLength, HEADER_SEARCH_LIMIT);
+        byte[] chunk = new byte[SEARCH_CHUNK_SIZE];
+        long offset = 0;
 
-        while (currentPos + 4 <= searchLimit) {
-            byte[] signature = new byte[4];
-            int bytesRead = source.read(currentPos, signature, 0, 4);
-            if (bytesRead != 4) break;
+        while (offset < searchLimit) {
+            int toRead = (int) Math.min(SEARCH_CHUNK_SIZE, searchLimit - offset);
+            int bytesRead = source.read(offset, chunk, 0, toRead);
+            if (bytesRead <= 0) break;
 
-            if (Arrays.equals(signature, TTA1_SIGNATURE) ||
-                    Arrays.equals(signature, TTA2_SIGNATURE)) {
-                return currentPos;
+            // Search in chunk, but check 3 bytes before current chunk for signature spanning boundary
+            int searchStart = 0;
+            if (offset > 0) {
+                searchStart = 0;
             }
 
-            currentPos++;
+            int searchEnd = bytesRead - 3;
+            for (int i = searchStart; i <= searchEnd; i++) {
+                if (matchesTTASignature(chunk, i)) {
+                    return offset + i;
+                }
+            }
+
+            // If signature could span chunk boundary, back up 3 bytes for next chunk
+            if (bytesRead == SEARCH_CHUNK_SIZE) {
+                offset += bytesRead - 3;
+            } else {
+                break;
+            }
         }
 
         return -1;

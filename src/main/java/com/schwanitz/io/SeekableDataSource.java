@@ -1,31 +1,34 @@
 package com.schwanitz.io;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 
 /**
- * Abstraktionsschicht für seekable (positionierbare) Datenquellen zur Tag-Erkennung und - Analyse.
+ * Abstraktionsschicht für seekable (positionierbare) Datenquellen zur Tag-Erkennung und -Analyse.
  * <p>
- * Bietet wahlfreien Lesezugriff ähnlich {@link RandomAccessFile}, kann jedoch auf
- * unterschiedlichen Quellen basieren (Dateien, In-Memory-Puffer, Streams usw.).
+ * Bietet wahlfreien Lesezugriff, kann jedoch auf unterschiedlichen Quellen basieren
+ * (Dateien, In-Memory-Puffer, Streams usw.).
+ * <p>
+ * Dateibasierte Implementierungen nutzen einen internen Puffer für effizienten
+ * sequentiellen Zugriff: aufeinanderfolgende Lesezugriffe ohne explizites
+ * {@code seek()} und Puffer-Treffer bei kleinen Leseoperationen.
  * <p>
  * Beispiel mit einer Datei:
  * <pre>
- * try (SeekableDataSource source = SeekableDataSource.forPath(Path.of("audio.mp3"))) {
+ * try (SeekableDataSource source = SeekableDataSources.forPath(Path.of("audio.mp3"))) {
  *     List&lt;TagInfo&gt; tags = detector.detectTags(source, config);
  * }
  * </pre>
  * <p>
  * Beispiel mit einem InputStream (wird in temporäre Datei gepuffert):
  * <pre>
- * try (SeekableDataSource source = SeekableDataSource.forInputStream(inputStream, "mp3")) {
+ * try (SeekableDataSource source = SeekableDataSources.forInputStream(inputStream, "mp3")) {
  *     List&lt;TagInfo&gt; tags = detector.detectTags(source, config);
  * }
  * </pre>
  * <p>
  * Beispiel mit einem Byte-Array (im Speicher):
  * <pre>
- * try (SeekableDataSource source = SeekableDataSource.forBytes(bytes)) {
+ * try (SeekableDataSource source = SeekableDataSources.forBytes(bytes)) {
  *     List&lt;TagInfo&gt; tags = detector.detectTags(source, config);
  * }
  * </pre>
@@ -43,6 +46,10 @@ public interface SeekableDataSource extends AutoCloseable {
     /**
      * Liest bis zu {@code len} Bytes ab der Position {@code offset} aus der Datenquelle
      * und schreibt sie in das Byte-Array ab dem Index {@code bufOff}.
+     * <p>
+     * Dateibasierte Implementierungen nutzen einen internen Puffer für effizienten
+     * Zugriff: wenn die angeforderten Daten bereits im Puffer liegen, wird kein
+     * I/O durchgeführt.
      *
      * @param offset die Dateiposition, ab der gelesen werden soll
      * @param buf    der Zielpuffer
