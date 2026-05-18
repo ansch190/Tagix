@@ -258,7 +258,7 @@ public class ASFParsingStrategy implements TagParsingStrategy {
                     break;
                 case ASF_TYPE_BOOL:
                     if (data.length >= 4) {
-                        addField(metadata, fieldName, readLittleEndianInt32(data, 0) != 0 ? "true" : "false");
+                        addField(metadata, fieldName, Boolean.toString(readLittleEndianInt32(data, 0) != 0));
                     }
                     break;
                 default:

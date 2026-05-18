@@ -170,7 +170,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
         return tags;
     }
 
-    private String extractDocType(SeekableDataSource source, long headerContentStart, long headerSize) throws IOException {
+    private String extractDocType(SeekableDataSource source, long headerContentStart, long headerSize) {
         long headerEnd = headerContentStart + headerSize;
         long currentPos = headerContentStart;
 
@@ -254,7 +254,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
         return -1;
     }
 
-    private List<Long> findTagsElements(SeekableDataSource source, long segmentOffset) throws IOException {
+    private List<Long> findTagsElements(SeekableDataSource source, long segmentOffset) {
         List<Long> tagOffsets = new ArrayList<>();
 
         try {

@@ -232,8 +232,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         }
     }
 
-    private TagInfo processLISTChunk(SeekableDataSource source, ChunkHeader header, long position)
-            throws IOException {
+    private TagInfo processLISTChunk(SeekableDataSource source, ChunkHeader header, long position) {
 
         if (header.size < 4) {
             LOG.debug("LIST chunk too small: {} bytes", header.size);
@@ -261,8 +260,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         return null;
     }
 
-    private TagInfo processBEXTChunk(SeekableDataSource source, ChunkHeader header, long position)
-            throws IOException {
+    private TagInfo processBEXTChunk(SeekableDataSource source, ChunkHeader header, long position) {
 
         if (header.size < BWF_MIN_CHUNK_SIZE) {
             LOG.debug("bext chunk too small for BWF: {} bytes (minimum: {})",
@@ -311,8 +309,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
         };
     }
 
-    private long attemptChunkRecovery(SeekableDataSource source, long startPosition, long fileLength)
-            throws IOException {
+    private long attemptChunkRecovery(SeekableDataSource source, long startPosition, long fileLength) {
 
         LOG.debug("Attempting chunk recovery from position {}", startPosition);
 

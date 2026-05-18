@@ -203,7 +203,7 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
     }
 
     private List<TagInfo> processHeaderExtensionObject(SeekableDataSource source, long headerExtOffset,
-                                                        long headerExtSize) throws IOException {
+                                                        long headerExtSize) {
         List<TagInfo> extTags = new ArrayList<>();
 
         try {

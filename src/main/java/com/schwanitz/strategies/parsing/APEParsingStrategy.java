@@ -253,12 +253,11 @@ public class APEParsingStrategy implements TagParsingStrategy {
             if (hasHeader) {
                 // Header + Items + Footer Konfiguration
                 itemsStart = offset - tagSize + 32;
-                itemsEnd = offset;
             } else {
                 // Nur Items + Footer Konfiguration
                 itemsStart = offset - tagSize;
-                itemsEnd = offset;
             }
+            itemsEnd = offset;
         }
 
         LOG.debug("Items range: " + itemsStart + " to " + itemsEnd + " (size: " + (itemsEnd - itemsStart) + ")");

@@ -53,7 +53,7 @@ public class ID3V2DetectionStrategy extends TagDetectionStrategy {
     }
 
     @Override
-    public List<TagInfo> detectTags(SeekableDataSource source, byte[] startBuffer, byte[] endBuffer) throws IOException {
+    public List<TagInfo> detectTags(SeekableDataSource source, byte[] startBuffer, byte[] endBuffer) {
         List<TagInfo> tags = new ArrayList<>();
         if (canDetect(startBuffer, endBuffer)) {
             int majorVersion = startBuffer[3] & 0xFF;

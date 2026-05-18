@@ -288,8 +288,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         file.skipBytes(170);
     }
 
-    private void parseBWFExtensions(RandomAccessFile file, BWFMetadata metadata, long offset, long size)
-            throws IOException {
+    private void parseBWFExtensions(RandomAccessFile file, BWFMetadata metadata, long offset, long size) {
         long currentPos = offset;
         long endPos = offset + size;
 
@@ -539,7 +538,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
             }
 
             return String.format("Length:%d, Instance:%d, Material:%s, Time:%s",
-                    length, instance, materialNum.toString(), timestamp.toString());
+                    length, instance, materialNum, timestamp);
 
         } catch (Exception e) {
             LOG.debug("Error parsing UMID structure: " + e.getMessage());

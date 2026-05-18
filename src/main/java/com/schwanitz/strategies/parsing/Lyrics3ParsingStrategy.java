@@ -262,12 +262,11 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         }
 
         // Entferne übermäßige Leerzeichen und normalisiere Zeilenumbrüche
-        String cleaned = lyrics.replaceAll("\\r\\n", "\n")
+
+        return lyrics.replaceAll("\\r\\n", "\n")
                 .replaceAll("\\r", "\n")
                 .replaceAll("\\n{3,}", "\n\n") // Max 2 aufeinanderfolgende Leerzeilen
                 .trim();
-
-        return cleaned;
     }
 
     private void parseFields(Lyrics3Metadata metadata, String fieldContent) {

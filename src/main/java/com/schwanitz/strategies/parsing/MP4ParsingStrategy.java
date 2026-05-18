@@ -459,7 +459,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
                 // Boolean flags (single byte)
                 if (("cpil".equals(atomType) || "pcst".equals(atomType) || "shwm".equals(atomType))
                         && data.length == 1) {
-                    return data[0] != 0 ? "true" : "false";
+                    return Boolean.toString(data[0] != 0);
                 }
 
                 // Genre ID (numeric genre)

@@ -157,8 +157,7 @@ public class MatroskaParsingStrategy implements TagParsingStrategy {
 
             currentPos = file.getFilePointer() + elementSize;
             if (elementId != TAG_ELEMENT_ID) {
-                long newPos = currentPos;
-                file.seek(newPos);
+                file.seek(currentPos);
             }
         }
 

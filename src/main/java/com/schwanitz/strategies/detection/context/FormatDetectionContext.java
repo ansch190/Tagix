@@ -96,12 +96,11 @@ public class FormatDetectionContext {
      * @param source           die {@link SeekableDataSource} für Lesezugriffe
      * @param buffers          die gelesenen Dateipuffer
      * @return eine Liste der erkannten und gefilterten {@link TagInfo}-Objekte
-     * @throws IOException wenn ein Fehler beim Lesen der Datenquelle auftritt
      */
     private List<TagInfo> performDetection(List<TagDetectionStrategy> strategies,
                                            List<TagFormat> requestedFormats,
                                            SeekableDataSource source,
-                                           FileBuffers buffers) throws IOException {
+                                           FileBuffers buffers) {
 
         List<TagInfo> detectedTags = new ArrayList<>();
 

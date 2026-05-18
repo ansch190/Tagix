@@ -149,7 +149,7 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
     }
 
     private List<TagInfo> searchMetadataSubBlocks(SeekableDataSource source, long blockDataStart,
-                                                   long blockDataSize) throws IOException {
+                                                   long blockDataSize) {
         List<TagInfo> tags = new ArrayList<>();
 
         long currentPos = blockDataStart;
@@ -190,14 +190,13 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
 
                 int cleanId = subBlockId & SUBBLOCK_ID_MASK;
                 if (METADATA_SUBBLOCKS.containsKey(cleanId)) {
-                    long subBlockStart = currentPos;
                     long totalSubBlockSize = subBlockSize + headerSize;
 
-                    tags.add(new TagInfo(TagFormat.WAVPACK_NATIVE, subBlockStart, totalSubBlockSize));
+                    tags.add(new TagInfo(TagFormat.WAVPACK_NATIVE, currentPos, totalSubBlockSize));
 
                     String subBlockName = METADATA_SUBBLOCKS.get(cleanId);
                     LOG.debug("Found WavPack metadata sub-block: {} at offset: {}, size: {} bytes",
-                            subBlockName, subBlockStart, totalSubBlockSize);
+                            subBlockName, currentPos, totalSubBlockSize);
                 }
 
                 currentPos += headerSize + subBlockSize;
