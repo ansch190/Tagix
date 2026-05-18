@@ -1,4 +1,4 @@
-package com.schwanitz.strategies.parsing;
+package com.schwanitz.strategies.parsing.unit;
 
 import org.junit.platform.suite.api.*;
 
