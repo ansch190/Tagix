@@ -2,7 +2,7 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
-import com.schwanitz.metadata.Lyrics3Metadata;
+import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
@@ -89,12 +89,12 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
      * @param file   die Datei, aus der gelesen wird
      * @param offset der Start-Offset des Tags
      * @param size   die Größe des Tags in Bytes
-     * @return die extrahierten {@link Lyrics3Metadata}
+     * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültigem Tag-Format
      */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
-        Lyrics3Metadata metadata = new Lyrics3Metadata(format);
+        GenericMetadata metadata = new GenericMetadata(format);
 
         switch (format) {
             case LYRICS3V1:
@@ -110,7 +110,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         return metadata;
     }
 
-    private void parseLyrics3v1(RandomAccessFile file, Lyrics3Metadata metadata, long offset, long size)
+    private void parseLyrics3v1(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
             throws IOException {
         file.seek(offset);
         byte[] tagData = new byte[(int) size];
@@ -144,7 +144,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         LOG.debug("Parsed Lyrics3v1 tag with " + lyricsContent.length() + " characters");
     }
 
-    private void parseLyrics3v2(RandomAccessFile file, Lyrics3Metadata metadata, long offset, long size)
+    private void parseLyrics3v2(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
             throws IOException {
         file.seek(offset);
         byte[] tagData = new byte[(int) size];
@@ -269,7 +269,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
                 .trim();
     }
 
-    private void parseFields(Lyrics3Metadata metadata, String fieldContent) {
+    private void parseFields(GenericMetadata metadata, String fieldContent) {
         int position = 0;
         int fieldCount = 0;
         String lastValidCRC = null; // Für CRC-Validierung
@@ -511,7 +511,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
     }
 
     @SuppressWarnings("unchecked")
-    private void addField(Lyrics3Metadata metadata, String key, String value) {
+    private void addField(GenericMetadata metadata, String key, String value) {
         FieldHandler<?> handler = handlers.get(key);
         if (handler != null) {
             metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));

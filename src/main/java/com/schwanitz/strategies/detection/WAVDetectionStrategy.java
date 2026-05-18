@@ -1,5 +1,6 @@
 package com.schwanitz.strategies.detection;
 
+import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
@@ -177,7 +178,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             }
 
             String chunkType = new String(headerData, 0, 4, StandardCharsets.US_ASCII);
-            int chunkSize = readLittleEndianInt32(headerData, 4);
+            int chunkSize = BinaryDataReader.readLittleEndianInt32(headerData, 4);
 
             return new ChunkHeader(chunkType, chunkSize);
 
@@ -281,7 +282,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
                 return null;
             }
 
-            int version = readLittleEndianInt16(versionBuffer, 0);
+            int version = BinaryDataReader.readLittleEndianInt16(versionBuffer, 0);
             TagFormat format = mapBWFVersion(version);
 
             if (format != null) {
@@ -346,18 +347,6 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             case "fmt ", "data", "LIST", "bext", "fact", "cue ", "plst", "ltxt", "note", "labl" -> true;
             default -> false;
         };
-    }
-
-    private int readLittleEndianInt32(byte[] data, int offset) {
-        return ((data[offset] & 0xFF)) |
-                ((data[offset + 1] & 0xFF) << 8) |
-                ((data[offset + 2] & 0xFF) << 16) |
-                ((data[offset + 3] & 0xFF) << 24);
-    }
-
-    private int readLittleEndianInt16(byte[] data, int offset) {
-        return ((data[offset] & 0xFF)) |
-                ((data[offset + 1] & 0xFF) << 8);
     }
 
     private static class ChunkHeader {

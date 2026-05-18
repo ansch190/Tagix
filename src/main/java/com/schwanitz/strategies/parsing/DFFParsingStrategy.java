@@ -2,8 +2,10 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
+import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
+import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 import org.slf4j.Logger;
@@ -90,18 +92,18 @@ public class DFFParsingStrategy implements TagParsingStrategy {
      * @param file   die Datei, aus der gelesen wird
      * @param offset der Start-Offset des Chunks
      * @param size   die Größe des Chunks in Bytes
-     * @return die extrahierten {@link DFFMetadata}
+     * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültigem Chunk-Format
      */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
-        DFFMetadata metadata = new DFFMetadata();
+        GenericMetadata metadata = new GenericMetadata(TagFormat.DFF_METADATA);
 
         file.seek(offset);
 
         byte[] chunkId = new byte[4];
         file.read(chunkId);
-        long chunkSize = readBigEndianLong(file);
+        long chunkSize = BinaryDataReader.readBigEndianInt64(file);
 
         if (Arrays.equals(chunkId, DFF_DIIN_CHUNK)) {
             parseDIINChunk(file, metadata, offset, chunkSize);
@@ -114,7 +116,7 @@ public class DFFParsingStrategy implements TagParsingStrategy {
         return metadata;
     }
 
-    private void parseDIINChunk(RandomAccessFile file, DFFMetadata metadata, long offset, long chunkSize) throws IOException {
+    private void parseDIINChunk(RandomAccessFile file, GenericMetadata metadata, long offset, long chunkSize) throws IOException {
         long endPos = offset + DFF_CHUNK_HEADER_SIZE + chunkSize;
         long currentPos = offset + DFF_CHUNK_HEADER_SIZE;
 
@@ -124,7 +126,7 @@ public class DFFParsingStrategy implements TagParsingStrategy {
             byte[] subChunkId = new byte[4];
             file.read(subChunkId);
 
-            long subChunkSize = readBigEndianLong(file);
+            long subChunkSize = BinaryDataReader.readBigEndianInt64(file);
 
             if (subChunkSize < 0 || currentPos + DFF_CHUNK_HEADER_SIZE + subChunkSize > endPos) {
                 break;
@@ -145,7 +147,7 @@ public class DFFParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    private void parseDITIChunk(RandomAccessFile file, DFFMetadata metadata, long chunkSize) throws IOException {
+    private void parseDITIChunk(RandomAccessFile file, GenericMetadata metadata, long chunkSize) throws IOException {
         if (chunkSize <= 0) return;
 
         byte[] data = new byte[(int)Math.min(chunkSize, 65536)];
@@ -160,7 +162,7 @@ public class DFFParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    private void parseTextSubChunk(RandomAccessFile file, DFFMetadata metadata, byte[] chunkId, long chunkSize) throws IOException {
+    private void parseTextSubChunk(RandomAccessFile file, GenericMetadata metadata, byte[] chunkId, long chunkSize) throws IOException {
         if (chunkSize <= 0) return;
 
         String chunkName = new String(chunkId, StandardCharsets.US_ASCII);
@@ -178,21 +180,8 @@ public class DFFParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    private long readBigEndianLong(RandomAccessFile file) throws IOException {
-        byte[] bytes = new byte[8];
-        file.read(bytes);
-        return ((long)(bytes[0] & 0xFF) << 56) |
-                ((long)(bytes[1] & 0xFF) << 48) |
-                ((long)(bytes[2] & 0xFF) << 40) |
-                ((long)(bytes[3] & 0xFF) << 32) |
-                ((long)(bytes[4] & 0xFF) << 24) |
-                ((long)(bytes[5] & 0xFF) << 16) |
-                ((long)(bytes[6] & 0xFF) << 8) |
-                ((long)(bytes[7] & 0xFF));
-    }
-
     @SuppressWarnings("unchecked")
-    private void addField(DFFMetadata metadata, String key, String value) {
+    private void addField(GenericMetadata metadata, String key, String value) {
         if (value == null || value.isEmpty()) return;
         FieldHandler<?> handler = handlers.get(key);
         if (handler != null) {
@@ -202,27 +191,4 @@ public class DFFParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    /**
-     * Innere Klasse für DFF-spezifische Metadaten.
-     *
-     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und gibt als Format {@code "DFF_METADATA"} zurück.</p>
-     */
-    public static class DFFMetadata implements Metadata {
-        private final List<MetadataField<?>> fields = new ArrayList<>();
-
-        @Override
-        public String getTagFormat() {
-            return TagFormat.DFF_METADATA.getFormatName();
-        }
-
-        @Override
-        public List<MetadataField<?>> getFields() {
-            return fields;
-        }
-
-        @Override
-        public void addField(MetadataField<?> field) {
-            fields.add(field);
-        }
-    }
 }

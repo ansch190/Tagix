@@ -1,5 +1,6 @@
 package com.schwanitz.strategies.detection;
 
+import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
@@ -154,12 +155,12 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
             return null;
         }
 
-        int audioFormat = readLittleEndianShort(headerBytes, 4);
-        int channels = readLittleEndianShort(headerBytes, 6);
-        int bitsPerSample = readLittleEndianShort(headerBytes, 8);
-        long sampleRate = readLittleEndianInt(headerBytes, 10) & 0xFFFFFFFFL;
-        long dataLength = readLittleEndianInt(headerBytes, 14) & 0xFFFFFFFFL;
-        long crc32 = readLittleEndianInt(headerBytes, 18) & 0xFFFFFFFFL;
+        int audioFormat = BinaryDataReader.readLittleEndianInt16(headerBytes, 4);
+        int channels = BinaryDataReader.readLittleEndianInt16(headerBytes, 6);
+        int bitsPerSample = BinaryDataReader.readLittleEndianInt16(headerBytes, 8);
+        long sampleRate = BinaryDataReader.readLittleEndianInt32(headerBytes, 10) & 0xFFFFFFFFL;
+        long dataLength = BinaryDataReader.readLittleEndianInt32(headerBytes, 14) & 0xFFFFFFFFL;
+        long crc32 = BinaryDataReader.readLittleEndianInt32(headerBytes, 18) & 0xFFFFFFFFL;
 
         if (channels < 1 || channels > MAX_CHANNELS) {
             LOG.warn("Invalid TTA channel count: {}", channels);
@@ -167,17 +168,6 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
         }
 
         return new TTAHeader(version, audioFormat, channels, bitsPerSample, sampleRate, dataLength, crc32);
-    }
-
-    private int readLittleEndianShort(byte[] data, int offset) {
-        return ((data[offset] & 0xFF)) | ((data[offset + 1] & 0xFF) << 8);
-    }
-
-    private int readLittleEndianInt(byte[] data, int offset) {
-        return ((data[offset] & 0xFF)) |
-                ((data[offset + 1] & 0xFF) << 8) |
-                ((data[offset + 2] & 0xFF) << 16) |
-                ((data[offset + 3] & 0xFF) << 24);
     }
 
     private static class TTAHeader {

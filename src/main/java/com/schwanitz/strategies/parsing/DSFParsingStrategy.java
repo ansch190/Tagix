@@ -2,8 +2,10 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
+import com.schwanitz.metadata.DSFMetadata;
 import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
+import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 import org.slf4j.Logger;
@@ -90,7 +92,7 @@ public class DSFParsingStrategy implements TagParsingStrategy {
             return metadata;
         }
 
-        long id3ChunkSize = readLittleEndianLong(file);
+        long id3ChunkSize = BinaryDataReader.readLittleEndianInt64(file);
         long id3DataOffset = offset + DSF_ID3_CHUNK_HEADER_SIZE;
         long id3DataSize = id3ChunkSize - DSF_ID3_CHUNK_HEADER_SIZE;
 
@@ -122,19 +124,6 @@ public class DSFParsingStrategy implements TagParsingStrategy {
         return metadata;
     }
 
-    private long readLittleEndianLong(RandomAccessFile file) throws IOException {
-        byte[] bytes = new byte[8];
-        file.read(bytes);
-        return ((long)(bytes[0] & 0xFF)) |
-                ((long)(bytes[1] & 0xFF) << 8) |
-                ((long)(bytes[2] & 0xFF) << 16) |
-                ((long)(bytes[3] & 0xFF) << 24) |
-                ((long)(bytes[4] & 0xFF) << 32) |
-                ((long)(bytes[5] & 0xFF) << 40) |
-                ((long)(bytes[6] & 0xFF) << 48) |
-                ((long)(bytes[7] & 0xFF) << 56);
-    }
-
     @SuppressWarnings("unchecked")
     private void addField(DSFMetadata metadata, String key, String value) {
         if (value == null || value.isEmpty()) return;
@@ -146,56 +135,4 @@ public class DSFParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    /**
-     * Innere Klasse für DSF-spezifische Metadaten.
-     *
-     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte sowie Offset und Größe
-     * des eingebetteten ID3-Datenblocks zur späteren Verarbeitung durch die {@link ID3ParsingStrategy}.</p>
-     */
-    public static class DSFMetadata implements Metadata {
-        private final List<MetadataField<?>> fields = new ArrayList<>();
-        private long id3DataOffset = -1;
-        private long id3DataSize = 0;
-
-        @Override
-        public String getTagFormat() {
-            return TagFormat.DSF_METADATA.getFormatName();
-        }
-
-        @Override
-        public List<MetadataField<?>> getFields() {
-            return fields;
-        }
-
-        @Override
-        public void addField(MetadataField<?> field) {
-            fields.add(field);
-        }
-
-        /**
-         * Liefert den Offset des eingebetteten ID3-Datenblocks in der Datei.
-         *
-         * @return der Offset oder -1, wenn kein ID3-Block gefunden wurde
-         */
-        public long getId3DataOffset() {
-            return id3DataOffset;
-        }
-
-        /**
-         * Liefert die Größe des eingebetteten ID3-Datenblocks in Bytes.
-         *
-         * @return die Größe in Bytes
-         */
-        public long getId3DataSize() {
-            return id3DataSize;
-        }
-
-        void setId3DataOffset(long offset) {
-            this.id3DataOffset = offset;
-        }
-
-        void setId3DataSize(long size) {
-            this.id3DataSize = size;
-        }
-    }
 }

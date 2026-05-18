@@ -1,5 +1,6 @@
 package com.schwanitz.strategies.detection;
 
+import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
@@ -145,11 +146,11 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
 
         byte[] sizeBytes = new byte[8];
         source.read(16, sizeBytes, 0, 8);
-        long headerSize = readLittleEndianLong(sizeBytes, 0);
+        long headerSize = BinaryDataReader.readLittleEndianInt64(sizeBytes, 0);
 
         byte[] countBytes = new byte[4];
         source.read(24, countBytes, 0, 4);
-        int numHeaderObjects = readLittleEndianInt(countBytes, 0);
+        int numHeaderObjects = BinaryDataReader.readLittleEndianInt32(countBytes, 0);
 
         byte[] reservedBytes = new byte[2];
         source.read(28, reservedBytes, 0, 2);
@@ -173,7 +174,7 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
 
         byte[] sizeBytes = new byte[8];
         source.read(offset + GUID_SIZE, sizeBytes, 0, 8);
-        long objectSize = readLittleEndianLong(sizeBytes, 0);
+        long objectSize = BinaryDataReader.readLittleEndianInt64(sizeBytes, 0);
 
         if (objectSize < ASF_OBJECT_MIN_SIZE) {
             LOG.warn("Invalid ASF object size: {} at offset: {}", objectSize, offset);
@@ -219,7 +220,7 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
 
             byte[] extDataSizeBytes = new byte[4];
             source.read(currentPos, extDataSizeBytes, 0, 4);
-            int extDataSize = readLittleEndianInt(extDataSizeBytes, 0);
+            int extDataSize = BinaryDataReader.readLittleEndianInt32(extDataSizeBytes, 0);
             currentPos += 4;
 
             if (extDataSize <= 0 || extDataSize > headerExtSize - ASF_HEADER_EXT_DATA_OFFSET) {
@@ -250,28 +251,6 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
         }
 
         return extTags;
-    }
-
-    private int readLittleEndianShort(byte[] data, int offset) {
-        return ((data[offset] & 0xFF)) | ((data[offset + 1] & 0xFF) << 8);
-    }
-
-    private int readLittleEndianInt(byte[] data, int offset) {
-        return ((data[offset] & 0xFF)) |
-                ((data[offset + 1] & 0xFF) << 8) |
-                ((data[offset + 2] & 0xFF) << 16) |
-                ((data[offset + 3] & 0xFF) << 24);
-    }
-
-    private long readLittleEndianLong(byte[] data, int offset) {
-        return ((long)(data[offset] & 0xFF)) |
-                ((long)(data[offset + 1] & 0xFF) << 8) |
-                ((long)(data[offset + 2] & 0xFF) << 16) |
-                ((long)(data[offset + 3] & 0xFF) << 24) |
-                ((long)(data[offset + 4] & 0xFF) << 32) |
-                ((long)(data[offset + 5] & 0xFF) << 40) |
-                ((long)(data[offset + 6] & 0xFF) << 48) |
-                ((long)(data[offset + 7] & 0xFF) << 56);
     }
 
     private static class ASFHeader {

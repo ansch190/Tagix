@@ -86,7 +86,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.5</version>
                 <configuration>
-                    <argLine>--enable-preview</argLine>
+                    <argLine>${argLine} --enable-preview</argLine>
                     <includes>
                         <include>**/*Test.java</include>
                         <include>**/*TestSuite.java</include>

@@ -1,5 +1,6 @@
 package com.schwanitz.strategies.detection;
 
+import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
@@ -103,7 +104,7 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
         try {
             byte[] metadataPointerBytes = new byte[8];
             source.read(DSF_METADATA_POINTER_OFFSET, metadataPointerBytes, 0, 8);
-            long metadataPointer = readLittleEndianLong(metadataPointerBytes, 0);
+            long metadataPointer = BinaryDataReader.readLittleEndianInt64(metadataPointerBytes, 0);
 
             if (metadataPointer > 0 && metadataPointer < source.length()) {
                 byte[] chunkId = new byte[4];
@@ -112,7 +113,7 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
                 if (Arrays.equals(chunkId, DSF_ID3_CHUNK)) {
                     byte[] sizeBytes = new byte[8];
                     source.read(metadataPointer + 4, sizeBytes, 0, 8);
-                    long id3ChunkSize = readLittleEndianLong(sizeBytes, 0);
+                    long id3ChunkSize = BinaryDataReader.readLittleEndianInt64(sizeBytes, 0);
 
                     if (id3ChunkSize > 0 && id3ChunkSize < source.length() - metadataPointer) {
                         tags.add(new TagInfo(TagFormat.DSF_METADATA, metadataPointer, id3ChunkSize + DSF_ID3_CHUNK_HEADER_SIZE));
@@ -143,7 +144,7 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
 
             byte[] formSizeBytes = new byte[8];
             source.read(4, formSizeBytes, 0, 8);
-            long formSize = readBigEndianLong(formSizeBytes, 0);
+            long formSize = BinaryDataReader.readBigEndianInt64(formSizeBytes, 0);
 
             byte[] dsdType = new byte[4];
             source.read(12, dsdType, 0, 4);
@@ -161,7 +162,7 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
 
                 byte[] chunkSizeBytes = new byte[8];
                 source.read(currentPos + 4, chunkSizeBytes, 0, 8);
-                long chunkSize = readBigEndianLong(chunkSizeBytes, 0);
+                long chunkSize = BinaryDataReader.readBigEndianInt64(chunkSizeBytes, 0);
 
                 if (chunkSize < 0 || chunkSize > endPos - currentPos - DFF_CHUNK_HEADER_SIZE) {
                     break;
@@ -192,25 +193,4 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
         return tags;
     }
 
-    private long readLittleEndianLong(byte[] data, int offset) {
-        return ((long)(data[offset] & 0xFF)) |
-                ((long)(data[offset + 1] & 0xFF) << 8) |
-                ((long)(data[offset + 2] & 0xFF) << 16) |
-                ((long)(data[offset + 3] & 0xFF) << 24) |
-                ((long)(data[offset + 4] & 0xFF) << 32) |
-                ((long)(data[offset + 5] & 0xFF) << 40) |
-                ((long)(data[offset + 6] & 0xFF) << 48) |
-                ((long)(data[offset + 7] & 0xFF) << 56);
-    }
-
-    private long readBigEndianLong(byte[] data, int offset) {
-        return ((long)(data[offset] & 0xFF) << 56) |
-                ((long)(data[offset + 1] & 0xFF) << 48) |
-                ((long)(data[offset + 2] & 0xFF) << 40) |
-                ((long)(data[offset + 3] & 0xFF) << 32) |
-                ((long)(data[offset + 4] & 0xFF) << 24) |
-                ((long)(data[offset + 5] & 0xFF) << 16) |
-                ((long)(data[offset + 6] & 0xFF) << 8) |
-                ((long)(data[offset + 7] & 0xFF));
-    }
 }

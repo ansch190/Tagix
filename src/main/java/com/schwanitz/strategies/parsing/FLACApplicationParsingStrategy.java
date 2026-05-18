@@ -2,6 +2,7 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
+import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
@@ -87,12 +88,12 @@ public class FLACApplicationParsingStrategy implements TagParsingStrategy {
      * @param file   die Datei, aus der gelesen wird
      * @param offset der Start-Offset des Application-Blocks
      * @param size   die Größe des Blocks in Bytes
-     * @return die extrahierten {@link FLACApplicationMetadata}
+     * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder wenn der Block-Typ nicht APPLICATION entspricht
      */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
-        FLACApplicationMetadata metadata = new FLACApplicationMetadata();
+        GenericMetadata metadata = new GenericMetadata(TagFormat.FLAC_APPLICATION);
 
         file.seek(offset);
 
@@ -137,7 +138,7 @@ public class FLACApplicationParsingStrategy implements TagParsingStrategy {
     }
 
     @SuppressWarnings("unchecked")
-    private void addField(FLACApplicationMetadata metadata, String key, String value) {
+    private void addField(GenericMetadata metadata, String key, String value) {
         if (value == null || value.isEmpty()) return;
         FieldHandler<?> handler = handlers.get(key);
         if (handler != null) {
@@ -147,27 +148,4 @@ public class FLACApplicationParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    /**
-     * Innere Klasse für FLAC-Application-spezifische Metadaten.
-     *
-     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und gibt als Format {@code "FLAC_APPLICATION"} zurück.</p>
-     */
-    public static class FLACApplicationMetadata implements Metadata {
-        private final List<MetadataField<?>> fields = new ArrayList<>();
-
-        @Override
-        public String getTagFormat() {
-            return TagFormat.FLAC_APPLICATION.getFormatName();
-        }
-
-        @Override
-        public List<MetadataField<?>> getFields() {
-            return fields;
-        }
-
-        @Override
-        public void addField(MetadataField<?> field) {
-            fields.add(field);
-        }
-    }
 }

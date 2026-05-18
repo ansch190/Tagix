@@ -1,5 +1,6 @@
 package com.schwanitz.strategies.detection;
 
+import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
@@ -113,14 +114,14 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
                     break;
                 }
 
-                long blockSize = readLittleEndianInt(headerBytes, BLOCK_SIZE_OFFSET) & UNSIGNED_INT_MASK;
+                long blockSize = BinaryDataReader.readLittleEndianInt32(headerBytes, BLOCK_SIZE_OFFSET) & UNSIGNED_INT_MASK;
 
                 if (blockSize < HEADER_SIZE || blockSize > MAX_REASONABLE_BLOCK_SIZE) {
                     LOG.debug("Invalid WavPack block size {} at offset {}, stopping scan", blockSize, currentPos);
                     break;
                 }
 
-                int flags = readLittleEndianInt(headerBytes, FLAGS_OFFSET);
+                int flags = BinaryDataReader.readLittleEndianInt32(headerBytes, FLAGS_OFFSET);
 
                 if ((flags & FLAG_INITIAL_BLOCK) != 0) {
                     List<TagInfo> blockTags = searchMetadataSubBlocks(source, currentPos + HEADER_SIZE,
@@ -214,10 +215,4 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
         return tags;
     }
 
-    private int readLittleEndianInt(byte[] data, int offset) {
-        return (data[offset] & 0xFF) |
-                ((data[offset + 1] & 0xFF) << 8) |
-                ((data[offset + 2] & 0xFF) << 16) |
-                ((data[offset + 3] & 0xFF) << 24);
-    }
 }

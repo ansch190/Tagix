@@ -2,8 +2,10 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
+import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
+import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
@@ -119,17 +121,17 @@ public class BWFParsingStrategy implements TagParsingStrategy {
      * @param file   die Datei, aus der gelesen wird
      * @param offset der Start-Offset des bext-Chunks
      * @param size   die Größe des Chunks in Bytes
-     * @return die extrahierten {@link BWFMetadata}
+     * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültigem bext-Chunk
      */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
-        BWFMetadata metadata = new BWFMetadata(format);
+        GenericMetadata metadata = new GenericMetadata(format);
         parseBWFChunk(file, metadata, offset, size, format);
         return metadata;
     }
 
-    private void parseBWFChunk(RandomAccessFile file, BWFMetadata metadata, long offset, long size, TagFormat format)
+    private void parseBWFChunk(RandomAccessFile file, GenericMetadata metadata, long offset, long size, TagFormat format)
             throws IOException {
         file.seek(offset);
 
@@ -142,7 +144,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
             throw new IOException("Expected bext chunk, found: " + chunkId);
         }
 
-        int chunkSize = readLittleEndianInt32(chunkHeader, 4);
+        int chunkSize = BinaryDataReader.readLittleEndianInt32(chunkHeader, 4);
         LOG.debug("Parsing BWF bext chunk with size: " + chunkSize);
 
         // Mindestgröße prüfen (602 Bytes für Version 0)
@@ -151,31 +153,31 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         }
 
         // Description (256 bytes, null-padded)
-        String description = readFixedString(file, BWF_DESCRIPTION_SIZE);
+        String description = BinaryDataReader.readFixedString(file, BWF_DESCRIPTION_SIZE);
         if (!description.isEmpty()) {
             addField(metadata, "Description", description);
         }
 
         // Originator (32 bytes, null-padded)
-        String originator = readFixedString(file, BWF_ORIGINATOR_SIZE);
+        String originator = BinaryDataReader.readFixedString(file, BWF_ORIGINATOR_SIZE);
         if (!originator.isEmpty()) {
             addField(metadata, "Originator", originator);
         }
 
         // Originator Reference (32 bytes, null-padded)
-        String originatorRef = readFixedString(file, BWF_ORIGINATOR_REF_SIZE);
+        String originatorRef = BinaryDataReader.readFixedString(file, BWF_ORIGINATOR_REF_SIZE);
         if (!originatorRef.isEmpty()) {
             addField(metadata, "OriginatorReference", originatorRef);
         }
 
         // Origination Date (10 bytes, YYYY-MM-DD format)
-        String originationDate = readFixedString(file, BWF_DATE_SIZE);
+        String originationDate = BinaryDataReader.readFixedString(file, BWF_DATE_SIZE);
         if (!originationDate.isEmpty() && isValidDate(originationDate)) {
             addField(metadata, "OriginationDate", originationDate);
         }
 
         // Origination Time (8 bytes, HH:MM:SS format)
-        String originationTime = readFixedString(file, BWF_TIME_SIZE);
+        String originationTime = BinaryDataReader.readFixedString(file, BWF_TIME_SIZE);
         if (!originationTime.isEmpty() && isValidTime(originationTime)) {
             addField(metadata, "OriginationTime", originationTime);
         }
@@ -189,7 +191,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         }
 
         // Time Reference (8 bytes, little-endian 64-bit)
-        long timeReference = readLittleEndianInt64(file);
+        long timeReference = BinaryDataReader.readLittleEndianInt64(file);
         addField(metadata, "TimeReference", String.valueOf(timeReference));
 
         // Time Reference als Timecode (NEU)
@@ -197,7 +199,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         addField(metadata, "TimeReferenceTimecode", timecode);
 
         // Version (2 bytes, little-endian 16-bit)
-        int version = readLittleEndianInt16(file);
+        int version = BinaryDataReader.readLittleEndianInt16(file);
         addField(metadata, "Version", String.valueOf(version));
 
         // UMID (64 bytes)
@@ -232,7 +234,12 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         }
 
         if (codingHistorySize > 0) {
-            String codingHistory = readCodingHistory(file, codingHistorySize);
+            byte[] codingHistoryBytes = new byte[codingHistorySize];
+            file.read(codingHistoryBytes);
+            String codingHistory = new String(codingHistoryBytes, StandardCharsets.UTF_8).trim();
+            while (codingHistory.endsWith("\0")) {
+                codingHistory = codingHistory.substring(0, codingHistory.length() - 1);
+            }
             if (!codingHistory.isEmpty()) {
                 addField(metadata, "CodingHistory", codingHistory);
 
@@ -253,33 +260,33 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         LOG.debug("Successfully parsed BWF " + format.getFormatName() + " chunk");
     }
 
-    private void parseLoudnessInfo(RandomAccessFile file, BWFMetadata metadata) throws IOException {
+    private void parseLoudnessInfo(RandomAccessFile file, GenericMetadata metadata) throws IOException {
         // Loudness Value (2 bytes, signed little-endian, in LUFS * 100)
-        int loudnessValue = readLittleEndianInt16(file);
+        int loudnessValue = BinaryDataReader.readLittleEndianInt16(file);
         if (loudnessValue != -32768) { // -32768 = undefined
             addField(metadata, "LoudnessValue", String.format("%.2f LUFS", loudnessValue / 100.0));
         }
 
         // Loudness Range (2 bytes, unsigned little-endian, in LU * 100)
-        int loudnessRange = readLittleEndianUInt16(file);
+        int loudnessRange = BinaryDataReader.readLittleEndianUInt16(file);
         if (loudnessRange != 0) {
             addField(metadata, "LoudnessRange", String.format("%.2f LU", loudnessRange / 100.0));
         }
 
         // Max True Peak Level (2 bytes, signed little-endian, in dBTP * 100)
-        int maxTruePeak = readLittleEndianInt16(file);
+        int maxTruePeak = BinaryDataReader.readLittleEndianInt16(file);
         if (maxTruePeak != -32768) { // -32768 = undefined
             addField(metadata, "MaxTruePeakLevel", String.format("%.2f dBTP", maxTruePeak / 100.0));
         }
 
         // Max Momentary Loudness (2 bytes, signed little-endian, in LUFS * 100)
-        int maxMomentary = readLittleEndianInt16(file);
+        int maxMomentary = BinaryDataReader.readLittleEndianInt16(file);
         if (maxMomentary != -32768) {
             addField(metadata, "MaxMomentaryLoudness", String.format("%.2f LUFS", maxMomentary / 100.0));
         }
 
         // Max Short-term Loudness (2 bytes, signed little-endian, in LUFS * 100)
-        int maxShortTerm = readLittleEndianInt16(file);
+        int maxShortTerm = BinaryDataReader.readLittleEndianInt16(file);
         if (maxShortTerm != -32768) {
             addField(metadata, "MaxShortTermLoudness", String.format("%.2f LUFS", maxShortTerm / 100.0));
         }
@@ -288,7 +295,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         file.skipBytes(170);
     }
 
-    private void parseBWFExtensions(RandomAccessFile file, BWFMetadata metadata, long offset, long size) {
+    private void parseBWFExtensions(RandomAccessFile file, GenericMetadata metadata, long offset, long size) {
         long currentPos = offset;
         long endPos = offset + size;
 
@@ -306,7 +313,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
                 }
 
                 String chunkId = new String(chunkHeader, 0, 4, StandardCharsets.US_ASCII);
-                int chunkSize = readLittleEndianInt32(chunkHeader, 4);
+                int chunkSize = BinaryDataReader.readLittleEndianInt32(chunkHeader, 4);
 
                 if (chunkSize < 0 || chunkSize > endPos - currentPos - 8) {
                     LOG.debug("Invalid chunk size for " + chunkId + ": " + chunkSize);
@@ -356,13 +363,13 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    private void parseCueListChunk(RandomAccessFile file, BWFMetadata metadata, int chunkSize) throws IOException {
+    private void parseCueListChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize) throws IOException {
         if (chunkSize < 4) {
             return;
         }
 
         // Number of cue points (4 bytes)
-        int numCues = readLittleEndianInt32(file);
+        int numCues = BinaryDataReader.readLittleEndianInt32(file);
 
         StringBuilder cueInfo = new StringBuilder();
         cueInfo.append("Cue Points: ").append(numCues);
@@ -370,13 +377,13 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         int bytesRead = 4;
         for (int i = 0; i < numCues && bytesRead + 24 <= chunkSize; i++) {
             // Cue Point: ID(4) + Position(4) + FccChunk(4) + ChunkStart(4) + BlockStart(4) + SampleOffset(4)
-            int cueId = readLittleEndianInt32(file);
-            int position = readLittleEndianInt32(file);
+            int cueId = BinaryDataReader.readLittleEndianInt32(file);
+            int position = BinaryDataReader.readLittleEndianInt32(file);
 
             // Skip FccChunk, ChunkStart, BlockStart
             file.skipBytes(12);
 
-            int sampleOffset = readLittleEndianInt32(file);
+            int sampleOffset = BinaryDataReader.readLittleEndianInt32(file);
             bytesRead += 24;
 
             cueInfo.append("; Cue").append(i + 1).append(":ID=").append(cueId)
@@ -387,17 +394,17 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         LOG.debug("Parsed BWF Cue List with " + numCues + " cue points");
     }
 
-    private void parsePeakEnvelopeChunk(RandomAccessFile file, BWFMetadata metadata, int chunkSize) throws IOException {
+    private void parsePeakEnvelopeChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize) throws IOException {
         if (chunkSize < 20) {
             return;
         }
 
         // Peak Envelope Header
-        int version = readLittleEndianInt32(file);
-        int format = readLittleEndianInt32(file);
-        int pointsPerValue = readLittleEndianInt32(file);
-        int blockSize = readLittleEndianInt32(file);
-        int channels = readLittleEndianInt32(file);
+        int version = BinaryDataReader.readLittleEndianInt32(file);
+        int format = BinaryDataReader.readLittleEndianInt32(file);
+        int pointsPerValue = BinaryDataReader.readLittleEndianInt32(file);
+        int blockSize = BinaryDataReader.readLittleEndianInt32(file);
+        int channels = BinaryDataReader.readLittleEndianInt32(file);
 
         int numFrames = (chunkSize - 20) / (channels * 4); // Assuming 32-bit values
 
@@ -413,7 +420,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         LOG.debug("Parsed BWF Peak Envelope: " + channels + " channels, " + numFrames + " frames");
     }
 
-    private void parseIXMLChunk(RandomAccessFile file, BWFMetadata metadata, int chunkSize) throws IOException {
+    private void parseIXMLChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize) throws IOException {
         if (chunkSize <= 0) {
             return;
         }
@@ -435,7 +442,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    private void parseAdobeXMLChunk(RandomAccessFile file, BWFMetadata metadata, int chunkSize) throws IOException {
+    private void parseAdobeXMLChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize) throws IOException {
         if (chunkSize <= 0) {
             return;
         }
@@ -455,7 +462,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    private void parseLinkChunk(RandomAccessFile file, BWFMetadata metadata, int chunkSize) throws IOException {
+    private void parseLinkChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize) throws IOException {
         if (chunkSize <= 0) {
             return;
         }
@@ -679,26 +686,6 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         return "Linked files: " + String.join("; ", files);
     }
 
-    private String readFixedString(RandomAccessFile file, int size) throws IOException {
-        byte[] data = new byte[size];
-        file.read(data);
-
-        // Finde das erste Null-Byte oder verwende die ganze Länge
-        int length = size;
-        for (int i = 0; i < size; i++) {
-            if (data[i] == 0) {
-                length = i;
-                break;
-            }
-        }
-
-        if (length == 0) {
-            return "";
-        }
-
-        return new String(data, 0, length, StandardCharsets.UTF_8).trim();
-    }
-
     private String parseUMID(byte[] umidData) {
         // Prüfe ob UMID gesetzt ist (nicht alle Nullen)
         boolean hasContent = false;
@@ -722,25 +709,6 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         return sb.toString();
     }
 
-    private String readCodingHistory(RandomAccessFile file, int size) throws IOException {
-        if (size <= 0) {
-            return "";
-        }
-
-        byte[] data = new byte[size];
-        file.read(data);
-
-        // Coding History ist UTF-8 Text
-        String history = new String(data, StandardCharsets.UTF_8).trim();
-
-        // Entferne trailing nulls
-        while (history.endsWith("\0")) {
-            history = history.substring(0, history.length() - 1);
-        }
-
-        return history;
-    }
-
     private boolean isValidDate(String date) {
         // YYYY-MM-DD Format prüfen
         return date.matches("\\d{4}-\\d{2}-\\d{2}");
@@ -751,45 +719,8 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         return time.matches("\\d{2}:\\d{2}:\\d{2}");
     }
 
-    private int readLittleEndianInt16(RandomAccessFile file) throws IOException {
-        byte[] bytes = new byte[2];
-        file.read(bytes);
-        return ((bytes[0] & 0xFF)) | ((bytes[1] & 0xFF) << 8);
-    }
-
-    private int readLittleEndianUInt16(RandomAccessFile file) throws IOException {
-        return readLittleEndianInt16(file) & 0xFFFF;
-    }
-
-    private int readLittleEndianInt32(byte[] data, int offset) {
-        return ((data[offset] & 0xFF)) |
-                ((data[offset + 1] & 0xFF) << 8) |
-                ((data[offset + 2] & 0xFF) << 16) |
-                ((data[offset + 3] & 0xFF) << 24);
-    }
-
-    private int readLittleEndianInt32(RandomAccessFile file) throws IOException {
-        byte[] bytes = new byte[4];
-        file.read(bytes);
-        return readLittleEndianInt32(bytes, 0);
-    }
-
-    private long readLittleEndianInt64(RandomAccessFile file) throws IOException {
-        byte[] bytes = new byte[8];
-        file.read(bytes);
-
-        return ((long)(bytes[0] & 0xFF)) |
-                ((long)(bytes[1] & 0xFF) << 8) |
-                ((long)(bytes[2] & 0xFF) << 16) |
-                ((long)(bytes[3] & 0xFF) << 24) |
-                ((long)(bytes[4] & 0xFF) << 32) |
-                ((long)(bytes[5] & 0xFF) << 40) |
-                ((long)(bytes[6] & 0xFF) << 48) |
-                ((long)(bytes[7] & 0xFF) << 56);
-    }
-
     @SuppressWarnings("unchecked")
-    private void addField(BWFMetadata metadata, String key, String value) {
+    private void addField(GenericMetadata metadata, String key, String value) {
         FieldHandler<?> handler = handlers.get(key);
         if (handler != null) {
             metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
@@ -810,32 +741,4 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         handlers.put(key, handler);
     }
 
-    /**
-     * Innere Klasse für BWF-spezifische Metadaten.
-     *
-     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und das zugehörige {@link TagFormat}.</p>
-     */
-    public static class BWFMetadata implements Metadata {
-        private final List<MetadataField<?>> fields = new ArrayList<>();
-        private final TagFormat format;
-
-        public BWFMetadata(TagFormat format) {
-            this.format = format;
-        }
-
-        @Override
-        public String getTagFormat() {
-            return format.getFormatName();
-        }
-
-        @Override
-        public List<MetadataField<?>> getFields() {
-            return fields;
-        }
-
-        @Override
-        public void addField(MetadataField<?> field) {
-            fields.add(field);
-        }
-    }
 }

@@ -2,7 +2,7 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
-import com.schwanitz.metadata.ID3Metadata;
+import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
@@ -80,7 +80,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
      * @param file   die Datei, aus der gelesen wird
      * @param offset der Start-Offset des Tags
      * @param size   die Größe des Tags in Bytes
-     * @return die extrahierten {@link ID3Metadata}
+     * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültigem Tag-Format
      */
     @Override
@@ -104,7 +104,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
         long offset = tagInfo.getOffset();
         long size = tagInfo.getSize();
 
-        ID3Metadata metadata = new ID3Metadata(format);
+        GenericMetadata metadata = new GenericMetadata(format);
 
         switch (format) {
             case ID3V1:
@@ -123,7 +123,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
         return metadata;
     }
 
-    private void parseID3v1(RandomAccessFile file, ID3Metadata metadata, long offset, TagFormat format)
+    private void parseID3v1(RandomAccessFile file, GenericMetadata metadata, long offset, TagFormat format)
             throws IOException {
         file.seek(offset);
         byte[] tagData = new byte[128];
@@ -169,7 +169,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
         LOG.debug("Successfully parsed ID3v1{} tag", format == TagFormat.ID3V1_1 ? ".1" : "");
     }
 
-    private void parseID3v2(RandomAccessFile file, ID3Metadata metadata, long offset, long size, TagFormat format)
+    private void parseID3v2(RandomAccessFile file, GenericMetadata metadata, long offset, long size, TagFormat format)
             throws IOException {
         file.seek(offset);
 
@@ -252,7 +252,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
         LOG.debug("Successfully parsed ID3v2.{} tag", majorVersion);
     }
 
-    private void parseFrame(ID3Metadata metadata, String frameId, byte[] frameData, int majorVersion) {
+    private void parseFrame(GenericMetadata metadata, String frameId, byte[] frameData, int majorVersion) {
         try {
             if (frameData.length == 0) {
                 return;
@@ -282,7 +282,7 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
     }
 
     @SuppressWarnings("unchecked")
-    private void addField(ID3Metadata metadata, String key, String value) {
+    private void addField(GenericMetadata metadata, String key, String value) {
         FieldHandler<?> handler = handlers.get(key);
         if (handler != null) {
             metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));

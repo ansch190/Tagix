@@ -2,8 +2,10 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
+import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
+import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
@@ -118,17 +120,17 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
      * @param file   die Datei, aus der gelesen wird
      * @param offset der Start-Offset des LIST-Chunks
      * @param size   die Größe des Chunks in Bytes
-     * @return die extrahierten {@link RIFFInfoMetadata}
+     * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder wenn der Chunk keine gültige INFO-Struktur enthält
      */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
-        RIFFInfoMetadata metadata = new RIFFInfoMetadata();
+        GenericMetadata metadata = new GenericMetadata(TagFormat.RIFF_INFO);
         parseRIFFInfoChunk(file, metadata, offset, size);
         return metadata;
     }
 
-    private void parseRIFFInfoChunk(RandomAccessFile file, RIFFInfoMetadata metadata, long offset, long size)
+    private void parseRIFFInfoChunk(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
             throws IOException {
         file.seek(offset);
 
@@ -141,7 +143,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             throw new IOException("Expected LIST chunk, found: " + chunkId);
         }
 
-        int chunkSize = readLittleEndianInt32(listHeader, 4);
+        int chunkSize = BinaryDataReader.readLittleEndianInt32(listHeader, 4);
         if (chunkSize < 4) {
             throw new IOException("Invalid LIST chunk size: " + chunkSize);
         }
@@ -172,7 +174,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             }
 
             String subChunkId = new String(subChunkHeader, 0, 4, StandardCharsets.US_ASCII);
-            int subChunkSize = readLittleEndianInt32(subChunkHeader, 4);
+            int subChunkSize = BinaryDataReader.readLittleEndianInt32(subChunkHeader, 4);
 
             if (subChunkSize < 0 || subChunkSize > endPos - currentPos - 8) {
                 LOG.warn("Invalid sub-chunk size for " + subChunkId + ": " + subChunkSize);
@@ -251,15 +253,8 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
         return true;
     }
 
-    private int readLittleEndianInt32(byte[] data, int offset) {
-        return ((data[offset] & 0xFF)) |
-                ((data[offset + 1] & 0xFF) << 8) |
-                ((data[offset + 2] & 0xFF) << 16) |
-                ((data[offset + 3] & 0xFF) << 24);
-    }
-
     @SuppressWarnings("unchecked")
-    private void addField(RIFFInfoMetadata metadata, String key, String value) {
+    private void addField(GenericMetadata metadata, String key, String value) {
         FieldHandler<?> handler = handlers.get(key);
         if (handler != null) {
             metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
@@ -281,27 +276,4 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
         handlers.put(key, handler);
     }
 
-    /**
-     * Innere Klasse für RIFF-INFO-spezifische Metadaten.
-     *
-     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und gibt als Format {@code "RIFF_INFO"} zurück.</p>
-     */
-    public static class RIFFInfoMetadata implements Metadata {
-        private final List<MetadataField<?>> fields = new ArrayList<>();
-
-        @Override
-        public String getTagFormat() {
-            return TagFormat.RIFF_INFO.getFormatName();
-        }
-
-        @Override
-        public List<MetadataField<?>> getFields() {
-            return fields;
-        }
-
-        @Override
-        public void addField(MetadataField<?> field) {
-            fields.add(field);
-        }
-    }
 }

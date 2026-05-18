@@ -2,6 +2,7 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
+import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
@@ -118,12 +119,12 @@ public class MatroskaParsingStrategy implements TagParsingStrategy {
      * @param file   die Datei, aus der gelesen wird
      * @param offset der Start-Offset des Tags-Elements
      * @param size   die Größe des Elements in Bytes
-     * @return die extrahierten {@link MatroskaMetadata}
+     * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültiger EBML-Struktur
      */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
-        MatroskaMetadata metadata = new MatroskaMetadata(format);
+        GenericMetadata metadata = new GenericMetadata(format);
 
         file.seek(offset);
 
@@ -164,7 +165,7 @@ public class MatroskaParsingStrategy implements TagParsingStrategy {
         return metadata;
     }
 
-    private void parseTagElement(RandomAccessFile file, MatroskaMetadata metadata, long start, long size) throws IOException {
+    private void parseTagElement(RandomAccessFile file, GenericMetadata metadata, long start, long size) throws IOException {
         long endPos = start + size;
         long currentPos = start;
 
@@ -186,7 +187,7 @@ public class MatroskaParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    private void parseSimpleTag(RandomAccessFile file, MatroskaMetadata metadata, long start, long size) throws IOException {
+    private void parseSimpleTag(RandomAccessFile file, GenericMetadata metadata, long start, long size) throws IOException {
         long endPos = start + size;
         long currentPos = start;
         String tagName = null;
@@ -258,7 +259,7 @@ public class MatroskaParsingStrategy implements TagParsingStrategy {
     }
 
     @SuppressWarnings("unchecked")
-    private void addField(MatroskaMetadata metadata, String key, String value) {
+    private void addField(GenericMetadata metadata, String key, String value) {
         if (value == null || value.isEmpty()) return;
         FieldHandler<?> handler = handlers.get(key);
         if (handler != null) {
@@ -268,37 +269,4 @@ public class MatroskaParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    /**
-     * Innere Klasse für Matroska/WebM-spezifische Metadaten.
-     *
-     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und das zugehörige {@link TagFormat}.</p>
-     */
-    public static class MatroskaMetadata implements Metadata {
-        private final List<MetadataField<?>> fields = new ArrayList<>();
-        private final TagFormat format;
-
-        /**
-         * Erzeugt Matroska-Metadaten für das angegebene Format.
-         *
-         * @param format das Tag-Format (MATROSKA_TAGS oder WEBM_TAGS)
-         */
-        public MatroskaMetadata(TagFormat format) {
-            this.format = format;
-        }
-
-        @Override
-        public String getTagFormat() {
-            return format.getFormatName();
-        }
-
-        @Override
-        public List<MetadataField<?>> getFields() {
-            return fields;
-        }
-
-        @Override
-        public void addField(MetadataField<?> field) {
-            fields.add(field);
-        }
-    }
 }

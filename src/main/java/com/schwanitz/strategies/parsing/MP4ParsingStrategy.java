@@ -2,8 +2,10 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
+import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
+import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
@@ -214,17 +216,17 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
      * @param file   die Datei, aus der gelesen wird
      * @param offset der Start-Offset des moov-Atoms
      * @param size   die Größe des zu lesenden Bereichs in Bytes
-     * @return die extrahierten {@link MP4Metadata}
+     * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder wenn kein moov-Atom gefunden wird
      */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
-        MP4Metadata metadata = new MP4Metadata();
+        GenericMetadata metadata = new GenericMetadata(TagFormat.MP4);
         parseMP4Atoms(file, metadata, offset, size);
         return metadata;
     }
 
-    private void parseMP4Atoms(RandomAccessFile file, MP4Metadata metadata, long offset, long size)
+    private void parseMP4Atoms(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
             throws IOException {
         // Navigiere zum moov Atom
         long moovOffset = findAtom(file, offset, size, MOOV_ATOM);
@@ -233,7 +235,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         }
 
         file.seek(moovOffset);
-        long moovSize = readBigEndianUInt32(file);
+        long moovSize = BinaryDataReader.readBigEndianUInt32(file);
 
         // Navigiere zu udta -> meta -> ilst
         long udtaOffset = findAtom(file, moovOffset + 8, moovSize - 8, UDTA_ATOM);
@@ -243,7 +245,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         }
 
         file.seek(udtaOffset);
-        long udtaSize = readBigEndianUInt32(file);
+        long udtaSize = BinaryDataReader.readBigEndianUInt32(file);
 
         long metaOffset = findAtom(file, udtaOffset + 8, udtaSize - 8, META_ATOM);
         if (metaOffset == -1) {
@@ -252,7 +254,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         }
 
         file.seek(metaOffset);
-        long metaSize = readBigEndianUInt32(file);
+        long metaSize = BinaryDataReader.readBigEndianUInt32(file);
         file.skipBytes(4); // Skip meta version/flags
 
         long ilstOffset = findAtom(file, metaOffset + 12, metaSize - 12, ILST_ATOM);
@@ -262,7 +264,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         }
 
         file.seek(ilstOffset);
-        long ilstSize = readBigEndianUInt32(file);
+        long ilstSize = BinaryDataReader.readBigEndianUInt32(file);
 
         // Parse metadata items in ilst
         parseMetadataItems(file, metadata, ilstOffset + 8, ilstSize - 8);
@@ -270,7 +272,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         LOG.debug("Successfully parsed MP4 metadata");
     }
 
-    private void parseMetadataItems(RandomAccessFile file, MP4Metadata metadata, long offset, long size)
+    private void parseMetadataItems(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
             throws IOException {
         long currentPos = offset;
         long endPos = offset + size;
@@ -278,7 +280,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         while (currentPos < endPos - 8) {
             file.seek(currentPos);
 
-            long itemSize = readBigEndianUInt32(file);
+            long itemSize = BinaryDataReader.readBigEndianUInt32(file);
             if (itemSize < 8 || itemSize > endPos - currentPos) {
                 break;
             }
@@ -294,7 +296,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    private void parseMetadataItem(RandomAccessFile file, MP4Metadata metadata, String atomType,
+    private void parseMetadataItem(RandomAccessFile file, GenericMetadata metadata, String atomType,
                                    long offset, long size) throws IOException {
         // Suche nach 'data' Atom innerhalb des Metadata Items
         long dataOffset = findAtom(file, offset, size, DATA_ATOM);
@@ -304,7 +306,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         }
 
         file.seek(dataOffset);
-        long dataSize = readBigEndianUInt32(file);
+        long dataSize = BinaryDataReader.readBigEndianUInt32(file);
         file.skipBytes(4); // Skip 'data'
 
         if (dataSize < 16) { // 8 bytes header + 8 bytes minimal data header
@@ -313,8 +315,8 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         }
 
         // Data type and locale
-        int dataType = (int) readBigEndianUInt32(file);
-        int locale = (int) readBigEndianUInt32(file);
+        int dataType = (int) BinaryDataReader.readBigEndianUInt32(file);
+        int locale = (int) BinaryDataReader.readBigEndianUInt32(file);
 
         long valueSize = dataSize - 16; // Subtract atom header (8) + data header (8)
         if (valueSize <= 0 || valueSize > 65536) { // Sanity check
@@ -509,7 +511,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         while (currentPos < endPos - 8) {
             file.seek(currentPos);
 
-            long atomSize = readBigEndianUInt32(file);
+            long atomSize = BinaryDataReader.readBigEndianUInt32(file);
             if (atomSize < 8 || atomSize > endPos - currentPos) {
                 break;
             }
@@ -528,15 +530,8 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         return -1; // Not found
     }
 
-    private long readBigEndianUInt32(RandomAccessFile file) throws IOException {
-        byte[] bytes = new byte[4];
-        file.read(bytes);
-        return ((long)(bytes[0] & 0xFF) << 24) | ((bytes[1] & 0xFF) << 16) |
-                ((bytes[2] & 0xFF) << 8) | (bytes[3] & 0xFF);
-    }
-
     @SuppressWarnings("unchecked")
-    private void addField(MP4Metadata metadata, String key, String value) {
+    private void addField(GenericMetadata metadata, String key, String value) {
         FieldHandler<?> handler = handlers.get(key);
         if (handler != null) {
             metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
@@ -558,27 +553,4 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         handlers.put(key, handler);
     }
 
-    /**
-     * Innere Klasse für MP4-spezifische Metadaten.
-     *
-     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und gibt als Format {@code "MP4"} zurück.</p>
-     */
-    public static class MP4Metadata implements Metadata {
-        private final List<MetadataField<?>> fields = new ArrayList<>();
-
-        @Override
-        public String getTagFormat() {
-            return TagFormat.MP4.getFormatName();
-        }
-
-        @Override
-        public List<MetadataField<?>> getFields() {
-            return fields;
-        }
-
-        @Override
-        public void addField(MetadataField<?> field) {
-            fields.add(field);
-        }
-    }
 }

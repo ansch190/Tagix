@@ -2,8 +2,10 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
+import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
+import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
@@ -171,17 +173,17 @@ public class APEParsingStrategy implements TagParsingStrategy {
      * @param file   die Datei, aus der gelesen wird
      * @param offset der Start-Offset des Tags
      * @param size   die Größe des Tags in Bytes
-     * @return die extrahierten {@link APEMetadata}
+     * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültigem Tag-Format
      */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
-        APEMetadata metadata = new APEMetadata(format);
+        GenericMetadata metadata = new GenericMetadata(format);
         parseAPETag(file, metadata, offset, size, format);
         return metadata;
     }
 
-    private void parseAPETag(RandomAccessFile file, APEMetadata metadata, long offset, long size, TagFormat format)
+    private void parseAPETag(RandomAccessFile file, GenericMetadata metadata, long offset, long size, TagFormat format)
             throws IOException {
         file.seek(offset);
 
@@ -200,19 +202,19 @@ public class APEParsingStrategy implements TagParsingStrategy {
         }
 
         // Version prüfen (bytes 8-11, little-endian)
-        int version = readLittleEndianInt32(header, 8);
+        int version = BinaryDataReader.readLittleEndianInt32(header, 8);
         if (version != 1000 && version != 2000) {
             throw new IOException("Unsupported APE version: " + version);
         }
 
         // Tag Size (bytes 12-15) - Größe ohne Header, inklusive Footer
-        int tagSize = readLittleEndianInt32(header, 12);
+        int tagSize = BinaryDataReader.readLittleEndianInt32(header, 12);
 
         // Item Count (bytes 16-19, little-endian)
-        int itemCount = readLittleEndianInt32(header, 16);
+        int itemCount = BinaryDataReader.readLittleEndianInt32(header, 16);
 
         // Tag Flags (bytes 20-23, little-endian)
-        int tagFlags = readLittleEndianInt32(header, 20);
+        int tagFlags = BinaryDataReader.readLittleEndianInt32(header, 20);
 
         boolean hasHeader = (tagFlags & 0x80000000) != 0;
         boolean hasFooter = (tagFlags & 0x40000000) != 0;
@@ -298,7 +300,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
         LOG.debug("Successfully parsed APE tag with " + itemCount + " items");
     }
 
-    private long parseAPEItem(RandomAccessFile file, APEMetadata metadata, long position, int version, long maxPos)
+    private long parseAPEItem(RandomAccessFile file, GenericMetadata metadata, long position, int version, long maxPos)
             throws IOException {
         file.seek(position);
 
@@ -307,10 +309,10 @@ public class APEParsingStrategy implements TagParsingStrategy {
         file.read(itemHeader);
 
         // Item Value Size (4 bytes, little-endian)
-        int valueSize = readLittleEndianInt32(itemHeader, 0);
+        int valueSize = BinaryDataReader.readLittleEndianInt32(itemHeader, 0);
 
         // Item Flags (4 bytes, little-endian)
-        int itemFlags = readLittleEndianInt32(itemHeader, 4);
+        int itemFlags = BinaryDataReader.readLittleEndianInt32(itemHeader, 4);
 
         if (valueSize < 0 || valueSize > 1048576) { // 1MB limit
             throw new IOException("Invalid APE item value size: " + valueSize);
@@ -360,7 +362,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
             throw new IOException("APE item value extends beyond tag boundary");
         }
 
-        byte[] valueData = readBytes(file, valueSize);
+        byte[] valueData = BinaryDataReader.readBytes(file, valueSize);
         currentPos += valueSize;
 
         // Item Type bestimmen
@@ -518,33 +520,8 @@ public class APEParsingStrategy implements TagParsingStrategy {
         return keyNormalizations.getOrDefault(lowerKey, key);
     }
 
-    private byte[] readBytes(RandomAccessFile file, int size) throws IOException {
-        if (size <= 0) return new byte[0];
-
-        byte[] data = new byte[size];
-        int totalRead = 0;
-
-        while (totalRead < size) {
-            int toRead = Math.min(READ_BUFFER_SIZE, size - totalRead);
-            int read = file.read(data, totalRead, toRead);
-            if (read < 0) {
-                throw new IOException("Unexpected end of file");
-            }
-            totalRead += read;
-        }
-
-        return data;
-    }
-
-    private int readLittleEndianInt32(byte[] data, int offset) {
-        return ((data[offset] & 0xFF)) |
-                ((data[offset + 1] & 0xFF) << 8) |
-                ((data[offset + 2] & 0xFF) << 16) |
-                ((data[offset + 3] & 0xFF) << 24);
-    }
-
     @SuppressWarnings("unchecked")
-    private void addField(APEMetadata metadata, String key, String value) {
+    private void addField(GenericMetadata metadata, String key, String value) {
         FieldHandler<?> handler = handlers.get(key);
         if (handler != null) {
             metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
@@ -566,32 +543,4 @@ public class APEParsingStrategy implements TagParsingStrategy {
         handlers.put(key, handler);
     }
 
-    /**
-     * Innere Klasse für APE-spezifische Metadaten.
-     *
-     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und das zugehörige {@link TagFormat}.</p>
-     */
-    public static class APEMetadata implements Metadata {
-        private final List<MetadataField<?>> fields = new ArrayList<>();
-        private final TagFormat format;
-
-        public APEMetadata(TagFormat format) {
-            this.format = format;
-        }
-
-        @Override
-        public String getTagFormat() {
-            return format.getFormatName();
-        }
-
-        @Override
-        public List<MetadataField<?>> getFields() {
-            return fields;
-        }
-
-        @Override
-        public void addField(MetadataField<?> field) {
-            fields.add(field);
-        }
-    }
 }

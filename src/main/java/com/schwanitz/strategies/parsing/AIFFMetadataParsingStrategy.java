@@ -2,8 +2,10 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
+import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
+import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
@@ -91,17 +93,17 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
      * @param file   die Datei, aus der gelesen wird
      * @param offset der Start-Offset des AIFF-Chunks
      * @param size   die Größe des Chunks in Bytes
-     * @return die extrahierten {@link AIFFMetadata}
+     * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültigem Chunk-Format
      */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
-        AIFFMetadata metadata = new AIFFMetadata();
+        GenericMetadata metadata = new GenericMetadata(TagFormat.AIFF_METADATA);
         parseAIFFMetadataChunk(file, metadata, offset, size);
         return metadata;
     }
 
-    private void parseAIFFMetadataChunk(RandomAccessFile file, AIFFMetadata metadata, long offset, long size)
+    private void parseAIFFMetadataChunk(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
             throws IOException {
         file.seek(offset);
 
@@ -110,7 +112,7 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
         file.read(chunkHeader);
 
         String chunkType = new String(chunkHeader, 0, 4, StandardCharsets.US_ASCII);
-        int chunkSize = readBigEndianInt32(chunkHeader, 4);
+        int chunkSize = BinaryDataReader.readBigEndianInt32(chunkHeader, 4);
 
         LOG.debug("Parsing AIFF chunk: " + chunkType + " with size: " + chunkSize);
 
@@ -153,7 +155,7 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
         LOG.debug("Successfully parsed AIFF metadata chunk: " + chunkType);
     }
 
-    private void parseTextChunk(RandomAccessFile file, AIFFMetadata metadata, String chunkType, int chunkSize)
+    private void parseTextChunk(RandomAccessFile file, GenericMetadata metadata, String chunkType, int chunkSize)
             throws IOException {
         if (chunkSize <= 0) {
             return;
@@ -174,14 +176,14 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    private void parseCommentChunk(RandomAccessFile file, AIFFMetadata metadata, int chunkSize)
+    private void parseCommentChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize)
             throws IOException {
         if (chunkSize < 2) {
             return;
         }
 
         // Comment Chunk hat strukturiertes Format
-        int numComments = readBigEndianInt16(file);
+        int numComments = BinaryDataReader.readBigEndianInt16(file);
         int bytesRead = 2;
 
         for (int i = 0; i < numComments && bytesRead < chunkSize; i++) {
@@ -190,9 +192,9 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
             }
 
             // Comment Entry: timeStamp (4) + marker (2) + count (2) + text (count)
-            int timeStamp = readBigEndianInt32(file);
-            int marker = readBigEndianInt16(file);
-            int count = readBigEndianInt16(file);
+            int timeStamp = BinaryDataReader.readBigEndianInt32(file);
+            int marker = BinaryDataReader.readBigEndianInt16(file);
+            int count = BinaryDataReader.readBigEndianInt16(file);
             bytesRead += 8;
 
             if (count > 0 && bytesRead + count <= chunkSize) {
@@ -215,7 +217,7 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    private void parseApplicationChunk(RandomAccessFile file, AIFFMetadata metadata, int chunkSize)
+    private void parseApplicationChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize)
             throws IOException {
         if (chunkSize < 4) {
             return;
@@ -292,26 +294,8 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
         return true;
     }
 
-    private int readBigEndianInt16(RandomAccessFile file) throws IOException {
-        byte[] bytes = new byte[2];
-        file.read(bytes);
-        return ((bytes[0] & 0xFF) << 8) | (bytes[1] & 0xFF);
-    }
-
-    private int readBigEndianInt32(RandomAccessFile file) throws IOException {
-        byte[] bytes = new byte[4];
-        file.read(bytes);
-        return ((bytes[0] & 0xFF) << 24) | ((bytes[1] & 0xFF) << 16) |
-                ((bytes[2] & 0xFF) << 8) | (bytes[3] & 0xFF);
-    }
-
-    private int readBigEndianInt32(byte[] data, int offset) {
-        return ((data[offset] & 0xFF) << 24) | ((data[offset + 1] & 0xFF) << 16) |
-                ((data[offset + 2] & 0xFF) << 8) | (data[offset + 3] & 0xFF);
-    }
-
     @SuppressWarnings("unchecked")
-    private void addField(AIFFMetadata metadata, String key, String value) {
+    private void addField(GenericMetadata metadata, String key, String value) {
         FieldHandler<?> handler = handlers.get(key);
         if (handler != null) {
             metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
@@ -332,27 +316,4 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
         handlers.put(key, handler);
     }
 
-    /**
-     * Innere Klasse für AIFF-spezifische Metadaten.
-     *
-     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und gibt als Format {@code "AIFF_METADATA"} zurück.</p>
-     */
-    public static class AIFFMetadata implements Metadata {
-        private final List<MetadataField<?>> fields = new ArrayList<>();
-
-        @Override
-        public String getTagFormat() {
-            return TagFormat.AIFF_METADATA.getFormatName();
-        }
-
-        @Override
-        public List<MetadataField<?>> getFields() {
-            return fields;
-        }
-
-        @Override
-        public void addField(MetadataField<?> field) {
-            fields.add(field);
-        }
-    }
 }

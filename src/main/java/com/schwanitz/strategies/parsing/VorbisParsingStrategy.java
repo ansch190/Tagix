@@ -2,9 +2,10 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
-import com.schwanitz.metadata.VorbisMetadata;
+import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
+import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
@@ -148,17 +149,17 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
      * @param file   die Datei, aus der gelesen wird
      * @param offset der Start-Offset des Comment-Blocks
      * @param size   die Größe des Blocks in Bytes
-     * @return die extrahierten {@link VorbisMetadata}
+     * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültigem Tag-Format
      */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
-        VorbisMetadata metadata = new VorbisMetadata();
+        GenericMetadata metadata = new GenericMetadata(TagFormat.VORBIS_COMMENT);
         parseVorbisComment(file, metadata, offset, size);
         return metadata;
     }
 
-    private void parseVorbisComment(RandomAccessFile file, VorbisMetadata metadata, long offset, long size)
+    private void parseVorbisComment(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
             throws IOException {
         file.seek(offset);
 
@@ -193,7 +194,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         }
 
         // User Comment Count lesen (32-bit little-endian)
-        long userCommentCount = readLittleEndianUInt32(file);
+        long userCommentCount = BinaryDataReader.readLittleEndianUInt32(file);
         currentOffset += 4;
 
         if (userCommentCount < 0 || userCommentCount > 10000) { // Sanity check
@@ -241,7 +242,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
     }
 
     private String readVendorString(RandomAccessFile file) throws IOException {
-        long vendorLength = readLittleEndianUInt32(file);
+        long vendorLength = BinaryDataReader.readLittleEndianUInt32(file);
 
         if (vendorLength < 0 || vendorLength > 8192) { // Sanity check
             throw new IOException("Invalid vendor string length: " + vendorLength);
@@ -262,7 +263,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
     }
 
     private String readUserComment(RandomAccessFile file) throws IOException {
-        long commentLength = readLittleEndianUInt32(file);
+        long commentLength = BinaryDataReader.readLittleEndianUInt32(file);
 
         final long MAX_REALISTIC_COMMENT_LENGTH = 16 * 1024 * 1024; // 16 MB
 
@@ -281,21 +282,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         return new String(commentBytes, StandardCharsets.UTF_8);
     }
 
-    private long readLittleEndianUInt32(RandomAccessFile file) throws IOException {
-        byte[] bytes = new byte[4];
-        int bytesRead = file.read(bytes);
-
-        if (bytesRead != 4) {
-            throw new IOException("Could not read 32-bit integer");
-        }
-
-        return ((long) (bytes[0] & 0xFF)) |
-                ((long) (bytes[1] & 0xFF) << 8) |
-                ((long) (bytes[2] & 0xFF) << 16) |
-                ((long) (bytes[3] & 0xFF) << 24);
-    }
-
-    private void parseComment(VorbisMetadata metadata, String comment) {
+    private void parseComment(GenericMetadata metadata, String comment) {
         int equalPos = comment.indexOf('=');
 
         if (equalPos <= 0 || equalPos == comment.length() - 1) {
@@ -331,7 +318,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
                 (fieldValue.length() > 50 ? fieldValue.substring(0, 50) + "..." : fieldValue));
     }
 
-    private String getExistingFieldValue(VorbisMetadata metadata, String fieldName) {
+    private String getExistingFieldValue(GenericMetadata metadata, String fieldName) {
         // Suche nach existierendem Feld mit gleichem Namen
         for (MetadataField<?> field : metadata.getFields()) {
             if (field.getKey().equals(fieldName)) {
@@ -352,7 +339,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
     }
 
     @SuppressWarnings("unchecked")
-    private void addField(VorbisMetadata metadata, String key, String value) {
+    private void addField(GenericMetadata metadata, String key, String value) {
         // Normalisiere Feldnamen (case-insensitive)
         String normalizedKey = key.toUpperCase();
 

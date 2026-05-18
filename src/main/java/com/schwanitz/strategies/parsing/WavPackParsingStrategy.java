@@ -2,6 +2,7 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
+import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
@@ -80,12 +81,12 @@ public class WavPackParsingStrategy implements TagParsingStrategy {
      * @param file   die Datei, aus der gelesen wird
      * @param offset der Start-Offset des Subblocks
      * @param size   die verfügbare Größe in Bytes
-     * @return die extrahierten {@link WavPackMetadata}
+     * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern
      */
     @Override
     public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
-        WavPackMetadata metadata = new WavPackMetadata();
+        GenericMetadata metadata = new GenericMetadata(TagFormat.WAVPACK_NATIVE);
 
         file.seek(offset);
 
@@ -152,7 +153,7 @@ public class WavPackParsingStrategy implements TagParsingStrategy {
     }
 
     @SuppressWarnings("unchecked")
-    private void addField(WavPackMetadata metadata, String key, String value) {
+    private void addField(GenericMetadata metadata, String key, String value) {
         if (value == null || value.isEmpty()) return;
         FieldHandler<?> handler = handlers.get(key);
         if (handler != null) {
@@ -162,27 +163,4 @@ public class WavPackParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    /**
-     * Innere Klasse für WavPack-spezifische Metadaten.
-     *
-     * <p>Hält die Liste der extrahierten {@link MetadataField}-Objekte und gibt als Format {@code "WAVPACK_NATIVE"} zurück.</p>
-     */
-    public static class WavPackMetadata implements Metadata {
-        private final List<MetadataField<?>> fields = new ArrayList<>();
-
-        @Override
-        public String getTagFormat() {
-            return TagFormat.WAVPACK_NATIVE.getFormatName();
-        }
-
-        @Override
-        public List<MetadataField<?>> getFields() {
-            return fields;
-        }
-
-        @Override
-        public void addField(MetadataField<?> field) {
-            fields.add(field);
-        }
-    }
 }
