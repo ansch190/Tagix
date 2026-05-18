@@ -94,11 +94,9 @@
                 <configuration>
                     <argLine>--enable-preview</argLine>
                     <includes>
+                        <include>**/*Test.java</include>
                         <include>**/*TestSuite.java</include>
                     </includes>
-                    <excludes>
-                        <exclude>**/*Test.java</exclude>
-                    </excludes>
                 </configuration>
             </plugin>
             <!-- JaCoCo-Konfiguration -->
