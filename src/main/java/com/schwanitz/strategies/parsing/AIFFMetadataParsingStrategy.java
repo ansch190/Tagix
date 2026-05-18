@@ -114,7 +114,7 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
         String chunkType = new String(chunkHeader, 0, 4, StandardCharsets.US_ASCII);
         int chunkSize = BinaryDataReader.readBigEndianInt32(chunkHeader, 4);
 
-        LOG.debug("Parsing AIFF chunk: " + chunkType + " with size: " + chunkSize);
+        LOG.debug("Parsing AIFF chunk: {} with size: {}", chunkType, chunkSize);
 
         if (chunkSize < 0 || chunkSize > size - 8) {
             throw new IOException("Invalid AIFF chunk size: " + chunkSize);
@@ -147,12 +147,12 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
                 if (chunkSize > 0 && chunkSize < 8192) { // Reasonable size limit
                     parseTextChunk(file, metadata, chunkType, chunkSize);
                 } else {
-                    LOG.debug("Skipping unknown AIFF chunk: " + chunkType);
+                    LOG.debug("Skipping unknown AIFF chunk: {}", chunkType);
                 }
                 break;
         }
 
-        LOG.debug("Successfully parsed AIFF metadata chunk: " + chunkType);
+        LOG.debug("Successfully parsed AIFF metadata chunk: {}", chunkType);
     }
 
     private void parseTextChunk(RandomAccessFile file, GenericMetadata metadata, String chunkType, int chunkSize)
@@ -171,8 +171,10 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
             String fieldName = AIFF_CHUNKS.getOrDefault(chunkType, chunkType);
             addField(metadata, fieldName, text);
 
-            LOG.debug("Parsed AIFF text field: " + chunkType + " (" + fieldName + ") = " +
-                    (text.length() > 50 ? text.substring(0, 50) + "..." : text));
+            if (LOG.isDebugEnabled()) {
+                String displayText = text.length() > 50 ? text.substring(0, 50) + "..." : text;
+                LOG.debug("Parsed AIFF text field: {} ({}) = {}", chunkType, fieldName, displayText);
+            }
         }
     }
 
@@ -302,7 +304,7 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
         } else {
             TextFieldHandler textHandler = new TextFieldHandler(key);
             metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOG.debug("Created fallback handler for unknown AIFF field: " + key);
+            LOG.debug("Created fallback handler for unknown AIFF field: {}", key);
         }
     }
 

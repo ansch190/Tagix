@@ -157,7 +157,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             throw new IOException("Expected INFO list type, found: " + infoType);
         }
 
-        LOG.debug("Parsing RIFF INFO chunk with size: " + chunkSize);
+        LOG.debug("Parsing RIFF INFO chunk with size: {}", chunkSize);
 
         // INFO Sub-Chunks parsen
         long currentPos = offset + 12; // 8 bytes LIST header + 4 bytes INFO type
@@ -177,7 +177,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             int subChunkSize = BinaryDataReader.readLittleEndianInt32(subChunkHeader, 4);
 
             if (subChunkSize < 0 || subChunkSize > endPos - currentPos - 8) {
-                LOG.warn("Invalid sub-chunk size for " + subChunkId + ": " + subChunkSize);
+                LOG.warn("Invalid sub-chunk size for {}: {}", subChunkId, subChunkSize);
                 break;
             }
 
@@ -194,8 +194,10 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
                     addField(metadata, fieldName, value);
                     fieldCount++;
 
-                    LOG.debug("Parsed RIFF INFO field: " + subChunkId + " (" + fieldName + ") = " +
-                            (value.length() > 50 ? value.substring(0, 50) + "..." : value));
+                    if (LOG.isDebugEnabled()) {
+                        String displayValue = value.length() > 50 ? value.substring(0, 50) + "..." : value;
+                        LOG.debug("Parsed RIFF INFO field: {} ({}) = {}", subChunkId, fieldName, displayValue);
+                    }
                 }
             }
 
@@ -206,7 +208,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             }
         }
 
-        LOG.debug("Successfully parsed RIFF INFO chunk with " + fieldCount + " fields");
+        LOG.debug("Successfully parsed RIFF INFO chunk with {} fields", fieldCount);
     }
 
     private String parseNullTerminatedString(byte[] data) {
@@ -262,7 +264,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             // Fallback: TextFieldHandler für unbekannte Felder
             TextFieldHandler textHandler = new TextFieldHandler(key);
             metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOG.debug("Created fallback handler for unknown RIFF INFO field: " + key);
+            LOG.debug("Created fallback handler for unknown RIFF INFO field: {}", key);
         }
     }
 

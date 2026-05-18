@@ -9,6 +9,7 @@ import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
@@ -222,12 +223,9 @@ public class APEParsingStrategy implements TagParsingStrategy {
         boolean isReadOnly = (tagFlags & 0x00000001) != 0;
 
         // Erweiterte Logging-Informationen
-        LOG.debug(String.format(
-                "APE Tag Details: Version=%d, Size=%d bytes, Items=%d, " +
-                        "Flags=0x%08X (Header:%b, Footer:%b, IsHeader:%b, ReadOnly:%b)",
-                version, tagSize, itemCount, tagFlags,
-                hasHeader, hasFooter, isHeader, isReadOnly
-        ));
+        LOG.debug("APE Tag Details: Version={}, Size={} bytes, Items={}, Flags=0x{} (Header:{}, Footer:{}, IsHeader:{}, ReadOnly:{})",
+                version, tagSize, itemCount, String.format("%08X", tagFlags),
+                hasHeader, hasFooter, isHeader, isReadOnly);
 
         // Sanity checks
         if (itemCount < 0 || itemCount > 1000) {
@@ -262,14 +260,14 @@ public class APEParsingStrategy implements TagParsingStrategy {
             itemsEnd = offset;
         }
 
-        LOG.debug("Items range: " + itemsStart + " to " + itemsEnd + " (size: " + (itemsEnd - itemsStart) + ")");
+        LOG.debug("Items range: {} to {} (size: {})", itemsStart, itemsEnd, itemsEnd - itemsStart);
 
         // Items parsen
         long currentPos = itemsStart;
         for (int i = 0; i < itemCount; i++) {
             try {
                 if (currentPos >= itemsEnd - 8) {
-                    LOG.warn("Not enough space for item " + (i + 1));
+                    LOG.warn("Not enough space for item {}", i + 1);
                     break;
                 }
 
@@ -292,12 +290,12 @@ public class APEParsingStrategy implements TagParsingStrategy {
                 }
 
             } catch (IOException e) {
-                LOG.warn("Error parsing APE item " + (i + 1) + ": " + e.getMessage());
+                LOG.warn("Error parsing APE item {}: {}", i + 1, e.getMessage());
                 break;
             }
         }
 
-        LOG.debug("Successfully parsed APE tag with " + itemCount + " items");
+        LOG.debug("Successfully parsed APE tag with {} items", itemCount);
     }
 
     private long parseAPEItem(RandomAccessFile file, GenericMetadata metadata, long position, int version, long maxPos)
@@ -320,37 +318,36 @@ public class APEParsingStrategy implements TagParsingStrategy {
 
         long currentPos = position + 8;
 
-        // Key-Lesung mit korrekter UTF-8 Behandlung
-        List<Byte> keyBytes = new ArrayList<>();
+        // Key-Lesung mit ByteArrayOutputStream (vermeidet Auto-Boxing und doppeltes Kopieren)
+        ByteArrayOutputStream keyBuffer = new ByteArrayOutputStream(32);
         while (currentPos < maxPos) {
-            byte b = file.readByte();
+            int b = file.read();
             currentPos++;
 
             if (b == 0) {
-                break; // Null-Terminator gefunden
+                break;
             }
 
-            keyBytes.add(b);
+            if (b < 0) {
+                throw new IOException("Unexpected EOF reading APE item key");
+            }
 
-            if (keyBytes.size() > 255) { // Sanity check für Key-Länge
+            keyBuffer.write(b);
+
+            if (keyBuffer.size() > 255) {
                 throw new IOException("APE item key too long");
             }
         }
 
-        if (keyBytes.isEmpty()) {
+        if (keyBuffer.size() == 0) {
             throw new IOException("Empty APE item key");
         }
 
-        // Direkte UTF-8 Dekodierung der gesammelten Bytes
-        byte[] keyByteArray = new byte[keyBytes.size()];
-        for (int i = 0; i < keyBytes.size(); i++) {
-            keyByteArray[i] = keyBytes.get(i);
-        }
-        String key = new String(keyByteArray, StandardCharsets.UTF_8);
+        String key = keyBuffer.toString(StandardCharsets.UTF_8);
 
         // Key-Validierung
         if (!isValidAPEKey(key)) {
-            LOG.warn("Invalid APE key detected: " + key);
+            LOG.warn("Invalid APE key detected: {}", key);
             return currentPos + valueSize;
         }
 
@@ -371,10 +368,8 @@ public class APEParsingStrategy implements TagParsingStrategy {
 
         // Erweiterte Logging
         if (LOG.isTraceEnabled()) {
-            LOG.trace(String.format(
-                    "APE Item: Key='%s' (normalized: '%s'), Type=%d, Size=%d, ReadOnly=%b",
-                    key, normalizedKey, itemType, valueSize, isReadOnly
-            ));
+            LOG.trace("APE Item: Key='{}' (normalized: '{}'), Type={}, Size={}, ReadOnly={}",
+                    key, normalizedKey, itemType, valueSize, isReadOnly);
         }
 
         String value;
@@ -387,7 +382,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
             case APE_ITEM_TYPE_BINARY:
                 // Binäre Daten - verbesserte Behandlung
                 value = processBinaryItem(normalizedKey, valueData);
-                LOG.debug("Binary APE item: " + normalizedKey + " (" + valueSize + " bytes)");
+                LOG.debug("Binary APE item: {} ({} bytes)", normalizedKey, valueSize);
                 break;
 
             case APE_ITEM_TYPE_EXTERNAL:
@@ -396,7 +391,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
                 break;
 
             default:
-                LOG.warn("Unknown APE item type: " + itemType + " for key: " + normalizedKey);
+                LOG.warn("Unknown APE item type: {} for key: {}", itemType, normalizedKey);
                 value = "[UNKNOWN:" + valueSize + " bytes]";
                 break;
         }
@@ -404,9 +399,11 @@ public class APEParsingStrategy implements TagParsingStrategy {
         // Feld hinzufügen (nur wenn nicht leer)
         if (!value.isEmpty()) {
             addField(metadata, normalizedKey, value);
-            LOG.debug("Parsed APE item: " + normalizedKey + " = " +
-                    (value.length() > 50 ? value.substring(0, 50) + "..." : value) +
-                    (isReadOnly ? " [read-only]" : ""));
+            if (LOG.isDebugEnabled()) {
+                String displayValue = value.length() > 50 ? value.substring(0, 50) + "..." : value;
+                LOG.debug("Parsed APE item: {} = {}{}", normalizedKey, displayValue,
+                        isReadOnly ? " [read-only]" : "");
+            }
         }
 
         return currentPos;
@@ -508,7 +505,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
         // Reservierte Keys prüfen
         if (key.equalsIgnoreCase("ID3") || key.equalsIgnoreCase("TAG") ||
                 key.equalsIgnoreCase("OggS") || key.equalsIgnoreCase("MP+")) {
-            LOG.warn("Reserved APE key detected: " + key);
+            LOG.warn("Reserved APE key detected: {}", key);
             return false;
         }
 
@@ -529,7 +526,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
             // Fallback: TextFieldHandler für unbekannte Felder erstellen
             TextFieldHandler textHandler = new TextFieldHandler(key);
             metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOG.debug("Created fallback handler for unknown APE field: " + key);
+            LOG.debug("Created fallback handler for unknown APE field: {}", key);
         }
     }
 

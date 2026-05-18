@@ -301,7 +301,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         // Suche nach 'data' Atom innerhalb des Metadata Items
         long dataOffset = findAtom(file, offset, size, DATA_ATOM);
         if (dataOffset == -1) {
-            LOG.debug("No data atom found for " + atomType);
+            LOG.debug("No data atom found for {}", atomType);
             return;
         }
 
@@ -310,7 +310,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         file.skipBytes(4); // Skip 'data'
 
         if (dataSize < 16) { // 8 bytes header + 8 bytes minimal data header
-            LOG.debug("Data atom too small for " + atomType);
+            LOG.debug("Data atom too small for {}", atomType);
             return;
         }
 
@@ -320,7 +320,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
 
         long valueSize = dataSize - 16; // Subtract atom header (8) + data header (8)
         if (valueSize <= 0 || valueSize > 65536) { // Sanity check
-            LOG.debug("Invalid value size for " + atomType + ": " + valueSize);
+            LOG.debug("Invalid value size for {}: {}", atomType, valueSize);
             return;
         }
 
@@ -334,8 +334,10 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
             String fieldName = KNOWN_ATOMS.getOrDefault(atomType, atomType);
             addField(metadata, fieldName, value);
 
-            LOG.debug("Parsed MP4 field: " + atomType + " (" + fieldName + ") = " +
-                    (value.length() > 50 ? value.substring(0, 50) + "..." : value));
+            if (LOG.isDebugEnabled()) {
+                String displayValue = value.length() > 50 ? value.substring(0, 50) + "..." : value;
+                LOG.debug("Parsed MP4 field: {} ({}) = {}", atomType, fieldName, displayValue);
+            }
         }
     }
 
@@ -539,7 +541,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
             // Fallback: TextFieldHandler für unbekannte Felder
             TextFieldHandler textHandler = new TextFieldHandler(key);
             metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOG.debug("Created fallback handler for unknown MP4 field: " + key);
+            LOG.debug("Created fallback handler for unknown MP4 field: {}", key);
         }
     }
 

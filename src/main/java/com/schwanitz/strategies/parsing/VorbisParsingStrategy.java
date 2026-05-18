@@ -185,7 +185,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
 
         // Vendor String lesen
         String vendor = readVendorString(file);
-        LOG.debug("Vorbis Comment Vendor: " + vendor);
+        LOG.debug("Vorbis Comment Vendor: {}", vendor);
         currentOffset += 4 + vendor.getBytes(StandardCharsets.UTF_8).length;
 
         // Vendor String als Metadatum speichern falls vorhanden
@@ -201,7 +201,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
             throw new IOException("Invalid user comment count: " + userCommentCount);
         }
 
-        LOG.debug("Reading " + userCommentCount + " Vorbis comments");
+        LOG.debug("Reading {} Vorbis comments", userCommentCount);
 
         // User Comments lesen
         for (long i = 0; i < userCommentCount; i++) {
@@ -220,7 +220,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
                 }
 
             } catch (IOException e) {
-                LOG.warn("Error reading comment " + (i + 1) + ": " + e.getMessage());
+                LOG.warn("Error reading comment {}: {}", i + 1, e.getMessage());
                 break;
             }
         }
@@ -230,7 +230,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
             try {
                 byte framingBit = file.readByte();
                 if (framingBit != 1) {
-                    LOG.debug("Invalid framing bit: " + framingBit + " (expected 1, normal for FLAC)");
+                    LOG.debug("Invalid framing bit: {} (expected 1, normal for FLAC)", framingBit);
                 }
             } catch (IOException e) {
                 // Framing bit fehlt - kann bei FLAC vorkommen
@@ -286,7 +286,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         int equalPos = comment.indexOf('=');
 
         if (equalPos <= 0 || equalPos == comment.length() - 1) {
-            LOG.debug("Invalid comment format (no = or empty field/value): " + comment);
+            LOG.debug("Invalid comment format (no = or empty field/value): {}", comment);
             return;
         }
 
@@ -294,13 +294,13 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         String fieldValue = comment.substring(equalPos + 1).trim();
 
         if (fieldName.isEmpty() || fieldValue.isEmpty()) {
-            LOG.debug("Empty field name or value in comment: " + comment);
+            LOG.debug("Empty field name or value in comment: {}", comment);
             return;
         }
 
         // Validierung des Feldnamens (nur ASCII-Zeichen 0x20-0x7D außer 0x3D)
         if (!isValidFieldName(fieldName)) {
-            LOG.debug("Invalid field name: " + fieldName);
+            LOG.debug("Invalid field name: {}", fieldName);
             return;
         }
 
@@ -309,13 +309,15 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         if (existingValue != null && !existingValue.equals(fieldValue)) {
             // Werte mit Separator verbinden (Vorbis Comment Standard)
             fieldValue = existingValue + "; " + fieldValue;
-            LOG.debug("Multi-value field detected: " + fieldName + " = " + fieldValue);
+            LOG.debug("Multi-value field detected: {} = {}", fieldName, fieldValue);
         }
 
         addField(metadata, fieldName, fieldValue);
 
-        LOG.debug("Parsed comment: " + fieldName + " = " +
-                (fieldValue.length() > 50 ? fieldValue.substring(0, 50) + "..." : fieldValue));
+        if (LOG.isDebugEnabled()) {
+            String displayValue = fieldValue.length() > 50 ? fieldValue.substring(0, 50) + "..." : fieldValue;
+            LOG.debug("Parsed comment: {} = {}", fieldName, displayValue);
+        }
     }
 
     private String getExistingFieldValue(GenericMetadata metadata, String fieldName) {
@@ -353,7 +355,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
             // Fallback: TextFieldHandler für unbekannte Felder erstellen
             TextFieldHandler textHandler = new TextFieldHandler(normalizedKey);
             metadata.addField(new MetadataField<>(normalizedKey, value, textHandler));
-            LOG.debug("Created fallback handler for unknown field: " + normalizedKey);
+            LOG.debug("Created fallback handler for unknown field: {}", normalizedKey);
         }
     }
 
