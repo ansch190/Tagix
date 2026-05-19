@@ -10,6 +10,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SeekableDataSources;
 import java.nio.file.Path;
 
 import static com.schwanitz.strategies.parsing.ParsingTestHelper.*;
@@ -29,21 +31,6 @@ class WavPackParsingStrategyTest {
     }
 
     @Test
-    @DisplayName("canHandle returns true for WAVPACK_NATIVE")
-    void canHandle_returnsTrueForWAVPACK_NATIVE() {
-        assertTrue(strategy.canHandle(TagFormat.WAVPACK_NATIVE));
-    }
-
-    @Test
-    @DisplayName("canHandle returns false for other formats")
-    void canHandle_returnsFalseForOtherFormats() {
-        assertFalse(strategy.canHandle(TagFormat.ID3V2_3));
-        assertFalse(strategy.canHandle(TagFormat.MP4));
-        assertFalse(strategy.canHandle(TagFormat.DSF_METADATA));
-        assertFalse(strategy.canHandle(TagFormat.FLAC_APPLICATION));
-    }
-
-    @Test
     @DisplayName("parseMD5 sub-block returns MD5 string")
     void parseMD5SubBlock_returnsMD5String() throws IOException {
         byte[] md5Data = new byte[16];
@@ -51,8 +38,9 @@ class WavPackParsingStrategyTest {
         byte[] subBlock = buildWavPackSubBlock(0x26, md5Data, false);
         File file = writeTempFile(tempDir.toFile(), "test.wv", subBlock);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.WAVPACK_NATIVE, raf, 0, subBlock.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.WAVPACK_NATIVE, source, 0, subBlock.length);
 
             String fieldValue = ParsingTestHelper.findFieldValue(metadata, "MD5Checksum");
             assertNotNull(fieldValue);
@@ -67,8 +55,9 @@ class WavPackParsingStrategyTest {
         byte[] subBlock = buildWavPackSubBlock(0x25, configData, false);
         File file = writeTempFile(tempDir.toFile(), "test.wv", subBlock);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.WAVPACK_NATIVE, raf, 0, subBlock.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.WAVPACK_NATIVE, source, 0, subBlock.length);
 
             String fieldValue = ParsingTestHelper.findFieldValue(metadata, "ConfigurationBlock");
             assertNotNull(fieldValue);
@@ -83,8 +72,9 @@ class WavPackParsingStrategyTest {
         byte[] subBlock = buildWavPackSubBlock(0x10, unknownData, false);
         File file = writeTempFile(tempDir.toFile(), "test.wv", subBlock);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.WAVPACK_NATIVE, raf, 0, subBlock.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.WAVPACK_NATIVE, source, 0, subBlock.length);
 
             String fieldValue = ParsingTestHelper.findFieldValue(metadata, "Unknown_16");
             assertNotNull(fieldValue);

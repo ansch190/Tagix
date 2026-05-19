@@ -17,67 +17,85 @@ import java.util.stream.Collectors;
  * Mehrere Tag-Formate können derselben Strategie-Instanz zugeordnet sein (z. B. werden
  * ID3V1 und ID3V1_1 beide von {@link ID3V1DetectionStrategy} erkannt). Bei der Abfrage
  * erfolgt eine automatische Deduplizierung, sodass jede Strategie nur einmal zurückgegeben wird.
+ * <p>
+ * Die Factory ist instanzbasiert und kann für Unit-Tests mit einem benutzerdefinierten
+ * Mapping instanziiert werden.
  *
  * @see TagDetectionStrategy
  * @see TagFormat
  */
 public class TagDetectionStrategyFactory {
 
-    // Singleton Strategy-Instanzen (thread-safe, da immutable)
-    private static final ID3V1DetectionStrategy ID3V1_STRATEGY = new ID3V1DetectionStrategy();
-    private static final ID3V2DetectionStrategy ID3V2_STRATEGY = new ID3V2DetectionStrategy();
-    private static final APEDetectionStrategy APE_STRATEGY = new APEDetectionStrategy();
-    private static final VorbisCommentDetectionStrategy VORBIS_STRATEGY = new VorbisCommentDetectionStrategy();
-    private static final MP4DetectionStrategy MP4_STRATEGY = new MP4DetectionStrategy();
-    private static final WAVDetectionStrategy WAV_STRATEGY = new WAVDetectionStrategy();
-    private static final ASFDetectionStrategy ASF_STRATEGY = new ASFDetectionStrategy();
-    private static final FLACApplicationDetectionStrategy FLAC_APP_STRATEGY = new FLACApplicationDetectionStrategy();
-    private static final MatroskaDetectionStrategy MATROSKA_STRATEGY = new MatroskaDetectionStrategy();
-    private static final DSDDetectionStrategy DSD_STRATEGY = new DSDDetectionStrategy();
-    private static final TTADetectionStrategy TTA_STRATEGY = new TTADetectionStrategy();
-    private static final WavPackDetectionStrategy WAVPACK_STRATEGY = new WavPackDetectionStrategy();
-    private static final AIFFDetectionStrategy AIFF_STRATEGY = new AIFFDetectionStrategy();
-    private static final Lyrics3DetectionStrategy LYRICS3_STRATEGY = new Lyrics3DetectionStrategy();
+    private final Map<TagFormat, TagDetectionStrategy> formatToStrategy;
 
-    // Mapping: TagFormat -> Strategy
-    private static final Map<TagFormat, TagDetectionStrategy> FORMAT_TO_STRATEGY = Map.ofEntries(
-            // ID3 Formate
-            Map.entry(TagFormat.ID3V1, ID3V1_STRATEGY),
-            Map.entry(TagFormat.ID3V1_1, ID3V1_STRATEGY),
-            Map.entry(TagFormat.ID3V2_2, ID3V2_STRATEGY),
-            Map.entry(TagFormat.ID3V2_3, ID3V2_STRATEGY),
-            Map.entry(TagFormat.ID3V2_4, ID3V2_STRATEGY),
+    /**
+     * Erzeugt eine neue Factory mit allen Standard-Erkennungsstrategien.
+     */
+    public TagDetectionStrategyFactory() {
+        ID3V1DetectionStrategy id3v1Strategy = new ID3V1DetectionStrategy();
+        ID3V2DetectionStrategy id3v2Strategy = new ID3V2DetectionStrategy();
+        APEDetectionStrategy apeStrategy = new APEDetectionStrategy();
+        VorbisCommentDetectionStrategy vorbisStrategy = new VorbisCommentDetectionStrategy();
+        MP4DetectionStrategy mp4Strategy = new MP4DetectionStrategy();
+        WAVDetectionStrategy wavStrategy = new WAVDetectionStrategy();
+        ASFDetectionStrategy asfStrategy = new ASFDetectionStrategy();
+        FLACApplicationDetectionStrategy flacAppStrategy = new FLACApplicationDetectionStrategy();
+        MatroskaDetectionStrategy matroskaStrategy = new MatroskaDetectionStrategy();
+        DSDDetectionStrategy dsdStrategy = new DSDDetectionStrategy();
+        TTADetectionStrategy ttaStrategy = new TTADetectionStrategy();
+        WavPackDetectionStrategy wavPackStrategy = new WavPackDetectionStrategy();
+        AIFFDetectionStrategy aiffStrategy = new AIFFDetectionStrategy();
+        Lyrics3DetectionStrategy lyrics3Strategy = new Lyrics3DetectionStrategy();
 
-            // APE Formate
-            Map.entry(TagFormat.APEV1, APE_STRATEGY),
-            Map.entry(TagFormat.APEV2, APE_STRATEGY),
+        this.formatToStrategy = Map.ofEntries(
+                // ID3 Formate
+                Map.entry(TagFormat.ID3V1, id3v1Strategy),
+                Map.entry(TagFormat.ID3V1_1, id3v1Strategy),
+                Map.entry(TagFormat.ID3V2_2, id3v2Strategy),
+                Map.entry(TagFormat.ID3V2_3, id3v2Strategy),
+                Map.entry(TagFormat.ID3V2_4, id3v2Strategy),
 
-            // Andere Formate
-            Map.entry(TagFormat.VORBIS_COMMENT, VORBIS_STRATEGY),
-            Map.entry(TagFormat.MP4, MP4_STRATEGY),
+                // APE Formate
+                Map.entry(TagFormat.APEV1, apeStrategy),
+                Map.entry(TagFormat.APEV2, apeStrategy),
 
-            // WAV Formate
-            Map.entry(TagFormat.RIFF_INFO, WAV_STRATEGY),
-            Map.entry(TagFormat.BWF_V0, WAV_STRATEGY),
-            Map.entry(TagFormat.BWF_V1, WAV_STRATEGY),
-            Map.entry(TagFormat.BWF_V2, WAV_STRATEGY),
+                // Andere Formate
+                Map.entry(TagFormat.VORBIS_COMMENT, vorbisStrategy),
+                Map.entry(TagFormat.MP4, mp4Strategy),
 
-            // ASF Formate
-            Map.entry(TagFormat.ASF_CONTENT_DESC, ASF_STRATEGY),
-            Map.entry(TagFormat.ASF_EXT_CONTENT_DESC, ASF_STRATEGY),
+                // WAV Formate
+                Map.entry(TagFormat.RIFF_INFO, wavStrategy),
+                Map.entry(TagFormat.BWF_V0, wavStrategy),
+                Map.entry(TagFormat.BWF_V1, wavStrategy),
+                Map.entry(TagFormat.BWF_V2, wavStrategy),
 
-            // Weitere Formate
-            Map.entry(TagFormat.FLAC_APPLICATION, FLAC_APP_STRATEGY),
-            Map.entry(TagFormat.MATROSKA_TAGS, MATROSKA_STRATEGY),
-            Map.entry(TagFormat.WEBM_TAGS, MATROSKA_STRATEGY),
-            Map.entry(TagFormat.DSF_METADATA, DSD_STRATEGY),
-            Map.entry(TagFormat.DFF_METADATA, DSD_STRATEGY),
-            Map.entry(TagFormat.TTA_METADATA, TTA_STRATEGY),
-            Map.entry(TagFormat.WAVPACK_NATIVE, WAVPACK_STRATEGY),
-            Map.entry(TagFormat.AIFF_METADATA, AIFF_STRATEGY),
-            Map.entry(TagFormat.LYRICS3V1, LYRICS3_STRATEGY),
-            Map.entry(TagFormat.LYRICS3V2, LYRICS3_STRATEGY)
-    );
+                // ASF Formate
+                Map.entry(TagFormat.ASF_CONTENT_DESC, asfStrategy),
+                Map.entry(TagFormat.ASF_EXT_CONTENT_DESC, asfStrategy),
+
+                // Weitere Formate
+                Map.entry(TagFormat.FLAC_APPLICATION, flacAppStrategy),
+                Map.entry(TagFormat.MATROSKA_TAGS, matroskaStrategy),
+                Map.entry(TagFormat.WEBM_TAGS, matroskaStrategy),
+                Map.entry(TagFormat.DSF_METADATA, dsdStrategy),
+                Map.entry(TagFormat.DFF_METADATA, dsdStrategy),
+                Map.entry(TagFormat.TTA_METADATA, ttaStrategy),
+                Map.entry(TagFormat.WAVPACK_NATIVE, wavPackStrategy),
+                Map.entry(TagFormat.AIFF_METADATA, aiffStrategy),
+                Map.entry(TagFormat.LYRICS3V1, lyrics3Strategy),
+                Map.entry(TagFormat.LYRICS3V2, lyrics3Strategy)
+        );
+    }
+
+    /**
+     * Erzeugt eine neue Factory mit einem benutzerdefinierten Strategie-Mapping.
+     * <p>Nützlich für Unit-Tests mit gemockten Strategien.</p>
+     *
+     * @param formatToStrategy das Format-zu-Strategie-Mapping
+     */
+    public TagDetectionStrategyFactory(Map<TagFormat, TagDetectionStrategy> formatToStrategy) {
+        this.formatToStrategy = Collections.unmodifiableMap(formatToStrategy);
+    }
 
     /**
      * Konvertiert eine Liste von TagFormats zu einer Liste von eindeutigen Strategien.
@@ -89,9 +107,9 @@ public class TagDetectionStrategyFactory {
      * @return Liste von eindeutigen {@link TagDetectionStrategy}-Instanzen; leer,
      *         wenn keine passenden Strategien gefunden wurden
      */
-    public static List<TagDetectionStrategy> getStrategiesForFormats(List<TagFormat> formats) {
+    public List<TagDetectionStrategy> getStrategiesForFormats(List<TagFormat> formats) {
         return formats.stream()
-                .map(FORMAT_TO_STRATEGY::get)
+                .map(formatToStrategy::get)
                 .filter(Objects::nonNull)
                 .distinct()  // Automatische Deduplizierung
                 .collect(Collectors.toList());

@@ -74,6 +74,8 @@ public final class ID3FrameParsingUtils {
             "Garage Rock", "Psybient"
     };
 
+    private static final Pattern GENRE_NUMBER_PATTERN = Pattern.compile("\\((\\d+)\\)");
+
     private ID3FrameParsingUtils() {
         // Utility-Klasse
     }
@@ -94,8 +96,7 @@ public final class ID3FrameParsingUtils {
         }
 
         List<String> parts = new ArrayList<>();
-        Pattern pattern = Pattern.compile("\\((\\d+)\\)");
-        Matcher matcher = pattern.matcher(genre);
+        Matcher matcher = GENRE_NUMBER_PATTERN.matcher(genre);
 
         int lastEnd = 0;
         while (matcher.find()) {

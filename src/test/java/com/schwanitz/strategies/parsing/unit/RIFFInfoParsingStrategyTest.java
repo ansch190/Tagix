@@ -10,6 +10,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SeekableDataSources;
 import java.nio.file.Path;
 
 import static com.schwanitz.strategies.parsing.ParsingTestHelper.*;
@@ -29,27 +31,14 @@ class RIFFInfoParsingStrategyTest {
     }
 
     @Test
-    @DisplayName("canHandle returns true for RIFF_INFO")
-    void canHandle_RIFF_INFO_true() {
-        assertTrue(strategy.canHandle(TagFormat.RIFF_INFO));
-    }
-
-    @Test
-    @DisplayName("canHandle returns false for non-RIFF_INFO formats")
-    void canHandle_nonRIFF_INFO_false() {
-        assertFalse(strategy.canHandle(TagFormat.MP4));
-        assertFalse(strategy.canHandle(TagFormat.ID3V2_3));
-        assertFalse(strategy.canHandle(TagFormat.BWF_V0));
-    }
-
-    @Test
     @DisplayName("parseBasicFields extracts INAM, IART, IPRD fields")
     void parseBasicFields() throws IOException {
         byte[] data = buildRIFFInfoChunk("INAM", "Test Title", "IART", "Test Artist", "IPRD", "Test Album");
         File file = writeTempFile(tempDir.toFile(), "test.wav", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.RIFF_INFO, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.RIFF_INFO, source, 0, data.length);
 
             assertEquals("Test Title", ParsingTestHelper.findFieldValue(metadata, "Title"));
             assertEquals("Test Artist", ParsingTestHelper.findFieldValue(metadata, "Artist"));
@@ -63,8 +52,9 @@ class RIFFInfoParsingStrategyTest {
         byte[] data = buildRIFFInfoChunk("INAM", "Título UTF-8");
         File file = writeTempFile(tempDir.toFile(), "test.wav", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.RIFF_INFO, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.RIFF_INFO, source, 0, data.length);
 
             String title = ParsingTestHelper.findFieldValue(metadata, "Title");
             assertNotNull(title);
@@ -78,8 +68,9 @@ class RIFFInfoParsingStrategyTest {
         byte[] data = buildRIFFInfoChunk("INAM", "Hello");
         File file = writeTempFile(tempDir.toFile(), "test.wav", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.RIFF_INFO, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.RIFF_INFO, source, 0, data.length);
 
             String title = ParsingTestHelper.findFieldValue(metadata, "Title");
             assertNotNull(title);
@@ -93,8 +84,9 @@ class RIFFInfoParsingStrategyTest {
         byte[] data = buildRIFFInfoChunk("INAM", "X");
         File file = writeTempFile(tempDir.toFile(), "test.wav", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.RIFF_INFO, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.RIFF_INFO, source, 0, data.length);
 
             String title = ParsingTestHelper.findFieldValue(metadata, "Title");
             assertNotNull(title);
@@ -108,9 +100,10 @@ class RIFFInfoParsingStrategyTest {
         byte[] data = concat(ascii("RIFF"), le32(20), ascii("WAVE"));
         File file = writeTempFile(tempDir.toFile(), "test.wav", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
             assertThrows(IOException.class, () ->
-                    strategy.parseTag(TagFormat.RIFF_INFO, raf, 0, data.length));
+                    strategy.parseTag(TagFormat.RIFF_INFO, source, 0, data.length));
         }
     }
 
@@ -120,8 +113,9 @@ class RIFFInfoParsingStrategyTest {
         byte[] data = buildRIFFInfoChunk();
         File file = writeTempFile(tempDir.toFile(), "test.wav", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.RIFF_INFO, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.RIFF_INFO, source, 0, data.length);
 
             assertNotNull(metadata);
             assertEquals(0, metadata.getFields().size());

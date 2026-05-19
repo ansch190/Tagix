@@ -1,19 +1,16 @@
 package com.schwanitz.strategies.parsing;
 
-import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
-import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,17 +31,24 @@ import org.slf4j.LoggerFactory;
  *
  * @see TagParsingStrategy
  */
-public class Lyrics3ParsingStrategy implements TagParsingStrategy {
+public class Lyrics3ParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(Lyrics3ParsingStrategy.class);
 
-    private final Map<String, FieldHandler<?>> handlers;
+    private static final Pattern FIELD_ID_PATTERN = Pattern.compile("[A-Z0-9]{3}");
+    private static final Pattern TIMESTAMP_SHORT_PATTERN = Pattern.compile("\\d{1,2}:\\d{2}");
+    private static final Pattern TIMESTAMP_LONG_PATTERN = Pattern.compile("\\d{1,2}:\\d{2}:\\d{2}");
+    private static final Pattern CRC_HEX_PATTERN = Pattern.compile("[0-9A-F]+");
+    private static final Pattern IMAGE_EXT_PATTERN = Pattern.compile(".*\\.(jpg|jpeg|png|gif|bmp)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern CRC_VALIDATION_PATTERN = Pattern.compile("[0-9A-Fa-f]+");
+
+
 
     /**
      * Erzeugt eine neue Lyrics3-Parsing-Strategie mit Standard-Handlern.
      */
     public Lyrics3ParsingStrategy() {
-        this.handlers = new HashMap<>();
+        super("Lyrics3");
         initializeDefaultHandlers();
     }
 
@@ -72,36 +76,25 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
     }
 
     /**
-     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
-     *
-     * @param format das zu prüfende Tag-Format
-     * @return {@code true} für Lyrics3V1 und Lyrics3V2
-     */
-    @Override
-    public boolean canHandle(TagFormat format) {
-        return format == TagFormat.LYRICS3V1 || format == TagFormat.LYRICS3V2;
-    }
-
-    /**
      * Parst einen Lyrics3-Tag aus der angegebenen Datei.
      *
      * @param format das Lyrics3-Format (V1 oder V2)
-     * @param file   die Datei, aus der gelesen wird
+     * @param source die Datenquelle, aus der gelesen wird
      * @param offset der Start-Offset des Tags
      * @param size   die Größe des Tags in Bytes
      * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültigem Tag-Format
      */
     @Override
-    public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
+    public Metadata parseTag(TagFormat format, SeekableDataSource source, long offset, long size) throws IOException {
         GenericMetadata metadata = new GenericMetadata(format);
 
         switch (format) {
             case LYRICS3V1:
-                parseLyrics3v1(file, metadata, offset, size);
+                parseLyrics3v1(source, metadata, offset, size);
                 break;
             case LYRICS3V2:
-                parseLyrics3v2(file, metadata, offset, size);
+                parseLyrics3v2(source, metadata, offset, size);
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported Lyrics3 format: " + format);
@@ -110,15 +103,15 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         return metadata;
     }
 
-    private void parseLyrics3v1(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
-            throws IOException {
-        file.seek(offset);
-        byte[] tagData = new byte[(int) size];
-        int bytesRead = file.read(tagData);
+    private static final long MAX_LYRICS3_TAG_SIZE = 1024 * 1024; // 1 MB safety limit
 
-        if (bytesRead != size) {
-            throw new IOException("Could not read complete Lyrics3v1 tag");
+    private void parseLyrics3v1(SeekableDataSource source, GenericMetadata metadata, long offset, long size)
+            throws IOException {
+        if (size < 0 || size > MAX_LYRICS3_TAG_SIZE) {
+            throw new IOException("Invalid Lyrics3v1 tag size: " + size);
         }
+        byte[] tagData = new byte[(int) size];
+        source.readFully(offset, tagData);
 
         // Multi-Encoding Support für bessere Real-World-Kompatibilität
         String tagContent = parseTagContent(tagData);
@@ -144,15 +137,13 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         LOG.debug("Parsed Lyrics3v1 tag with {} characters", lyricsContent.length());
     }
 
-    private void parseLyrics3v2(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
+    private void parseLyrics3v2(SeekableDataSource source, GenericMetadata metadata, long offset, long size)
             throws IOException {
-        file.seek(offset);
-        byte[] tagData = new byte[(int) size];
-        int bytesRead = file.read(tagData);
-
-        if (bytesRead != size) {
-            throw new IOException("Could not read complete Lyrics3v2 tag");
+        if (size < 0 || size > MAX_LYRICS3_TAG_SIZE) {
+            throw new IOException("Invalid Lyrics3v2 tag size: " + size);
         }
+        byte[] tagData = new byte[(int) size];
+        source.readFully(offset, tagData);
 
         // Multi-Encoding Support für bessere Real-World-Kompatibilität
         String tagContent = parseTagContent(tagData);
@@ -238,7 +229,8 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
             int printableCount = 0;
             int controlCount = 0;
 
-            for (char c : text.toCharArray()) {
+            for (int i = 0; i < text.length(); i++) {
+                char c = text.charAt(i);
                 if (c >= 32 && c <= 126) { // ASCII printable
                     printableCount++;
                 } else if (c >= 128) { // Extended characters
@@ -359,7 +351,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         }
 
         // Lyrics3v2 Feld-IDs sollten nur A-Z und 0-9 enthalten
-        return fieldId.matches("[A-Z0-9]{3}");
+        return FIELD_ID_PATTERN.matcher(fieldId).matches();
     }
 
     private boolean isValidFieldSize(String sizeStr) {
@@ -418,7 +410,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         }
 
         // Prüfe gängige Timestamp-Formate: MM:SS oder HH:MM:SS
-        if (timestamp.matches("\\d{1,2}:\\d{2}") || timestamp.matches("\\d{1,2}:\\d{2}:\\d{2}")) {
+        if (TIMESTAMP_SHORT_PATTERN.matcher(timestamp).matches() || TIMESTAMP_LONG_PATTERN.matcher(timestamp).matches()) {
             return timestamp.trim();
         }
 
@@ -433,7 +425,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
 
         // CRC sollte hexadezimal sein
         String cleanCRC = crc.trim().toUpperCase();
-        if (cleanCRC.matches("[0-9A-F]+")) {
+        if (CRC_HEX_PATTERN.matcher(cleanCRC).matches()) {
             return cleanCRC;
         }
 
@@ -482,7 +474,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         String cleanLink = imgLink.trim();
 
         // Prüfe auf gängige Bild-Dateierweiterungen
-        if (cleanLink.toLowerCase().matches(".*\\.(jpg|jpeg|png|gif|bmp)$")) {
+        if (IMAGE_EXT_PATTERN.matcher(cleanLink).matches()) {
             LOG.debug("Image file detected: {}", cleanLink);
         } else if (cleanLink.toLowerCase().startsWith("http")) {
             LOG.debug("Image URL detected: {}", cleanLink);
@@ -499,7 +491,7 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         try {
             // Vereinfachte CRC-Validierung (echte CRC-Berechnung wäre komplex)
             // Hier nur Format-Validierung und Logging
-            if (providedCRC.matches("[0-9A-Fa-f]+")) {
+            if (CRC_VALIDATION_PATTERN.matcher(providedCRC).matches()) {
                 LOG.debug("CRC field present with value: {}", providedCRC);
                 // TODO: Implementiere echte CRC-Validierung falls benötigt
             } else {
@@ -510,26 +502,4 @@ public class Lyrics3ParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private void addField(GenericMetadata metadata, String key, String value) {
-        FieldHandler<?> handler = handlers.get(key);
-        if (handler != null) {
-            metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
-        } else {
-            // Fallback: TextFieldHandler für unbekannte Felder erstellen
-            TextFieldHandler textHandler = new TextFieldHandler(key);
-            metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOG.debug("Created fallback handler for unknown field: {}", key);
-        }
-    }
-
-    /**
-     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes Lyrics3-Feld.
-     *
-     * @param key     das Feld-ID (z.&nbsp;B. "LYR", "INF", "AUT"), für das der Handler registriert werden soll
-     * @param handler der zu registrierende Handler
-     */
-    public void registerHandler(String key, FieldHandler<?> handler) {
-        handlers.put(key, handler);
-    }
 }

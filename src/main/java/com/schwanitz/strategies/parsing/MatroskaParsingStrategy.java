@@ -1,22 +1,19 @@
 package com.schwanitz.strategies.parsing;
 
-import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
-import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SourceReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,7 +33,7 @@ import java.util.Map;
  *
  * @see TagParsingStrategy
  */
-public class MatroskaParsingStrategy implements TagParsingStrategy {
+public class MatroskaParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(MatroskaParsingStrategy.class);
 
@@ -87,131 +84,121 @@ public class MatroskaParsingStrategy implements TagParsingStrategy {
         MATROSKA_FIELD_MAPPING.put("LABEL", "Label");
     }
 
-    private final Map<String, FieldHandler<?>> handlers = new HashMap<>();
+
 
     /**
      * Erzeugt eine neue Matroska-Parsing-Strategie mit Standard-Handlern für alle bekannten Matroska-Tag-Felder.
      */
     public MatroskaParsingStrategy() {
+        super("Matroska");
         for (String fieldName : MATROSKA_FIELD_MAPPING.values()) {
             handlers.put(fieldName, new TextFieldHandler(fieldName));
         }
     }
 
     /**
-     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
-     *
-     * @param format das zu prüfende Tag-Format
-     * @return {@code true} für MATROSKA_TAGS und WEBM_TAGS
-     */
-    @Override
-    public boolean canHandle(TagFormat format) {
-        return format == TagFormat.MATROSKA_TAGS || format == TagFormat.WEBM_TAGS;
-    }
-
-    /**
-     * Parst Matroska/WebM-Tag-Metadaten aus der angegebenen Datei.
+     * Parst Matroska/WebM-Tag-Metadaten aus der angegebenen Datenquelle.
      *
      * <p>Sucht nach dem {@code Tags}-Element am angegebenen Offset und iteriert über alle
      * {@code Tag}- und {@code SimpleTag}-Sub-Elemente, um Schlüssel-Wert-Paare zu extrahieren.</p>
      *
      * @param format das Matroska- oder WebM-Tag-Format
-     * @param file   die Datei, aus der gelesen wird
+     * @param source die Datenquelle, aus der gelesen wird
      * @param offset der Start-Offset des Tags-Elements
      * @param size   die Größe des Elements in Bytes
      * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültiger EBML-Struktur
      */
     @Override
-    public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
+    public Metadata parseTag(TagFormat format, SeekableDataSource source, long offset, long size) throws IOException {
         GenericMetadata metadata = new GenericMetadata(format);
 
-        file.seek(offset);
+        SourceReader reader = new SourceReader(source, offset);
 
         byte[] tagId = new byte[4];
-        file.read(tagId);
+        reader.read(tagId);
 
         if (!Arrays.equals(tagId, TAGS_ID)) {
             LOG.debug("Not a Tags element at offset {}", offset);
             return metadata;
         }
 
-        long tagsSize = readVLI(file);
+        long tagsSize = readVLI(reader);
 
-        long dataStart = file.getFilePointer();
+        long dataStart = reader.getFilePointer();
         long dataEnd = dataStart + tagsSize;
 
         long currentPos = dataStart;
 
         while (currentPos < dataEnd) {
-            file.seek(currentPos);
+            reader.seek(currentPos);
 
-            long elementId = readVLI(file);
+            long elementId = readVLI(reader);
             if (elementId < 0) break;
 
-            long elementSize = readVLI(file);
-            if (elementSize < 0 || file.getFilePointer() + elementSize > dataEnd) break;
+            long elementSize = readVLI(reader);
+            if (elementSize < 0 || reader.getFilePointer() + elementSize > dataEnd) break;
 
             if (elementId == TAG_ELEMENT_ID) {
-                parseTagElement(file, metadata, file.getFilePointer(), elementSize);
+                parseTagElement(reader, metadata, reader.getFilePointer(), elementSize);
             }
 
-            currentPos = file.getFilePointer() + elementSize;
+            currentPos = reader.getFilePointer() + elementSize;
             if (elementId != TAG_ELEMENT_ID) {
-                file.seek(currentPos);
+                reader.seek(currentPos);
             }
         }
 
         return metadata;
     }
 
-    private void parseTagElement(RandomAccessFile file, GenericMetadata metadata, long start, long size) throws IOException {
+    private void parseTagElement(SourceReader reader, GenericMetadata metadata, long start, long size) throws IOException {
         long endPos = start + size;
         long currentPos = start;
 
         while (currentPos < endPos) {
-            file.seek(currentPos);
+            reader.seek(currentPos);
 
-            long elementId = readVLI(file);
+            long elementId = readVLI(reader);
             if (elementId < 0) break;
 
-            long elementSize = readVLI(file);
-            if (elementSize < 0 || file.getFilePointer() + elementSize > endPos) break;
+            long elementSize = readVLI(reader);
+            if (elementSize < 0 || reader.getFilePointer() + elementSize > endPos) break;
 
             if (elementId == SIMPLE_TAG_ID) {
-                parseSimpleTag(file, metadata, file.getFilePointer(), elementSize);
-                currentPos = file.getFilePointer();
+                parseSimpleTag(reader, metadata, reader.getFilePointer(), elementSize);
+                currentPos = reader.getFilePointer();
             } else {
-                currentPos = file.getFilePointer() + elementSize;
+                currentPos = reader.getFilePointer() + elementSize;
             }
         }
     }
 
-    private void parseSimpleTag(RandomAccessFile file, GenericMetadata metadata, long start, long size) throws IOException {
+    private void parseSimpleTag(SourceReader reader, GenericMetadata metadata, long start, long size) throws IOException {
         long endPos = start + size;
         long currentPos = start;
         String tagName = null;
         String tagValue = null;
 
         while (currentPos < endPos) {
-            file.seek(currentPos);
+            reader.seek(currentPos);
 
-            long elementId = readVLI(file);
+            long elementId = readVLI(reader);
             if (elementId < 0) break;
 
-            long elementSize = readVLI(file);
+            long elementSize = readVLI(reader);
             if (elementSize < 0) break;
 
-            long elementEnd = file.getFilePointer() + elementSize;
+            long elementEnd = reader.getFilePointer() + elementSize;
             if (elementEnd > endPos) break;
 
             if (elementId == TAG_NAME_ID && elementSize > 0 && elementSize < 1024) {
                 byte[] nameBytes = new byte[(int)elementSize];
-                file.read(nameBytes);
+                reader.read(nameBytes);
                 tagName = new String(nameBytes, StandardCharsets.UTF_8).trim().toUpperCase();
             } else if (elementId == TAG_STRING_ID && elementSize > 0 && elementSize < 65536) {
                 byte[] valueBytes = new byte[(int)elementSize];
-                file.read(valueBytes);
+                reader.read(valueBytes);
                 tagValue = new String(valueBytes, StandardCharsets.UTF_8).trim();
             }
 
@@ -220,12 +207,12 @@ public class MatroskaParsingStrategy implements TagParsingStrategy {
 
         if (tagName != null && tagValue != null && !tagValue.isEmpty()) {
             String fieldName = MATROSKA_FIELD_MAPPING.getOrDefault(tagName, tagName);
-            addField(metadata, fieldName, tagValue);
+            addField(metadata, fieldName, tagValue, true, false, false);
         }
     }
 
-    private long readVLI(RandomAccessFile file) throws IOException {
-        int firstByte = file.read();
+    private long readVLI(SourceReader reader) throws IOException {
+        int firstByte = reader.read();
         if (firstByte == -1) {
             return -1;
         }
@@ -248,7 +235,7 @@ public class MatroskaParsingStrategy implements TagParsingStrategy {
         long value = firstByte & (0xFF >> length);
 
         for (int i = 1; i < length; i++) {
-            int nextByte = file.read();
+            int nextByte = reader.read();
             if (nextByte == -1) {
                 return -1;
             }
@@ -258,15 +245,5 @@ public class MatroskaParsingStrategy implements TagParsingStrategy {
         return value;
     }
 
-    @SuppressWarnings("unchecked")
-    private void addField(GenericMetadata metadata, String key, String value) {
-        if (value == null || value.isEmpty()) return;
-        FieldHandler<?> handler = handlers.get(key);
-        if (handler != null) {
-            metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
-        } else {
-            metadata.addField(new MetadataField<>(key, value, new TextFieldHandler(key)));
-        }
-    }
 
 }

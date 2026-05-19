@@ -7,6 +7,9 @@ import com.schwanitz.tagging.TagFormat;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SeekableDataSources;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -29,21 +32,6 @@ class MP4ParsingStrategyTest {
     }
 
     @Test
-    @DisplayName("canHandle returns true for MP4")
-    void canHandle_MP4_true() {
-        assertTrue(strategy.canHandle(TagFormat.MP4));
-    }
-
-    @Test
-    @DisplayName("canHandle returns false for non-MP4 formats")
-    void canHandle_nonMP4_false() {
-        assertFalse(strategy.canHandle(TagFormat.ID3V2_3));
-        assertFalse(strategy.canHandle(TagFormat.VORBIS_COMMENT));
-        assertFalse(strategy.canHandle(TagFormat.RIFF_INFO));
-        assertFalse(strategy.canHandle(TagFormat.ASF_CONTENT_DESC));
-    }
-
-    @Test
     @DisplayName("parseUTF8TextAtom extracts text from data type 1")
     void parseUTF8TextAtom() throws IOException {
         byte[] ilstData = concat(
@@ -53,7 +41,8 @@ class MP4ParsingStrategyTest {
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp4", fileData);
 
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.MP4, raf, 0, file.length());
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
+            Metadata metadata = strategy.parseTag(TagFormat.MP4, source, 0, file.length());
 
             String title = ParsingTestHelper.findFieldValue(metadata, "Title");
             assertNotNull(title);
@@ -72,7 +61,8 @@ class MP4ParsingStrategyTest {
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp4", fileData);
 
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.MP4, raf, 0, file.length());
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
+            Metadata metadata = strategy.parseTag(TagFormat.MP4, source, 0, file.length());
 
             String track = ParsingTestHelper.findFieldValue(metadata, "Track");
             assertNotNull(track);
@@ -93,7 +83,8 @@ class MP4ParsingStrategyTest {
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp4", fileData);
 
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.MP4, raf, 0, file.length());
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
+            Metadata metadata = strategy.parseTag(TagFormat.MP4, source, 0, file.length());
 
             assertEquals("true", ParsingTestHelper.findFieldValue(metadata, "Compilation"));
             assertEquals("false", ParsingTestHelper.findFieldValue(metadata, "Podcast_Flag"));
@@ -113,7 +104,8 @@ class MP4ParsingStrategyTest {
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp4", fileData);
 
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.MP4, raf, 0, file.length());
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
+            Metadata metadata = strategy.parseTag(TagFormat.MP4, source, 0, file.length());
 
             assertEquals("5/10", ParsingTestHelper.findFieldValue(metadata, "Track"));
             assertEquals("2/3", ParsingTestHelper.findFieldValue(metadata, "Disc"));
@@ -127,8 +119,9 @@ class MP4ParsingStrategyTest {
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp4", fileData);
 
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
             assertThrows(IOException.class, () ->
-                    strategy.parseTag(TagFormat.MP4, raf, 0, file.length()));
+                    strategy.parseTag(TagFormat.MP4, source, 0, file.length()));
         }
     }
 
@@ -139,7 +132,8 @@ class MP4ParsingStrategyTest {
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp4", moovData);
 
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.MP4, raf, 0, file.length());
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
+            Metadata metadata = strategy.parseTag(TagFormat.MP4, source, 0, file.length());
 
             assertNotNull(metadata);
             assertTrue(metadata.getFields().isEmpty());

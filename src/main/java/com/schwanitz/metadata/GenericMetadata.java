@@ -43,13 +43,13 @@ public class GenericMetadata implements Metadata {
     }
 
     /**
-     * Gibt die Liste aller in dieser Instanz gespeicherten Metadatenfelder zurück.
+     * Gibt die unveränderliche Liste aller in dieser Instanz gespeicherten Metadatenfelder zurück.
      *
-     * @return die Liste der Metadatenfelder, niemals {@code null}
+     * @return die unveränderliche Liste der Metadatenfelder, niemals {@code null}
      */
     @Override
     public List<MetadataField<?>> getFields() {
-        return fields;
+        return java.util.Collections.unmodifiableList(fields);
     }
 
     /**
@@ -61,5 +61,15 @@ public class GenericMetadata implements Metadata {
     @Override
     public void addField(MetadataField<?> field) {
         fields.add(field);
+    }
+
+    /**
+     * Entfernt alle Metadatenfelder mit dem angegebenen Schlüssel.
+     *
+     * @param key der Schlüssel der zu entfernenden Felder
+     * @return {@code true}, wenn mindestens ein Feld entfernt wurde
+     */
+    public boolean removeField(String key) {
+        return fields.removeIf(field -> field.getKey().equals(key));
     }
 }

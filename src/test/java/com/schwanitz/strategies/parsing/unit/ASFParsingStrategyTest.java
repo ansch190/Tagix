@@ -11,6 +11,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SeekableDataSources;
 import java.nio.file.Path;
 
 import static com.schwanitz.strategies.parsing.ParsingTestHelper.*;
@@ -30,29 +32,15 @@ class ASFParsingStrategyTest {
     }
 
     @Test
-    @DisplayName("canHandle returns true for ASF_CONTENT_DESC and ASF_EXT_CONTENT_DESC")
-    void canHandle_ASF_true() {
-        assertTrue(strategy.canHandle(TagFormat.ASF_CONTENT_DESC));
-        assertTrue(strategy.canHandle(TagFormat.ASF_EXT_CONTENT_DESC));
-    }
-
-    @Test
-    @DisplayName("canHandle returns false for non-ASF formats")
-    void canHandle_nonASF_false() {
-        assertFalse(strategy.canHandle(TagFormat.MP4));
-        assertFalse(strategy.canHandle(TagFormat.RIFF_INFO));
-        assertFalse(strategy.canHandle(TagFormat.ID3V2_3));
-    }
-
-    @Test
     @DisplayName("parseContentDescription extracts title, author, copyright, description, rating")
     void parseContentDescription() throws IOException {
         byte[] data = buildASFContentDescObject("Test Title", "Test Author", "Test Copyright",
                 "Test Description", "Test Rating");
         File file = writeTempFile(tempDir.toFile(), "test.asf", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.ASF_CONTENT_DESC, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.ASF_CONTENT_DESC, source, 0, data.length);
 
             assertEquals("Test Title", ParsingTestHelper.findFieldValue(metadata, "Title"));
             assertEquals("Test Author", ParsingTestHelper.findFieldValue(metadata, "Artist"));
@@ -74,8 +62,9 @@ class ASFParsingStrategyTest {
         );
         File file = writeTempFile(tempDir.toFile(), "test.asf", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.ASF_EXT_CONTENT_DESC, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.ASF_EXT_CONTENT_DESC, source, 0, data.length);
 
             assertEquals("Test Album", ParsingTestHelper.findFieldValue(metadata, "Album"));
             assertEquals("5", ParsingTestHelper.findFieldValue(metadata, "TrackNumber"));
@@ -91,8 +80,9 @@ class ASFParsingStrategyTest {
         byte[] data = buildASFContentDescObject(null, null, null, null, null);
         File file = writeTempFile(tempDir.toFile(), "test.asf", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.ASF_CONTENT_DESC, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.ASF_CONTENT_DESC, source, 0, data.length);
 
             assertNotNull(metadata);
             assertEquals(0, metadata.getFields().size());
@@ -107,8 +97,9 @@ class ASFParsingStrategyTest {
         );
         File file = writeTempFile(tempDir.toFile(), "test.asf", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.ASF_EXT_CONTENT_DESC, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.ASF_EXT_CONTENT_DESC, source, 0, data.length);
 
             assertEquals("String Value", ParsingTestHelper.findFieldValue(metadata, "Album"));
         }
@@ -122,8 +113,9 @@ class ASFParsingStrategyTest {
         );
         File file = writeTempFile(tempDir.toFile(), "test.asf", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.ASF_EXT_CONTENT_DESC, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.ASF_EXT_CONTENT_DESC, source, 0, data.length);
 
             assertEquals("42", ParsingTestHelper.findFieldValue(metadata, "TrackNumber"));
         }
@@ -137,8 +129,9 @@ class ASFParsingStrategyTest {
         );
         File file = writeTempFile(tempDir.toFile(), "test.asf", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.ASF_EXT_CONTENT_DESC, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.ASF_EXT_CONTENT_DESC, source, 0, data.length);
 
             assertEquals("2024", ParsingTestHelper.findFieldValue(metadata, "Year"));
         }
@@ -152,8 +145,9 @@ class ASFParsingStrategyTest {
         );
         File file = writeTempFile(tempDir.toFile(), "test.asf", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.ASF_EXT_CONTENT_DESC, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.ASF_EXT_CONTENT_DESC, source, 0, data.length);
 
             assertEquals("99", ParsingTestHelper.findFieldValue(metadata, "Genre"));
         }
@@ -168,8 +162,9 @@ class ASFParsingStrategyTest {
         );
         File file = writeTempFile(tempDir.toFile(), "test.asf", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.ASF_EXT_CONTENT_DESC, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.ASF_EXT_CONTENT_DESC, source, 0, data.length);
 
             assertEquals("true", ParsingTestHelper.findFieldValue(metadata, "IsCompilation"));
             assertEquals("false", ParsingTestHelper.findFieldValue(metadata, "IsPrivate"));

@@ -61,6 +61,61 @@ public interface SeekableDataSource extends AutoCloseable {
     int read(long offset, byte[] buf, int bufOff, int len) throws IOException;
 
     /**
+     * Convenience-Methode: Liest bis zu {@code buf.length} Bytes ab der Position {@code offset}.
+     *
+     * @param offset die Dateiposition, ab der gelesen werden soll
+     * @param buf    der Zielpuffer
+     * @return die tatsächliche Anzahl der gelesenen Bytes, oder -1 wenn das Ende erreicht ist
+     * @throws IOException bei Ein-/Ausgabefehlern
+     */
+    default int read(long offset, byte[] buf) throws IOException {
+        return read(offset, buf, 0, buf.length);
+    }
+
+    /**
+     * Liest exakt {@code buf.length} Bytes ab der Position {@code offset}.
+     * Wirft eine {@link IOException}, wenn das Ende der Datenquelle vorzeitig erreicht wird.
+     *
+     * @param offset die Dateiposition, ab der gelesen werden soll
+     * @param buf    der Zielpuffer, der vollständig gefüllt wird
+     * @throws IOException bei Ein-/Ausgabefehlern oder unerwartetem Dateiende
+     */
+    default void readFully(long offset, byte[] buf) throws IOException {
+        int total = 0;
+        while (total < buf.length) {
+            int read = read(offset + total, buf, total, buf.length - total);
+            if (read < 0) {
+                throw new IOException("Unexpected end of data source at offset " + (offset + total));
+            }
+            total += read;
+        }
+    }
+
+    /**
+     * Liest ein einzelnes Byte ab der angegebenen Position.
+     *
+     * @param offset die Dateiposition
+     * @return das gelesene Byte (vorzeichenbehaftet, wie {@link java.io.RandomAccessFile#readByte()})
+     * @throws IOException bei Ein-/Ausgabefehlern oder unerwartetem Dateiende
+     */
+    default byte readByte(long offset) throws IOException {
+        byte[] buf = new byte[1];
+        readFully(offset, buf);
+        return buf[0];
+    }
+
+    /**
+     * Prüft, ob das angegebene Offset innerhalb der Datenquelle liegt.
+     *
+     * @param offset das zu prüfende Offset
+     * @return {@code true}, wenn das Offset gültig ist (0 <= offset < length())
+     * @throws IOException bei Ein-/Ausgabefehlern
+     */
+    default boolean isValidOffset(long offset) throws IOException {
+        return offset >= 0 && offset < length();
+    }
+
+    /**
      * Liest die gesamte Datenquelle in ein Byte-Array ein.
      * Bei großen Dateien wird erheblicher Speicher allokiert; mit Vorsicht verwenden.
      *
@@ -72,10 +127,14 @@ public interface SeekableDataSource extends AutoCloseable {
         if (len < 0 || len > Integer.MAX_VALUE) {
             throw new IOException("Data source too large to read into byte array");
         }
-        byte[] data = new byte[(int) len];
+        int intLen = (int) len;
+        if (intLen > 64 * 1024 * 1024) { // 64 MB practical limit
+            throw new IOException("Data source exceeds 64 MB read-all limit: " + intLen + " bytes");
+        }
+        byte[] data = new byte[intLen];
         int totalRead = 0;
-        while (totalRead < len) {
-            int read = read(totalRead, data, totalRead, (int) len - totalRead);
+        while (totalRead < intLen) {
+            int read = read(totalRead, data, totalRead, intLen - totalRead);
             if (read <= 0) break;
             totalRead += read;
         }

@@ -10,6 +10,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SeekableDataSources;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -28,28 +30,14 @@ class Lyrics3ParsingStrategyTest {
     }
 
     @Test
-    @DisplayName("canHandle returns true for LYRICS3V1 and LYRICS3V2")
-    void canHandle_Lyrics3_true() {
-        assertTrue(strategy.canHandle(TagFormat.LYRICS3V1));
-        assertTrue(strategy.canHandle(TagFormat.LYRICS3V2));
-    }
-
-    @Test
-    @DisplayName("canHandle returns false for non-Lyrics3 formats")
-    void canHandle_nonLyrics3_false() {
-        assertFalse(strategy.canHandle(TagFormat.ID3V2_3));
-        assertFalse(strategy.canHandle(TagFormat.MP4));
-        assertFalse(strategy.canHandle(TagFormat.APEV2));
-    }
-
-    @Test
     @DisplayName("parseLyrics3v1Basic extracts basic lyrics between markers")
     void parseLyrics3v1Basic() throws IOException {
         byte[] data = ParsingTestHelper.buildLyrics3v1Tag("Hello world lyrics");
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp3", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.LYRICS3V1, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.LYRICS3V1, source, 0, data.length);
 
             String lyrics = ParsingTestHelper.findFieldValue(metadata, "LYRICS");
             assertNotNull(lyrics);
@@ -63,8 +51,9 @@ class Lyrics3ParsingStrategyTest {
         byte[] data = ParsingTestHelper.buildLyrics3v2Tag("LYR", "Test lyrics content");
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp3", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.LYRICS3V2, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.LYRICS3V2, source, 0, data.length);
 
             String lyrics = ParsingTestHelper.findFieldValue(metadata, "LYR");
             assertNotNull(lyrics);
@@ -82,8 +71,9 @@ class Lyrics3ParsingStrategyTest {
         );
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp3", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.LYRICS3V2, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.LYRICS3V2, source, 0, data.length);
 
             assertTrue(ParsingTestHelper.hasField(metadata, "LYR"));
             assertTrue(ParsingTestHelper.hasField(metadata, "INF"));
@@ -97,9 +87,10 @@ class Lyrics3ParsingStrategyTest {
         byte[] data = "INVALIDBEGIN some lyrics LYRICSEND".getBytes();
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp3", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
             assertThrows(IOException.class, () ->
-                    strategy.parseTag(TagFormat.LYRICS3V1, raf, 0, data.length));
+                    strategy.parseTag(TagFormat.LYRICS3V1, source, 0, data.length));
         }
     }
 
@@ -109,9 +100,10 @@ class Lyrics3ParsingStrategyTest {
         byte[] data = "LYRICSBEGIN some lyrics NOEND".getBytes();
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp3", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
             assertThrows(IOException.class, () ->
-                    strategy.parseTag(TagFormat.LYRICS3V1, raf, 0, data.length));
+                    strategy.parseTag(TagFormat.LYRICS3V1, source, 0, data.length));
         }
     }
 
@@ -121,9 +113,10 @@ class Lyrics3ParsingStrategyTest {
         byte[] data = "INVALIDBEGINLYR05hello000006LYRICS200".getBytes();
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp3", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
             assertThrows(IOException.class, () ->
-                    strategy.parseTag(TagFormat.LYRICS3V2, raf, 0, data.length));
+                    strategy.parseTag(TagFormat.LYRICS3V2, source, 0, data.length));
         }
     }
 
@@ -133,9 +126,10 @@ class Lyrics3ParsingStrategyTest {
         byte[] data = "LYRICSBEGINLYR05hello000006NOVALID".getBytes();
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp3", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
             assertThrows(IOException.class, () ->
-                    strategy.parseTag(TagFormat.LYRICS3V2, raf, 0, data.length));
+                    strategy.parseTag(TagFormat.LYRICS3V2, source, 0, data.length));
         }
     }
 
@@ -145,8 +139,9 @@ class Lyrics3ParsingStrategyTest {
         byte[] data = ParsingTestHelper.buildLyrics3v1Tag("");
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.mp3", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.LYRICS3V1, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.LYRICS3V1, source, 0, data.length);
 
             assertNotNull(metadata);
         }

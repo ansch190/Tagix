@@ -10,10 +10,10 @@ import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SourceReader;
+
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,17 +33,17 @@ import org.slf4j.LoggerFactory;
  *
  * @see TagParsingStrategy
  */
-public class VorbisParsingStrategy implements TagParsingStrategy {
+public class VorbisParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(VorbisParsingStrategy.class);
 
-    private final Map<String, FieldHandler<?>> handlers;
+
 
     /**
      * Erzeugt eine neue Vorbis-Parsing-Strategie mit Standard-Handlern.
      */
     public VorbisParsingStrategy() {
-        this.handlers = new HashMap<>();
+        super("Vorbis");
         initializeDefaultHandlers();
     }
 
@@ -132,46 +132,36 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
     }
 
     /**
-     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
-     *
-     * @param format das zu prüfende Tag-Format
-     * @return {@code true} für {@link TagFormat#VORBIS_COMMENT}
-     */
-    @Override
-    public boolean canHandle(TagFormat format) {
-        return format == TagFormat.VORBIS_COMMENT;
-    }
-
-    /**
      * Parst einen Vorbis-Comment-Block aus der angegebenen Datei.
      *
      * @param format das Vorbis-Comment-Format
-     * @param file   die Datei, aus der gelesen wird
+     * @param source die Datenquelle, aus der gelesen wird
      * @param offset der Start-Offset des Comment-Blocks
      * @param size   die Größe des Blocks in Bytes
      * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültigem Tag-Format
      */
     @Override
-    public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
+    public Metadata parseTag(TagFormat format, SeekableDataSource source, long offset, long size) throws IOException {
         GenericMetadata metadata = new GenericMetadata(TagFormat.VORBIS_COMMENT);
-        parseVorbisComment(file, metadata, offset, size);
+        SourceReader reader = new SourceReader(source, offset);
+        parseVorbisComment(reader, metadata, offset, size);
         return metadata;
     }
 
-    private void parseVorbisComment(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
+    private void parseVorbisComment(SourceReader reader, GenericMetadata metadata, long offset, long size)
             throws IOException {
-        file.seek(offset);
+        reader.seek(offset);
 
         // Für OGG: Packet Type Byte überspringen, falls vorhanden
         byte[] firstByte = new byte[1];
-        file.read(firstByte);
+        reader.read(firstByte);
         long currentOffset = offset + 1;
 
         // Prüfen ob es ein OGG Vorbis Comment Header ist (beginnt mit 0x03 + "vorbis")
         if (firstByte[0] == 0x03) {
             byte[] vorbisCheck = new byte[6];
-            file.read(vorbisCheck);
+            reader.readFully(vorbisCheck);
             String vorbisString = new String(vorbisCheck, StandardCharsets.US_ASCII);
             if (!"vorbis".equals(vorbisString)) {
                 throw new IOException("Invalid Vorbis Comment header");
@@ -179,22 +169,22 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
             currentOffset += 6;
         } else {
             // Zurückspringen - könnte FLAC Vorbis Comment Block sein
-            file.seek(offset);
+            reader.seek(offset);
             currentOffset = offset;
         }
 
         // Vendor String lesen
-        String vendor = readVendorString(file);
+        String vendor = readVendorString(reader);
         LOG.debug("Vorbis Comment Vendor: {}", vendor);
         currentOffset += 4 + vendor.getBytes(StandardCharsets.UTF_8).length;
 
         // Vendor String als Metadatum speichern falls vorhanden
         if (!vendor.isEmpty()) {
-            addField(metadata, "VENDOR", vendor);
+            addField(metadata, "VENDOR", vendor, false, true, true);
         }
 
         // User Comment Count lesen (32-bit little-endian)
-        long userCommentCount = BinaryDataReader.readLittleEndianUInt32(file);
+        long userCommentCount = BinaryDataReader.readLittleEndianUInt32(reader);
         currentOffset += 4;
 
         if (userCommentCount < 0 || userCommentCount > 10000) { // Sanity check
@@ -206,7 +196,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         // User Comments lesen
         for (long i = 0; i < userCommentCount; i++) {
             try {
-                String comment = readUserComment(file);
+                String comment = readUserComment(reader);
                 currentOffset += 4 + comment.getBytes(StandardCharsets.UTF_8).length;
 
                 if (!comment.isEmpty()) {
@@ -228,7 +218,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         // Framing bit für OGG (sollte 1 sein)
         if (currentOffset < offset + size) {
             try {
-                byte framingBit = file.readByte();
+                byte framingBit = reader.readByte();
                 if (framingBit != 1) {
                     LOG.debug("Invalid framing bit: {} (expected 1, normal for FLAC)", framingBit);
                 }
@@ -241,8 +231,8 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         LOG.debug("Successfully parsed Vorbis Comment block");
     }
 
-    private String readVendorString(RandomAccessFile file) throws IOException {
-        long vendorLength = BinaryDataReader.readLittleEndianUInt32(file);
+    private String readVendorString(SourceReader reader) throws IOException {
+        long vendorLength = BinaryDataReader.readLittleEndianUInt32(reader);
 
         if (vendorLength < 0 || vendorLength > 8192) { // Sanity check
             throw new IOException("Invalid vendor string length: " + vendorLength);
@@ -253,7 +243,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         }
 
         byte[] vendorBytes = new byte[(int) vendorLength];
-        int bytesRead = file.read(vendorBytes);
+        int bytesRead = reader.read(vendorBytes);
 
         if (bytesRead != vendorLength) {
             throw new IOException("Could not read complete vendor string");
@@ -262,8 +252,8 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         return new String(vendorBytes, StandardCharsets.UTF_8);
     }
 
-    private String readUserComment(RandomAccessFile file) throws IOException {
-        long commentLength = BinaryDataReader.readLittleEndianUInt32(file);
+    private String readUserComment(SourceReader reader) throws IOException {
+        long commentLength = BinaryDataReader.readLittleEndianUInt32(reader);
 
         final long MAX_REALISTIC_COMMENT_LENGTH = 16 * 1024 * 1024; // 16 MB
 
@@ -277,7 +267,7 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         }
 
         byte[] commentBytes = new byte[(int) commentLength];
-        file.readFully(commentBytes); // Diese Methode wirft IOException, wenn nicht alle Bytes gelesen werden können
+        reader.readFully(commentBytes); // Diese Methode wirft IOException, wenn nicht alle Bytes gelesen werden können
 
         return new String(commentBytes, StandardCharsets.UTF_8);
     }
@@ -312,10 +302,10 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
             LOG.debug("Multi-value field detected: {} = {}", fieldName, fieldValue);
         }
 
-        addField(metadata, fieldName, fieldValue);
+        addField(metadata, fieldName, fieldValue, false, true, true);
 
         if (LOG.isDebugEnabled()) {
-            String displayValue = fieldValue.length() > 50 ? fieldValue.substring(0, 50) + "..." : fieldValue;
+            String displayValue = truncateForDisplay(fieldValue, 50);
             LOG.debug("Parsed comment: {} = {}", fieldName, displayValue);
         }
     }
@@ -332,7 +322,8 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
     }
 
     private boolean isValidFieldName(String fieldName) {
-        for (char c : fieldName.toCharArray()) {
+        for (int i = 0; i < fieldName.length(); i++) {
+            char c = fieldName.charAt(i);
             if (c < 0x20 || c > 0x7D || c == 0x3D) { // 0x3D ist '='
                 return false;
             }
@@ -340,24 +331,6 @@ public class VorbisParsingStrategy implements TagParsingStrategy {
         return true;
     }
 
-    @SuppressWarnings("unchecked")
-    private void addField(GenericMetadata metadata, String key, String value) {
-        // Normalisiere Feldnamen (case-insensitive)
-        String normalizedKey = key.toUpperCase();
-
-        // Bei Multi-Value: Entferne existierendes Feld zuerst
-        metadata.getFields().removeIf(field -> field.getKey().equals(normalizedKey));
-
-        FieldHandler<?> handler = handlers.get(normalizedKey);
-        if (handler != null) {
-            metadata.addField(new MetadataField<>(normalizedKey, value, (FieldHandler<String>) handler));
-        } else {
-            // Fallback: TextFieldHandler für unbekannte Felder erstellen
-            TextFieldHandler textHandler = new TextFieldHandler(normalizedKey);
-            metadata.addField(new MetadataField<>(normalizedKey, value, textHandler));
-            LOG.debug("Created fallback handler for unknown field: {}", normalizedKey);
-        }
-    }
 
     /**
      * Registriert einen benutzerdefinierten {@link FieldHandler} für einen bestimmten Vorbis-Schlüssel.

@@ -10,6 +10,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SeekableDataSources;
 import java.nio.file.Path;
 
 import static com.schwanitz.strategies.parsing.ParsingTestHelper.*;
@@ -29,27 +31,14 @@ class DFFParsingStrategyTest {
     }
 
     @Test
-    @DisplayName("canHandle returns true for DFF_METADATA")
-    void canHandle_DFF_true() {
-        assertTrue(strategy.canHandle(TagFormat.DFF_METADATA));
-    }
-
-    @Test
-    @DisplayName("canHandle returns false for non-DFF formats")
-    void canHandle_nonDFF_false() {
-        assertFalse(strategy.canHandle(TagFormat.MP4));
-        assertFalse(strategy.canHandle(TagFormat.ID3V2_3));
-        assertFalse(strategy.canHandle(TagFormat.DSF_METADATA));
-    }
-
-    @Test
     @DisplayName("parseDIINChunk extracts DITI, DIAR, DIAL sub-chunks")
     void parseDIINChunk() throws IOException {
         byte[] data = buildDFFDIINChunk("DITI", "Test Title", "DIAR", "Test Artist", "DIAL", "Test Album");
         File file = writeTempFile(tempDir.toFile(), "test.dff", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.DFF_METADATA, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.DFF_METADATA, source, 0, data.length);
 
             assertEquals("Test Title", ParsingTestHelper.findFieldValue(metadata, "Title"));
             assertEquals("Test Artist", ParsingTestHelper.findFieldValue(metadata, "Artist"));
@@ -64,8 +53,9 @@ class DFFParsingStrategyTest {
         byte[] data = concat(ascii("DITI"), be64(titleValue.length), titleValue);
         File file = writeTempFile(tempDir.toFile(), "test.dff", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.DFF_METADATA, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.DFF_METADATA, source, 0, data.length);
 
             assertEquals("Direct Title", ParsingTestHelper.findFieldValue(metadata, "Title"));
         }
@@ -81,8 +71,9 @@ class DFFParsingStrategyTest {
 
         File file = writeTempFile(tempDir.toFile(), "test.dff", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.DFF_METADATA, raf, 0, data.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.DFF_METADATA, source, 0, data.length);
 
             assertNotNull(metadata);
             assertFalse(ParsingTestHelper.hasField(metadata, "XXXX"));
@@ -96,9 +87,10 @@ class DFFParsingStrategyTest {
         byte[] diinData = concat(ascii("DIIN"), be64(emptyDims.length), emptyDims);
         File file = writeTempFile(tempDir.toFile(), "test.dff", diinData);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
             assertDoesNotThrow(() -> {
-                Metadata metadata = strategy.parseTag(TagFormat.DFF_METADATA, raf, 0, diinData.length);
+                Metadata metadata = strategy.parseTag(TagFormat.DFF_METADATA, source, 0, diinData.length);
                 assertNotNull(metadata);
             });
         }

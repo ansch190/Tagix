@@ -39,6 +39,24 @@ public class FormatDetectionContext {
     private static final Logger LOG = LoggerFactory.getLogger(FormatDetectionContext.class);
     private static final int BUFFER_SIZE = 4096;
 
+    private final TagDetectionStrategyFactory strategyFactory;
+
+    /**
+     * Erzeugt einen neuen Erkennungskontext mit der Standard-Strategie-Factory.
+     */
+    public FormatDetectionContext() {
+        this(new TagDetectionStrategyFactory());
+    }
+
+    /**
+     * Erzeugt einen neuen Erkennungskontext mit der angegebenen Strategie-Factory.
+     *
+     * @param strategyFactory die zu verwendende Factory; darf nicht {@code null} sein
+     */
+    public FormatDetectionContext(TagDetectionStrategyFactory strategyFactory) {
+        this.strategyFactory = Objects.requireNonNull(strategyFactory, "strategyFactory must not be null");
+    }
+
     /**
      * Erkennt Tags in einer Seekable-Datenquelle ({@link SeekableDataSource}).
      * <p>
@@ -72,7 +90,7 @@ public class FormatDetectionContext {
 
         FileBuffers buffers = readSourceBuffers(source);
 
-        List<TagDetectionStrategy> strategies = TagDetectionStrategyFactory.getStrategiesForFormats(formatsToCheck);
+        List<TagDetectionStrategy> strategies = strategyFactory.getStrategiesForFormats(formatsToCheck);
         if (strategies.isEmpty()) {
             LOG.debug("No strategies found for requested formats");
             return List.of();

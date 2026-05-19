@@ -1,10 +1,10 @@
 package com.schwanitz.strategies.parsing;
 
-import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
-import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SourceReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.strategies.parsing.id3.ID3FrameParser;
 import com.schwanitz.strategies.parsing.id3.ID3FrameParserRegistry;
@@ -15,10 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Parsing-Strategie für ID3-Tags (ID3v1, ID3v1.1, ID3v2.2, ID3v2.3 und ID3v2.4).
@@ -41,65 +38,39 @@ import java.util.Map;
  * @see ID3FrameParserRegistry
  * @see ID3FrameParsingUtils
  */
-public class ID3ParsingStrategy implements TagParsingStrategy {
+public class ID3ParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(ID3ParsingStrategy.class);
 
-    /**
-     * Initialisiert die Standard-{@link FieldHandler} für alle bekannten ID3-Frames.
-     * Abhängig vom Handler-Typ (Text, Kommentar, etc.) wird der passende Handler erzeugt.
-     */
-    private final Map<String, FieldHandler<?>> handlers;
     private final ID3FrameParserRegistry frameParserRegistry;
 
     /**
      * Erzeugt eine neue ID3-Parsing-Strategie mit Standard-Handlern und der Frame-Parser-Registry.
      */
     public ID3ParsingStrategy() {
-        this.handlers = new HashMap<>();
+        super("ID3");
         this.frameParserRegistry = new ID3FrameParserRegistry();
         initializeDefaultHandlers();
     }
 
     /**
-     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
-     *
-     * @param format das zu prüfende Tag-Format
-     * @return {@code true} für ID3V1, ID3V1_1, ID3V2_2, ID3V2_3 und ID3V2_4
-     */
-    @Override
-    public boolean canHandle(TagFormat format) {
-        return format == TagFormat.ID3V1 || format == TagFormat.ID3V1_1 ||
-                format == TagFormat.ID3V2_2 || format == TagFormat.ID3V2_3 || format == TagFormat.ID3V2_4;
-    }
-
-    /**
-     * Parst ein ID3-Tag aus der angegebenen Datei.
+     * Parst ein ID3-Tag aus der angegebenen Datenquelle.
      *
      * @param format das ID3-Format (v1, v1.1, v2.2, v2.3 oder v2.4)
-     * @param file   die Datei, aus der gelesen wird
+     * @param source die Datenquelle, aus der gelesen wird
      * @param offset der Start-Offset des Tags
      * @param size   die Größe des Tags in Bytes
      * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültigem Tag-Format
      */
     @Override
-    public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
+    public Metadata parseTag(TagFormat format, SeekableDataSource source, long offset, long size) throws IOException {
         TagInfo tagInfo = new TagInfo(format, offset, size);
-        return parseID3Tag(file, tagInfo);
+        return parseID3Tag(source, tagInfo);
     }
 
-    /**
-     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes Frame-ID.
-     *
-     * @param key     das Frame-ID, für das der Handler registriert werden soll
-     * @param handler der zu registrierende Handler
-     */
-    public void registerHandler(String key, FieldHandler<?> handler) {
-        handlers.put(key, handler);
-    }
 
-    private Metadata parseID3Tag(RandomAccessFile file, TagInfo tagInfo) throws IOException {
+    private Metadata parseID3Tag(SeekableDataSource source, TagInfo tagInfo) throws IOException {
         TagFormat format = tagInfo.getFormat();
         long offset = tagInfo.getOffset();
         long size = tagInfo.getSize();
@@ -109,12 +80,12 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
         switch (format) {
             case ID3V1:
             case ID3V1_1:
-                parseID3v1(file, metadata, offset, format);
+                parseID3v1(source, metadata, offset, format);
                 break;
             case ID3V2_2:
             case ID3V2_3:
             case ID3V2_4:
-                parseID3v2(file, metadata, offset, size, format);
+                parseID3v2(source, metadata, offset, size, format);
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported ID3 format: " + format);
@@ -123,15 +94,10 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
         return metadata;
     }
 
-    private void parseID3v1(RandomAccessFile file, GenericMetadata metadata, long offset, TagFormat format)
+    private void parseID3v1(SeekableDataSource source, GenericMetadata metadata, long offset, TagFormat format)
             throws IOException {
-        file.seek(offset);
         byte[] tagData = new byte[128];
-        int bytesRead = file.read(tagData);
-
-        if (bytesRead != 128) {
-            throw new IOException("Could not read complete ID3v1 tag");
-        }
+        source.readFully(offset, tagData);
 
         String header = new String(tagData, 0, 3, StandardCharsets.ISO_8859_1);
         if (!"TAG".equals(header)) {
@@ -169,12 +135,14 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
         LOG.debug("Successfully parsed ID3v1{} tag", format == TagFormat.ID3V1_1 ? ".1" : "");
     }
 
-    private void parseID3v2(RandomAccessFile file, GenericMetadata metadata, long offset, long size, TagFormat format)
+    private static final int MAX_ID3_FRAME_SIZE = 16 * 1024 * 1024; // 16 MB safety limit per frame
+
+    private void parseID3v2(SeekableDataSource source, GenericMetadata metadata, long offset, long size, TagFormat format)
             throws IOException {
-        file.seek(offset);
+        SourceReader reader = new SourceReader(source, offset);
 
         byte[] header = new byte[10];
-        file.read(header);
+        reader.readFully(header);
 
         if (!"ID3".equals(new String(header, 0, 3, StandardCharsets.US_ASCII))) {
             throw new IOException("Invalid ID3v2 header");
@@ -190,9 +158,9 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
         long frameDataStart = offset + 10;
 
         if (hasExtendedHeader) {
-            file.seek(frameDataStart);
+            reader.seek(frameDataStart);
             byte[] extHeaderSize = new byte[4];
-            file.read(extHeaderSize);
+            reader.readFully(extHeaderSize);
 
             int extSize;
             if (majorVersion == 3) {
@@ -209,11 +177,11 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
         long endPos = offset + 10 + tagSize;
 
         while (currentPos < endPos - 10) {
-            file.seek(currentPos);
+            reader.seek(currentPos);
 
             int frameHeaderSize = (majorVersion == 2) ? 6 : 10;
             byte[] frameHeader = new byte[frameHeaderSize];
-            int bytesRead = file.read(frameHeader);
+            int bytesRead = reader.read(frameHeader);
 
             if (bytesRead != frameHeaderSize) {
                 break;
@@ -237,12 +205,12 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
                 }
             }
 
-            if (frameId.contains("\0") || frameSize <= 0 || frameSize > endPos - currentPos) {
+            if (frameId.contains("\0") || frameSize <= 0 || frameSize > endPos - currentPos || frameSize > MAX_ID3_FRAME_SIZE) {
                 break;
             }
 
             byte[] frameData = new byte[frameSize];
-            file.read(frameData);
+            reader.readFully(frameData);
 
             parseFrame(metadata, frameId, frameData, majorVersion);
 
@@ -281,17 +249,6 @@ public class ID3ParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private void addField(GenericMetadata metadata, String key, String value) {
-        FieldHandler<?> handler = handlers.get(key);
-        if (handler != null) {
-            metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
-        } else {
-            TextFieldHandler textHandler = new TextFieldHandler(key);
-            metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOG.debug("Created fallback handler for unknown ID3 field: {}", key);
-        }
-    }
 
     private void initializeDefaultHandlers() {
         // ID3v2.3/2.4 Standard-Frames

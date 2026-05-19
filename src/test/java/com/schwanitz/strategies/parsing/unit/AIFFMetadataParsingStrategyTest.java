@@ -10,6 +10,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SeekableDataSources;
 import java.nio.file.Path;
 
 import static com.schwanitz.strategies.parsing.ParsingTestHelper.*;
@@ -29,20 +31,6 @@ class AIFFMetadataParsingStrategyTest {
     }
 
     @Test
-    @DisplayName("canHandle returns true for AIFF_METADATA")
-    void canHandle_AIFF_true() {
-        assertTrue(strategy.canHandle(TagFormat.AIFF_METADATA));
-    }
-
-    @Test
-    @DisplayName("canHandle returns false for non-AIFF formats")
-    void canHandle_nonAIFF_false() {
-        assertFalse(strategy.canHandle(TagFormat.MP4));
-        assertFalse(strategy.canHandle(TagFormat.RIFF_INFO));
-        assertFalse(strategy.canHandle(TagFormat.ID3V2_3));
-    }
-
-    @Test
     @DisplayName("parseTextChunk extracts NAME, AUTH, ANNO, (c) chunks")
     void parseTextChunk() throws IOException {
         byte[] nameChunk = buildAIFFTextChunk("NAME", "Test Song");
@@ -55,20 +43,24 @@ class AIFFMetadataParsingStrategyTest {
         File annoFile = writeTempFile(tempDir.toFile(), "anno.aiff", annoChunk);
         File copyFile = writeTempFile(tempDir.toFile(), "copy.aiff", copyChunk);
 
-        try (RandomAccessFile raf = new RandomAccessFile(nameFile, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, raf, 0, nameChunk.length);
+        try (RandomAccessFile raf = new RandomAccessFile(nameFile, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, source, 0, nameChunk.length);
             assertEquals("Test Song", ParsingTestHelper.findFieldValue(metadata, "Title"));
         }
-        try (RandomAccessFile raf = new RandomAccessFile(authFile, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, raf, 0, authChunk.length);
+        try (RandomAccessFile raf = new RandomAccessFile(authFile, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, source, 0, authChunk.length);
             assertEquals("Test Artist", ParsingTestHelper.findFieldValue(metadata, "Artist"));
         }
-        try (RandomAccessFile raf = new RandomAccessFile(annoFile, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, raf, 0, annoChunk.length);
+        try (RandomAccessFile raf = new RandomAccessFile(annoFile, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, source, 0, annoChunk.length);
             assertEquals("Test Annotation", ParsingTestHelper.findFieldValue(metadata, "Annotation"));
         }
-        try (RandomAccessFile raf = new RandomAccessFile(copyFile, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, raf, 0, copyChunk.length);
+        try (RandomAccessFile raf = new RandomAccessFile(copyFile, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, source, 0, copyChunk.length);
             assertEquals("Test Copyright", ParsingTestHelper.findFieldValue(metadata, "Copyright"));
         }
     }
@@ -87,8 +79,9 @@ class AIFFMetadataParsingStrategyTest {
         byte[] comtChunk = buildAIFFChunk("COMT", commentData);
         File file = writeTempFile(tempDir.toFile(), "comt.aiff", comtChunk);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, raf, 0, comtChunk.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, source, 0, comtChunk.length);
 
             assertTrue(ParsingTestHelper.hasField(metadata, "Comment"));
         }
@@ -101,8 +94,9 @@ class AIFFMetadataParsingStrategyTest {
         byte[] applChunk = buildAIFFChunk("APPL", appData);
         File file = writeTempFile(tempDir.toFile(), "appl.aiff", applChunk);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, raf, 0, applChunk.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, source, 0, applChunk.length);
 
             String appValue = ParsingTestHelper.findFieldValue(metadata, "Application");
             assertNotNull(appValue);
@@ -117,8 +111,9 @@ class AIFFMetadataParsingStrategyTest {
         byte[] id3Chunk = buildAIFFChunk("ID3 ", id3Data);
         File file = writeTempFile(tempDir.toFile(), "id3.aiff", id3Chunk);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, raf, 0, id3Chunk.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.AIFF_METADATA, source, 0, id3Chunk.length);
 
             assertNotNull(metadata);
             assertFalse(ParsingTestHelper.hasField(metadata, "ID3"));
@@ -131,9 +126,10 @@ class AIFFMetadataParsingStrategyTest {
         byte[] data = concat(ascii("NAME"), be32(-1));
         File file = writeTempFile(tempDir.toFile(), "invalid.aiff", data);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
             assertThrows(IOException.class, () ->
-                    strategy.parseTag(TagFormat.AIFF_METADATA, raf, 0, data.length));
+                    strategy.parseTag(TagFormat.AIFF_METADATA, source, 0, data.length));
         }
     }
 }

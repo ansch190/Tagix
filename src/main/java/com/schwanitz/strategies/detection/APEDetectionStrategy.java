@@ -65,7 +65,12 @@ public class APEDetectionStrategy extends TagDetectionStrategy {
             int tagSize = getAPETagSize(endBuffer, endBuffer.length - APE_HEADER_SIZE);
             TagFormat format = getAPEFormat(version);
             if (format != null) {
-                long offset = source.length() - tagSize;
+                long fileLength = source.length();
+                if (tagSize < 0 || tagSize > fileLength) {
+                    LOG.warn("Invalid APE tag size {} for file length {}", tagSize, fileLength);
+                    return tags;
+                }
+                long offset = fileLength - tagSize;
                 tags.add(new TagInfo(format, offset, tagSize));
             }
         }

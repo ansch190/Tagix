@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SeekableDataSources;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -35,22 +38,9 @@ class VorbisParsingStrategyTest {
     private Metadata parseVorbis(byte[] tagData) throws IOException {
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.ogg", tagData);
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            return strategy.parseTag(TagFormat.VORBIS_COMMENT, raf, 0, tagData.length);
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
+            return strategy.parseTag(TagFormat.VORBIS_COMMENT, source, 0, tagData.length);
         }
-    }
-
-    @Test
-    @DisplayName("canHandle returns true for VORBIS_COMMENT")
-    void canHandle() {
-        assertTrue(strategy.canHandle(TagFormat.VORBIS_COMMENT));
-    }
-
-    @Test
-    @DisplayName("canHandle rejects other formats")
-    void canHandleRejectsOtherFormats() {
-        assertFalse(strategy.canHandle(TagFormat.ID3V1));
-        assertFalse(strategy.canHandle(TagFormat.APEV2));
-        assertFalse(strategy.canHandle(TagFormat.MP4));
     }
 
     @Test
@@ -118,8 +108,9 @@ class VorbisParsingStrategyTest {
 
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "corrupt.ogg", baos.toByteArray());
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
             assertThrows(IOException.class, () ->
-                    strategy.parseTag(TagFormat.VORBIS_COMMENT, raf, 0, baos.size()));
+                    strategy.parseTag(TagFormat.VORBIS_COMMENT, source, 0, baos.size()));
         }
     }
 

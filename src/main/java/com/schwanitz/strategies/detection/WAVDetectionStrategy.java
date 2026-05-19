@@ -193,7 +193,8 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             return false;
         }
 
-        for (char c : chunkType.toCharArray()) {
+        for (int i = 0; i < chunkType.length(); i++) {
+            char c = chunkType.charAt(i);
             if (c < 0x20 || c > 0x7E) {
                 return false;
             }

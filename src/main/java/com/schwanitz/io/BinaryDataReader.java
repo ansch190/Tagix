@@ -6,7 +6,7 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Zentrale Hilfsklasse zum Lesen von Multi-Byte-Integer-Werten und Strings
- * aus Byte-Arrays und {@link RandomAccessFile}-Instanzen.
+ * aus Byte-Arrays, {@link RandomAccessFile}-Instanzen und {@link SeekableDataSource}-Instanzen.
  * <p>
  * Diese Klasse konsolidiert die zahlreichen duplizierten privaten
  * Byte-Lese-Methoden aus den Detection- und Parsing-Strategien in eine
@@ -183,6 +183,207 @@ public final class BinaryDataReader {
             }
             totalRead += read;
         }
+
+        return data;
+    }
+
+    // ================================
+    // SeekableDataSource-basierte Methoden
+    // ================================
+
+    public static int readLittleEndianInt16(SeekableDataSource source, long offset) throws IOException {
+        byte[] bytes = new byte[2];
+        source.readFully(offset, bytes);
+        return readLittleEndianInt16(bytes, 0);
+    }
+
+    public static int readLittleEndianUInt16(SeekableDataSource source, long offset) throws IOException {
+        return readLittleEndianInt16(source, offset) & 0xFFFF;
+    }
+
+    public static int readLittleEndianInt32(SeekableDataSource source, long offset) throws IOException {
+        byte[] bytes = new byte[4];
+        source.readFully(offset, bytes);
+        return readLittleEndianInt32(bytes, 0);
+    }
+
+    public static long readLittleEndianInt64(SeekableDataSource source, long offset) throws IOException {
+        byte[] bytes = new byte[8];
+        source.readFully(offset, bytes);
+        return readLittleEndianInt64(bytes, 0);
+    }
+
+    public static long readLittleEndianUInt32(SeekableDataSource source, long offset) throws IOException {
+        byte[] bytes = new byte[4];
+        source.readFully(offset, bytes);
+        return ((long) (bytes[0] & 0xFF)) |
+                ((long) (bytes[1] & 0xFF) << 8) |
+                ((long) (bytes[2] & 0xFF) << 16) |
+                ((long) (bytes[3] & 0xFF) << 24);
+    }
+
+    public static int readBigEndianInt16(SeekableDataSource source, long offset) throws IOException {
+        byte[] bytes = new byte[2];
+        source.readFully(offset, bytes);
+        return readBigEndianInt16(bytes, 0);
+    }
+
+    public static int readBigEndianInt32(SeekableDataSource source, long offset) throws IOException {
+        byte[] bytes = new byte[4];
+        source.readFully(offset, bytes);
+        return readBigEndianInt32(bytes, 0);
+    }
+
+    public static long readBigEndianUInt32(SeekableDataSource source, long offset) throws IOException {
+        byte[] bytes = new byte[4];
+        source.readFully(offset, bytes);
+        return ((long) (bytes[0] & 0xFF) << 24) |
+                ((long) (bytes[1] & 0xFF) << 16) |
+                ((long) (bytes[2] & 0xFF) << 8) |
+                (bytes[3] & 0xFF);
+    }
+
+    public static long readBigEndianInt64(SeekableDataSource source, long offset) throws IOException {
+        byte[] bytes = new byte[8];
+        source.readFully(offset, bytes);
+        return readBigEndianInt64(bytes, 0);
+    }
+
+    public static String readFixedString(SeekableDataSource source, long offset, int size) throws IOException {
+        if (size <= 0) return "";
+        byte[] data = new byte[size];
+        source.readFully(offset, data);
+
+        int length = size;
+        for (int i = 0; i < size; i++) {
+            if (data[i] == 0) {
+                length = i;
+                break;
+            }
+        }
+
+        if (length == 0) {
+            return "";
+        }
+
+        return new String(data, 0, length, StandardCharsets.UTF_8).trim();
+    }
+
+    public static byte[] readBytes(SeekableDataSource source, long offset, int size) throws IOException {
+        if (size <= 0) return new byte[0];
+
+        byte[] data = new byte[size];
+        int totalRead = 0;
+
+        while (totalRead < size) {
+            int toRead = Math.min(READ_BUFFER_SIZE, size - totalRead);
+            int read = source.read(offset + totalRead, data, totalRead, toRead);
+            if (read < 0) {
+                throw new IOException("Unexpected end of data source at offset " + (offset + totalRead));
+            }
+            totalRead += read;
+        }
+
+        return data;
+    }
+
+    // ================================
+    // SourceReader-basierte Methoden (sequentiell, position wird intern gehalten)
+    // ================================
+
+    public static int readLittleEndianInt16(SourceReader reader) throws IOException {
+        byte[] bytes = new byte[2];
+        reader.readFully(bytes);
+        return readLittleEndianInt16(bytes, 0);
+    }
+
+    public static int readLittleEndianUInt16(SourceReader reader) throws IOException {
+        return readLittleEndianInt16(reader) & 0xFFFF;
+    }
+
+    public static int readLittleEndianInt32(SourceReader reader) throws IOException {
+        byte[] bytes = new byte[4];
+        reader.readFully(bytes);
+        return readLittleEndianInt32(bytes, 0);
+    }
+
+    public static long readLittleEndianInt64(SourceReader reader) throws IOException {
+        byte[] bytes = new byte[8];
+        reader.readFully(bytes);
+        return readLittleEndianInt64(bytes, 0);
+    }
+
+    public static long readLittleEndianUInt32(SourceReader reader) throws IOException {
+        byte[] bytes = new byte[4];
+        reader.readFully(bytes);
+        return ((long) (bytes[0] & 0xFF)) |
+                ((long) (bytes[1] & 0xFF) << 8) |
+                ((long) (bytes[2] & 0xFF) << 16) |
+                ((long) (bytes[3] & 0xFF) << 24);
+    }
+
+    public static int readBigEndianInt16(SourceReader reader) throws IOException {
+        byte[] bytes = new byte[2];
+        reader.readFully(bytes);
+        return readBigEndianInt16(bytes, 0);
+    }
+
+    public static int readBigEndianInt32(SourceReader reader) throws IOException {
+        byte[] bytes = new byte[4];
+        reader.readFully(bytes);
+        return readBigEndianInt32(bytes, 0);
+    }
+
+    public static long readBigEndianUInt32(SourceReader reader) throws IOException {
+        byte[] bytes = new byte[4];
+        reader.readFully(bytes);
+        return ((long) (bytes[0] & 0xFF) << 24) |
+                ((long) (bytes[1] & 0xFF) << 16) |
+                ((long) (bytes[2] & 0xFF) << 8) |
+                (bytes[3] & 0xFF);
+    }
+
+    public static long readBigEndianInt64(SourceReader reader) throws IOException {
+        byte[] bytes = new byte[8];
+        reader.readFully(bytes);
+        return readBigEndianInt64(bytes, 0);
+    }
+
+    public static String readFixedString(SourceReader reader, int size) throws IOException {
+        if (size <= 0) return "";
+        byte[] data = new byte[size];
+        reader.readFully(data);
+
+        int length = size;
+        for (int i = 0; i < size; i++) {
+            if (data[i] == 0) {
+                length = i;
+                break;
+            }
+        }
+
+        if (length == 0) {
+            return "";
+        }
+
+        return new String(data, 0, length, StandardCharsets.UTF_8).trim();
+    }
+
+    public static byte[] readBytes(SourceReader reader, int size) throws IOException {
+        if (size <= 0) return new byte[0];
+
+        byte[] data = new byte[size];
+        int totalRead = 0;
+
+        while (totalRead < size) {
+            int toRead = Math.min(READ_BUFFER_SIZE, size - totalRead);
+            int read = reader.getSource().read(reader.getFilePointer(), data, totalRead, toRead);
+            if (read < 0) {
+                throw new IOException("Unexpected end of data source at position " + reader.getFilePointer());
+            }
+            totalRead += read;
+        }
+        reader.seek(reader.getFilePointer() + totalRead);
 
         return data;
     }

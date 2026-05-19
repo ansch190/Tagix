@@ -239,6 +239,130 @@ class MetadataManagerTest {
     }
 
     // ================================
+    // readFromBytes Tests (previously broken — critical bug fix)
+    // ================================
+
+    @Test
+    @DisplayName("readFromBytes detects and parses ID3v2.3 tag from byte array")
+    void readFromBytesWithID3v2() throws IOException {
+        byte[] tagData = buildID3v2_3Tag("Byte Title", "Byte Artist");
+
+        List<Metadata> metadata = manager.readFromBytes(tagData);
+
+        assertFalse(metadata.isEmpty(), "Should detect at least one tag from byte array");
+        assertEquals("ID3v2.3", metadata.get(0).getTagFormat());
+        assertEquals("Byte Title", ParsingTestHelper.findFieldValue(metadata.get(0), "TIT2"));
+        assertEquals("Byte Artist", ParsingTestHelper.findFieldValue(metadata.get(0), "TPE1"));
+    }
+
+    @Test
+    @DisplayName("readFromBytes with no tags returns empty list")
+    void readFromBytesNoTags() throws IOException {
+        byte[] dummyData = new byte[256];
+
+        List<Metadata> metadata = manager.readFromBytes(dummyData);
+
+        assertTrue(metadata.isEmpty(), "Should return empty list for byte array without tags");
+    }
+
+    @Test
+    @DisplayName("readFromBytes with ScanConfiguration")
+    void readFromBytesWithConfig() throws IOException {
+        byte[] tagData = buildID3v2_3Tag("Config Title", "Config Artist");
+
+        List<Metadata> metadata = manager.readFromBytes(tagData, ScanConfiguration.fullScan());
+
+        assertFalse(metadata.isEmpty());
+        assertEquals("ID3v2.3", metadata.get(0).getTagFormat());
+    }
+
+    @Test
+    @DisplayName("readFromBytes throws NullPointerException for null data")
+    void readFromBytesNullData() {
+        assertThrows(NullPointerException.class, () -> manager.readFromBytes(null));
+    }
+
+    // ================================
+    // readFromSource Tests
+    // ================================
+
+    @Test
+    @DisplayName("readFromSource detects and parses ID3v2.3 tag")
+    void readFromSourceWithID3v2() throws IOException {
+        byte[] tagData = buildID3v2_3Tag("Source Title", "Source Artist");
+        com.schwanitz.io.SeekableDataSource source = com.schwanitz.io.SeekableDataSources.forBytes(tagData);
+
+        List<Metadata> metadata = manager.readFromSource(source);
+
+        assertFalse(metadata.isEmpty(), "Should detect tags from SeekableDataSource");
+        assertEquals("ID3v2.3", metadata.get(0).getTagFormat());
+        assertEquals("Source Title", ParsingTestHelper.findFieldValue(metadata.get(0), "TIT2"));
+    }
+
+    @Test
+    @DisplayName("readFromSource with ScanConfiguration")
+    void readFromSourceWithConfig() throws IOException {
+        byte[] tagData = buildID3v2_3Tag("SourceCfg Title", "SourceCfg Artist");
+        com.schwanitz.io.SeekableDataSource source = com.schwanitz.io.SeekableDataSources.forBytes(tagData);
+
+        List<Metadata> metadata = manager.readFromSource(source, ScanConfiguration.fullScan());
+
+        assertFalse(metadata.isEmpty());
+        assertEquals("ID3v2.3", metadata.get(0).getTagFormat());
+    }
+
+    @Test
+    @DisplayName("readFromSource throws NullPointerException for null source")
+    void readFromSourceNull() {
+        assertThrows(NullPointerException.class, () -> manager.readFromSource(null));
+    }
+
+    // ================================
+    // readFromInputStream Tests
+    // ================================
+
+    @Test
+    @DisplayName("readFromInputStream detects and parses ID3v2.3 tag")
+    void readFromInputStreamWithID3v2() throws IOException {
+        byte[] tagData = buildID3v2_3Tag("Stream Title", "Stream Artist");
+        java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(tagData);
+
+        List<Metadata> metadata = manager.readFromInputStream(bais, "mp3");
+
+        assertFalse(metadata.isEmpty(), "Should detect tags from InputStream");
+        assertEquals("ID3v2.3", metadata.get(0).getTagFormat());
+        assertEquals("Stream Title", ParsingTestHelper.findFieldValue(metadata.get(0), "TIT2"));
+    }
+
+    @Test
+    @DisplayName("readFromInputStream with ScanConfiguration")
+    void readFromInputStreamWithConfig() throws IOException {
+        byte[] tagData = buildID3v2_3Tag("StreamCfg Title", "StreamCfg Artist");
+        java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(tagData);
+
+        List<Metadata> metadata = manager.readFromInputStream(bais, "mp3", ScanConfiguration.fullScan());
+
+        assertFalse(metadata.isEmpty());
+        assertEquals("ID3v2.3", metadata.get(0).getTagFormat());
+    }
+
+    @Test
+    @DisplayName("readFromInputStream throws NullPointerException for null stream")
+    void readFromInputStreamNull() {
+        assertThrows(NullPointerException.class, () -> manager.readFromInputStream(null, "mp3"));
+    }
+
+    // ================================
+    // Security: Path Traversal Validation
+    // ================================
+
+    @Test
+    @DisplayName("readFromFile rejects path traversal attempt")
+    void readFromFileRejectsPathTraversal() {
+        assertThrows(IOException.class, () -> manager.readFromFile("../../../etc/passwd"));
+    }
+
+    // ================================
     // Helper Methods
     // ================================
 

@@ -1,9 +1,7 @@
 package com.schwanitz.strategies.parsing;
 
-import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
-import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.bwf.BWFCodingHistoryParser;
@@ -14,10 +12,10 @@ import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SourceReader;
+
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,7 +41,7 @@ import org.slf4j.LoggerFactory;
  * @see BWFCodingHistoryParser
  * @see BWFTimeUtils
  */
-public class BWFParsingStrategy implements TagParsingStrategy {
+public class BWFParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(BWFParsingStrategy.class);
 
@@ -55,11 +53,14 @@ public class BWFParsingStrategy implements TagParsingStrategy {
     private static final int BWF_UMID_SIZE = 64;
     private static final int BWF_LOUDNESS_SIZE = 180;
 
-    private final Map<String, FieldHandler<?>> handlers;
+    private static final int BWF_LOUDNESS_SENTINEL = -32768;
+    private static final int BWF_DEFAULT_SAMPLE_RATE = 48000;
+
+
     private final BWFExtensionParser extensionParser;
 
     public BWFParsingStrategy() {
-        this.handlers = new HashMap<>();
+        super("BWF");
         initializeDefaultHandlers();
         this.extensionParser = new BWFExtensionParser(handlers);
     }
@@ -92,23 +93,19 @@ public class BWFParsingStrategy implements TagParsingStrategy {
     }
 
     @Override
-    public boolean canHandle(TagFormat format) {
-        return format == TagFormat.BWF_V0 || format == TagFormat.BWF_V1 || format == TagFormat.BWF_V2;
-    }
-
-    @Override
-    public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
+    public Metadata parseTag(TagFormat format, SeekableDataSource source, long offset, long size) throws IOException {
         GenericMetadata metadata = new GenericMetadata(format);
-        parseBWFChunk(file, metadata, offset, size, format);
+        SourceReader reader = new SourceReader(source, offset);
+        parseBWFChunk(reader, metadata, offset, size, format);
         return metadata;
     }
 
-    private void parseBWFChunk(RandomAccessFile file, GenericMetadata metadata, long offset, long size, TagFormat format)
+    private void parseBWFChunk(SourceReader reader, GenericMetadata metadata, long offset, long size, TagFormat format)
             throws IOException {
-        file.seek(offset);
+        reader.seek(offset);
 
         byte[] chunkHeader = new byte[8];
-        file.read(chunkHeader);
+        reader.readFully(chunkHeader);
 
         String chunkId = new String(chunkHeader, 0, 4, StandardCharsets.US_ASCII);
         if (!"bext".equals(chunkId)) {
@@ -122,27 +119,27 @@ public class BWFParsingStrategy implements TagParsingStrategy {
             throw new IOException("BWF chunk too small: " + chunkSize + " bytes");
         }
 
-        String description = BinaryDataReader.readFixedString(file, BWF_DESCRIPTION_SIZE);
+        String description = BinaryDataReader.readFixedString(reader, BWF_DESCRIPTION_SIZE);
         if (!description.isEmpty()) {
             addField(metadata, "Description", description);
         }
 
-        String originator = BinaryDataReader.readFixedString(file, BWF_ORIGINATOR_SIZE);
+        String originator = BinaryDataReader.readFixedString(reader, BWF_ORIGINATOR_SIZE);
         if (!originator.isEmpty()) {
             addField(metadata, "Originator", originator);
         }
 
-        String originatorRef = BinaryDataReader.readFixedString(file, BWF_ORIGINATOR_REF_SIZE);
+        String originatorRef = BinaryDataReader.readFixedString(reader, BWF_ORIGINATOR_REF_SIZE);
         if (!originatorRef.isEmpty()) {
             addField(metadata, "OriginatorReference", originatorRef);
         }
 
-        String originationDate = BinaryDataReader.readFixedString(file, BWF_DATE_SIZE);
+        String originationDate = BinaryDataReader.readFixedString(reader, BWF_DATE_SIZE);
         if (!originationDate.isEmpty() && BWFTimeUtils.isValidDate(originationDate)) {
             addField(metadata, "OriginationDate", originationDate);
         }
 
-        String originationTime = BinaryDataReader.readFixedString(file, BWF_TIME_SIZE);
+        String originationTime = BinaryDataReader.readFixedString(reader, BWF_TIME_SIZE);
         if (!originationTime.isEmpty() && BWFTimeUtils.isValidTime(originationTime)) {
             addField(metadata, "OriginationTime", originationTime);
         }
@@ -154,17 +151,17 @@ public class BWFParsingStrategy implements TagParsingStrategy {
             }
         }
 
-        long timeReference = BinaryDataReader.readLittleEndianInt64(file);
+        long timeReference = BinaryDataReader.readLittleEndianInt64(reader);
         addField(metadata, "TimeReference", String.valueOf(timeReference));
 
-        String timecode = BWFTimeUtils.convertTimeReferenceToTimecode(timeReference, 48000);
+        String timecode = BWFTimeUtils.convertTimeReferenceToTimecode(timeReference, BWF_DEFAULT_SAMPLE_RATE);
         addField(metadata, "TimeReferenceTimecode", timecode);
 
-        int version = BinaryDataReader.readLittleEndianInt16(file);
+        int version = BinaryDataReader.readLittleEndianInt16(reader);
         addField(metadata, "Version", String.valueOf(version));
 
         byte[] umidData = new byte[BWF_UMID_SIZE];
-        file.read(umidData);
+        reader.readFully(umidData);
 
         String umid = BWFUmidParser.parseUMID(umidData);
         if (!umid.isEmpty()) {
@@ -177,9 +174,9 @@ public class BWFParsingStrategy implements TagParsingStrategy {
         }
 
         if (format == TagFormat.BWF_V2 && chunkSize >= 602 + BWF_LOUDNESS_SIZE) {
-            parseLoudnessInfo(file, metadata);
+            parseLoudnessInfo(reader, metadata);
         } else {
-            file.skipBytes(190);
+            reader.skipBytes(190);
         }
 
         int codingHistorySize = chunkSize - 602;
@@ -189,7 +186,7 @@ public class BWFParsingStrategy implements TagParsingStrategy {
 
         if (codingHistorySize > 0) {
             byte[] codingHistoryBytes = new byte[codingHistorySize];
-            file.read(codingHistoryBytes);
+            reader.readFully(codingHistoryBytes);
             String codingHistory = new String(codingHistoryBytes, StandardCharsets.UTF_8).trim();
             while (codingHistory.endsWith("\0")) {
                 codingHistory = codingHistory.substring(0, codingHistory.length() - 1);
@@ -204,62 +201,42 @@ public class BWFParsingStrategy implements TagParsingStrategy {
             }
         }
 
-        long currentPos = file.getFilePointer();
+        long currentPos = reader.getFilePointer();
         if (currentPos < offset + size) {
-            extensionParser.parseBWFExtensions(file, metadata, currentPos, offset + size - currentPos);
+            extensionParser.parseBWFExtensions(reader, metadata, currentPos, offset + size - currentPos);
         }
 
         LOG.debug("Successfully parsed BWF {} chunk", format.getFormatName());
     }
 
-    private void parseLoudnessInfo(RandomAccessFile file, GenericMetadata metadata) throws IOException {
-        int loudnessValue = BinaryDataReader.readLittleEndianInt16(file);
-        if (loudnessValue != -32768) {
+    private void parseLoudnessInfo(SourceReader reader, GenericMetadata metadata) throws IOException {
+        int loudnessValue = BinaryDataReader.readLittleEndianInt16(reader);
+        if (loudnessValue != BWF_LOUDNESS_SENTINEL) {
             addField(metadata, "LoudnessValue", String.format("%.2f LUFS", loudnessValue / 100.0));
         }
 
-        int loudnessRange = BinaryDataReader.readLittleEndianUInt16(file);
+        int loudnessRange = BinaryDataReader.readLittleEndianUInt16(reader);
         if (loudnessRange != 0) {
             addField(metadata, "LoudnessRange", String.format("%.2f LU", loudnessRange / 100.0));
         }
 
-        int maxTruePeak = BinaryDataReader.readLittleEndianInt16(file);
-        if (maxTruePeak != -32768) {
+        int maxTruePeak = BinaryDataReader.readLittleEndianInt16(reader);
+        if (maxTruePeak != BWF_LOUDNESS_SENTINEL) {
             addField(metadata, "MaxTruePeakLevel", String.format("%.2f dBTP", maxTruePeak / 100.0));
         }
 
-        int maxMomentary = BinaryDataReader.readLittleEndianInt16(file);
-        if (maxMomentary != -32768) {
+        int maxMomentary = BinaryDataReader.readLittleEndianInt16(reader);
+        if (maxMomentary != BWF_LOUDNESS_SENTINEL) {
             addField(metadata, "MaxMomentaryLoudness", String.format("%.2f LUFS", maxMomentary / 100.0));
         }
 
-        int maxShortTerm = BinaryDataReader.readLittleEndianInt16(file);
-        if (maxShortTerm != -32768) {
+        int maxShortTerm = BinaryDataReader.readLittleEndianInt16(reader);
+        if (maxShortTerm != BWF_LOUDNESS_SENTINEL) {
             addField(metadata, "MaxShortTermLoudness", String.format("%.2f LUFS", maxShortTerm / 100.0));
         }
 
-        file.skipBytes(170);
+        reader.skipBytes(170);
     }
 
-    @SuppressWarnings("unchecked")
-    private void addField(GenericMetadata metadata, String key, String value) {
-        FieldHandler<?> handler = handlers.get(key);
-        if (handler != null) {
-            metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
-        } else {
-            TextFieldHandler textHandler = new TextFieldHandler(key);
-            metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOG.debug("Created fallback handler for unknown BWF field: {}", key);
-        }
-    }
 
-    /**
-     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes BWF-Feld.
-     *
-     * @param key     der Feldname, für den der Handler registriert werden soll
-     * @param handler der zu registrierende Handler
-     */
-    public void registerHandler(String key, FieldHandler<?> handler) {
-        handlers.put(key, handler);
-    }
 }

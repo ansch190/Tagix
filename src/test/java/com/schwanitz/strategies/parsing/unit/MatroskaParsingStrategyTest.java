@@ -10,6 +10,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SeekableDataSources;
 import java.nio.file.Path;
 
 import static com.schwanitz.strategies.parsing.ParsingTestHelper.*;
@@ -26,22 +28,6 @@ class MatroskaParsingStrategyTest {
     @BeforeEach
     void setUp() {
         strategy = new MatroskaParsingStrategy();
-    }
-
-    @Test
-    @DisplayName("canHandle returns true for MATROSKA_TAGS and WEBM_TAGS")
-    void canHandle_returnsTrueForMATROSKA_TAGS_and_WEBM_TAGS() {
-        assertTrue(strategy.canHandle(TagFormat.MATROSKA_TAGS));
-        assertTrue(strategy.canHandle(TagFormat.WEBM_TAGS));
-    }
-
-    @Test
-    @DisplayName("canHandle returns false for other formats")
-    void canHandle_returnsFalseForOtherFormats() {
-        assertFalse(strategy.canHandle(TagFormat.ID3V2_3));
-        assertFalse(strategy.canHandle(TagFormat.MP4));
-        assertFalse(strategy.canHandle(TagFormat.DSF_METADATA));
-        assertFalse(strategy.canHandle(TagFormat.WAVPACK_NATIVE));
     }
 
     private byte[] buildSimpleTag(String name, String value) {
@@ -69,8 +55,9 @@ class MatroskaParsingStrategyTest {
         );
         File file = writeTempFile(tempDir.toFile(), "test.mkv", tagsBlock);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.MATROSKA_TAGS, raf, 0, tagsBlock.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.MATROSKA_TAGS, source, 0, tagsBlock.length);
 
             assertEquals("Test Song", ParsingTestHelper.findFieldValue(metadata, "Title"));
             assertEquals("Test Artist", ParsingTestHelper.findFieldValue(metadata, "Artist"));
@@ -88,8 +75,9 @@ class MatroskaParsingStrategyTest {
         byte[] tagsBlock = buildTagsBlock(simpleTag);
         File file = writeTempFile(tempDir.toFile(), "test.mkv", tagsBlock);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.MATROSKA_TAGS, raf, 0, tagsBlock.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.MATROSKA_TAGS, source, 0, tagsBlock.length);
 
             assertFalse(ParsingTestHelper.hasField(metadata, "Title"));
         }

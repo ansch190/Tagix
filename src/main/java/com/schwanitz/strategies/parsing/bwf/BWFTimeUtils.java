@@ -5,8 +5,12 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.regex.Pattern;
 
 public final class BWFTimeUtils {
+
+    private static final Pattern DATE_PATTERN = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
+    private static final Pattern TIME_PATTERN = Pattern.compile("\\d{2}:\\d{2}:\\d{2}");
 
     private BWFTimeUtils() {}
 
@@ -37,10 +41,10 @@ public final class BWFTimeUtils {
     }
 
     public static boolean isValidDate(String date) {
-        return date != null && date.matches("\\d{4}-\\d{2}-\\d{2}");
+        return date != null && DATE_PATTERN.matcher(date).matches();
     }
 
     public static boolean isValidTime(String time) {
-        return time != null && time.matches("\\d{2}:\\d{2}:\\d{2}");
+        return time != null && TIME_PATTERN.matcher(time).matches();
     }
 }

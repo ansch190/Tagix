@@ -14,6 +14,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SeekableDataSources;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -34,34 +36,18 @@ class ID3ParsingStrategyTest {
 
     private Metadata parseID3(byte[] tagData, TagFormat format) throws IOException {
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.id3", tagData);
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            return strategy.parseTag(format, raf, 0, tagData.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            return strategy.parseTag(format, source, 0, tagData.length);
         }
     }
 
     private Metadata parseID3v1(byte[] tagData, TagFormat format) throws IOException {
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.id3", tagData);
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            return strategy.parseTag(format, raf, 0, tagData.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            return strategy.parseTag(format, source, 0, tagData.length);
         }
-    }
-
-    @Test
-    @DisplayName("canHandle returns true for all ID3 formats")
-    void canHandle() {
-        assertTrue(strategy.canHandle(TagFormat.ID3V1));
-        assertTrue(strategy.canHandle(TagFormat.ID3V1_1));
-        assertTrue(strategy.canHandle(TagFormat.ID3V2_2));
-        assertTrue(strategy.canHandle(TagFormat.ID3V2_3));
-        assertTrue(strategy.canHandle(TagFormat.ID3V2_4));
-    }
-
-    @Test
-    @DisplayName("canHandle rejects other formats")
-    void canHandleRejectsOtherFormats() {
-        assertFalse(strategy.canHandle(TagFormat.APEV2));
-        assertFalse(strategy.canHandle(TagFormat.VORBIS_COMMENT));
-        assertFalse(strategy.canHandle(TagFormat.MP4));
     }
 
     @Test
@@ -117,9 +103,10 @@ class ID3ParsingStrategyTest {
         byte[] badData = new byte[128];
 
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "corrupt.id3", badData);
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
             assertThrows(IOException.class, () ->
-                    strategy.parseTag(TagFormat.ID3V1, raf, 0, badData.length));
+                    strategy.parseTag(TagFormat.ID3V1, source, 0, badData.length));
         }
     }
 

@@ -1,9 +1,7 @@
 package com.schwanitz.strategies.parsing;
 
-import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
-import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
@@ -11,7 +9,9 @@ import com.schwanitz.tagging.TagFormat;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SourceReader;
+
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -38,7 +38,7 @@ import org.slf4j.Logger;
  *
  * @see TagParsingStrategy
  */
-public class APEParsingStrategy implements TagParsingStrategy {
+public class APEParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(APEParsingStrategy.class);
 
@@ -54,14 +54,14 @@ public class APEParsingStrategy implements TagParsingStrategy {
     // Performance-Optimierung
     private static final int READ_BUFFER_SIZE = 8192;
 
-    private final Map<String, FieldHandler<?>> handlers;
+
     private final Map<String, String> keyNormalizations;
 
     /**
      * Erzeugt eine neue APE-Parsing-Strategie mit Standard-Handlern und Schlüsselnormalisierung.
      */
     public APEParsingStrategy() {
-        this.handlers = new HashMap<>();
+        super("APE");
         this.keyNormalizations = new HashMap<>();
         initializeDefaultHandlers();
         initializeKeyNormalizations();
@@ -157,44 +157,30 @@ public class APEParsingStrategy implements TagParsingStrategy {
     }
 
     /**
-     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
-     *
-     * @param format das zu prüfende Tag-Format
-     * @return {@code true} für APEV1 und APEV2
-     */
-    @Override
-    public boolean canHandle(TagFormat format) {
-        return format == TagFormat.APEV1 || format == TagFormat.APEV2;
-    }
-
-    /**
      * Parst ein APE-Tag aus der angegebenen Datei.
      *
      * @param format das APE-Format (APEV1 oder APEV2)
-     * @param file   die Datei, aus der gelesen wird
+     * @param source die Datenquelle, aus der gelesen wird
      * @param offset der Start-Offset des Tags
      * @param size   die Größe des Tags in Bytes
      * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültigem Tag-Format
      */
     @Override
-    public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
+    public Metadata parseTag(TagFormat format, SeekableDataSource source, long offset, long size) throws IOException {
         GenericMetadata metadata = new GenericMetadata(format);
-        parseAPETag(file, metadata, offset, size, format);
+        SourceReader reader = new SourceReader(source, offset);
+        parseAPETag(reader, metadata, offset, size, format);
         return metadata;
     }
 
-    private void parseAPETag(RandomAccessFile file, GenericMetadata metadata, long offset, long size, TagFormat format)
+    private void parseAPETag(SourceReader reader, GenericMetadata metadata, long offset, long size, TagFormat format)
             throws IOException {
-        file.seek(offset);
+        reader.seek(offset);
 
         // APE Header lesen (32 Bytes)
         byte[] header = new byte[32];
-        int bytesRead = file.read(header);
-
-        if (bytesRead != 32) {
-            throw new IOException("Could not read complete APE header");
-        }
+        reader.readFully(header);
 
         // Preamble prüfen ("APETAGEX")
         String preamble = new String(header, 0, 8, StandardCharsets.US_ASCII);
@@ -271,7 +257,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
                     break;
                 }
 
-                currentPos = parseAPEItem(file, metadata, currentPos, version, itemsEnd);
+                currentPos = parseAPEItem(reader, metadata, currentPos, version, itemsEnd);
 
                 if (currentPos > itemsEnd) {
                     LOG.warn("APE item parsing exceeded tag boundary");
@@ -280,12 +266,12 @@ public class APEParsingStrategy implements TagParsingStrategy {
 
                 // Padding überspringen
                 if (currentPos < itemsEnd) {
-                    file.seek(currentPos);
-                    while (currentPos < itemsEnd && file.readByte() == 0) {
+                    reader.seek(currentPos);
+                    while (currentPos < itemsEnd && reader.readByte() == 0) {
                         currentPos++;
                     }
                     if (currentPos < itemsEnd) {
-                        file.seek(currentPos);
+                        reader.seek(currentPos);
                     }
                 }
 
@@ -298,13 +284,13 @@ public class APEParsingStrategy implements TagParsingStrategy {
         LOG.debug("Successfully parsed APE tag with {} items", itemCount);
     }
 
-    private long parseAPEItem(RandomAccessFile file, GenericMetadata metadata, long position, int version, long maxPos)
+    private long parseAPEItem(SourceReader reader, GenericMetadata metadata, long position, int version, long maxPos)
             throws IOException {
-        file.seek(position);
+        reader.seek(position);
 
         // Item Header lesen (8 Bytes)
         byte[] itemHeader = new byte[8];
-        file.read(itemHeader);
+        reader.readFully(itemHeader);
 
         // Item Value Size (4 bytes, little-endian)
         int valueSize = BinaryDataReader.readLittleEndianInt32(itemHeader, 0);
@@ -321,7 +307,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
         // Key-Lesung mit ByteArrayOutputStream (vermeidet Auto-Boxing und doppeltes Kopieren)
         ByteArrayOutputStream keyBuffer = new ByteArrayOutputStream(32);
         while (currentPos < maxPos) {
-            int b = file.read();
+            int b = reader.read();
             currentPos++;
 
             if (b == 0) {
@@ -359,7 +345,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
             throw new IOException("APE item value extends beyond tag boundary");
         }
 
-        byte[] valueData = BinaryDataReader.readBytes(file, valueSize);
+        byte[] valueData = BinaryDataReader.readBytes(reader, valueSize);
         currentPos += valueSize;
 
         // Item Type bestimmen
@@ -400,7 +386,7 @@ public class APEParsingStrategy implements TagParsingStrategy {
         if (!value.isEmpty()) {
             addField(metadata, normalizedKey, value);
             if (LOG.isDebugEnabled()) {
-                String displayValue = value.length() > 50 ? value.substring(0, 50) + "..." : value;
+                String displayValue = truncateForDisplay(value, 50);
                 LOG.debug("Parsed APE item: {} = {}{}", normalizedKey, displayValue,
                         isReadOnly ? " [read-only]" : "");
             }
@@ -492,7 +478,8 @@ public class APEParsingStrategy implements TagParsingStrategy {
         }
 
         // APE Keys: ASCII 0x20-0x7E, außer bestimmte Zeichen
-        for (char c : key.toCharArray()) {
+        for (int i = 0; i < key.length(); i++) {
+            char c = key.charAt(i);
             if (c < 0x20 || c > 0x7E) {
                 return false;
             }
@@ -515,29 +502,6 @@ public class APEParsingStrategy implements TagParsingStrategy {
     private String normalizeAPEKey(String key) {
         String lowerKey = key.toLowerCase();
         return keyNormalizations.getOrDefault(lowerKey, key);
-    }
-
-    @SuppressWarnings("unchecked")
-    private void addField(GenericMetadata metadata, String key, String value) {
-        FieldHandler<?> handler = handlers.get(key);
-        if (handler != null) {
-            metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
-        } else {
-            // Fallback: TextFieldHandler für unbekannte Felder erstellen
-            TextFieldHandler textHandler = new TextFieldHandler(key);
-            metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOG.debug("Created fallback handler for unknown APE field: {}", key);
-        }
-    }
-
-    /**
-     * Registriert einen benutzerdefinierten {@link FieldHandler} für einen bestimmten APE-Schlüssel.
-     *
-     * @param key     der APE-Schlüssel, für den der Handler registriert werden soll
-     * @param handler der zu registrierende Handler
-     */
-    public void registerHandler(String key, FieldHandler<?> handler) {
-        handlers.put(key, handler);
     }
 
 }

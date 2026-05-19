@@ -14,10 +14,12 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("unit")
 class TagParsingContextTest {
 
-    private static List<TagFormat> getSupportedFormats() {
+    private final TagParsingStrategyFactory factory = new TagParsingStrategyFactory();
+
+    private List<TagFormat> getSupportedFormats() {
         List<TagFormat> supported = new ArrayList<>();
         for (TagFormat format : TagFormat.values()) {
-            if (TagParsingStrategyFactory.getStrategyForFormat(format) != null) {
+            if (factory.getStrategyForFormat(format) != null) {
                 supported.add(format);
             }
         }
@@ -31,21 +33,9 @@ class TagParsingContextTest {
         assertThat(supported).isNotEmpty();
 
         for (TagFormat format : supported) {
-            TagParsingStrategy strategy = TagParsingStrategyFactory.getStrategyForFormat(format);
+            TagParsingStrategy strategy = factory.getStrategyForFormat(format);
             assertNotNull(strategy, "Strategy should not be null for format: " + format);
         }
     }
 
-    @Test
-    @DisplayName("Strategy canHandle is true for the format it was created for")
-    void canHandleConsistency() {
-        List<TagFormat> supported = getSupportedFormats();
-
-        for (TagFormat format : supported) {
-            TagParsingStrategy strategy = TagParsingStrategyFactory.getStrategyForFormat(format);
-            assertNotNull(strategy);
-            assertTrue(strategy.canHandle(format),
-                    "Strategy for " + format + " should canHandle its own format");
-        }
-    }
 }

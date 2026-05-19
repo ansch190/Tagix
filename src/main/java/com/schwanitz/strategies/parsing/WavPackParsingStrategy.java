@@ -1,20 +1,17 @@
 package com.schwanitz.strategies.parsing;
 
-import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
-import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SourceReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,7 +29,7 @@ import java.util.Map;
  *
  * @see TagParsingStrategy
  */
-public class WavPackParsingStrategy implements TagParsingStrategy {
+public class WavPackParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(WavPackParsingStrategy.class);
 
@@ -52,46 +49,36 @@ public class WavPackParsingStrategy implements TagParsingStrategy {
         METADATA_SUBBLOCKS.put(0x26, "MD5Checksum");
     }
 
-    private final Map<String, FieldHandler<?>> handlers = new HashMap<>();
+
 
     /**
      * Erzeugt eine neue WavPack-Parsing-Strategie mit Standard-Handlern für bekannte Subblock-Typen.
      */
     public WavPackParsingStrategy() {
+        super("WavPack");
         for (String fieldName : METADATA_SUBBLOCKS.values()) {
             handlers.put(fieldName, new TextFieldHandler(fieldName));
         }
     }
 
     /**
-     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
-     *
-     * @param format das zu prüfende Tag-Format
-     * @return {@code true} für {@link TagFormat#WAVPACK_NATIVE}
-     */
-    @Override
-    public boolean canHandle(TagFormat format) {
-        return format == TagFormat.WAVPACK_NATIVE;
-    }
-
-    /**
-     * Parst einen WavPack-Metadaten-Subblock aus der angegebenen Datei.
+     * Parst einen WavPack-Metadaten-Subblock aus der angegebenen Datenquelle.
      *
      * @param format das WAVPACK_NATIVE-Format
-     * @param file   die Datei, aus der gelesen wird
+     * @param source die Datenquelle, aus der gelesen wird
      * @param offset der Start-Offset des Subblocks
      * @param size   die verfügbare Größe in Bytes
      * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern
      */
     @Override
-    public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
+    public Metadata parseTag(TagFormat format, SeekableDataSource source, long offset, long size) throws IOException {
         GenericMetadata metadata = new GenericMetadata(TagFormat.WAVPACK_NATIVE);
 
-        file.seek(offset);
+        SourceReader reader = new SourceReader(source, offset);
 
         byte[] subBlockHeader = new byte[1];
-        file.read(subBlockHeader);
+        reader.read(subBlockHeader);
 
         int subBlockIdRaw = subBlockHeader[0] & 0xFF;
         int cleanId = subBlockIdRaw & SUBBLOCK_ID_MASK;
@@ -102,13 +89,13 @@ public class WavPackParsingStrategy implements TagParsingStrategy {
 
         if ((subBlockIdRaw & SUBBLOCK_LARGE_FLAG) != 0) {
             byte[] sizeBytes = new byte[3];
-            file.read(sizeBytes);
+            reader.read(sizeBytes);
             subBlockSize = (sizeBytes[0] & 0xFF) |
                     ((sizeBytes[1] & 0xFF) << 8) |
                     ((sizeBytes[2] & 0xFF) << 16);
             headerSize = 4;
         } else {
-            int sizeByte = file.read();
+            int sizeByte = reader.read();
             if (sizeByte == -1) {
                 return metadata;
             }
@@ -118,13 +105,13 @@ public class WavPackParsingStrategy implements TagParsingStrategy {
 
         if (subBlockSize > 0 && subBlockSize <= size - headerSize) {
             byte[] data = new byte[Math.min(subBlockSize, 65536)];
-            file.read(data);
+            reader.read(data);
 
             String subBlockName = METADATA_SUBBLOCKS.get(cleanId);
             if (subBlockName != null) {
-                addField(metadata, subBlockName, formatSubBlockValue(cleanId, data));
+                addField(metadata, subBlockName, formatSubBlockValue(cleanId, data), true, false, false);
             } else {
-                addField(metadata, blockName, "[" + subBlockSize + " bytes]");
+                addField(metadata, blockName, "[" + subBlockSize + " bytes]", true, false, false);
             }
         }
 
@@ -152,15 +139,5 @@ public class WavPackParsingStrategy implements TagParsingStrategy {
         return data.length + " bytes of configuration data";
     }
 
-    @SuppressWarnings("unchecked")
-    private void addField(GenericMetadata metadata, String key, String value) {
-        if (value == null || value.isEmpty()) return;
-        FieldHandler<?> handler = handlers.get(key);
-        if (handler != null) {
-            metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
-        } else {
-            metadata.addField(new MetadataField<>(key, value, new TextFieldHandler(key)));
-        }
-    }
 
 }

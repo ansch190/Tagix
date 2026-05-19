@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -36,22 +35,36 @@ public class MetadataManager {
     private static final Logger LOG = LoggerFactory.getLogger(MetadataManager.class);
 
     private final TagFormatDetector detector;
+    private final TagParsingStrategyFactory parsingFactory;
 
     /**
-     * Erstellt einen neuen {@code MetadataManager} mit einem Standard-{@link TagFormatDetector}.
+     * Erstellt einen neuen {@code MetadataManager} mit Standard-Factories.
      */
     public MetadataManager() {
         this.detector = new TagFormatDetector();
+        this.parsingFactory = new TagParsingStrategyFactory();
     }
 
     /**
-     * Erstellt einen neuen {@code MetadataManager} mit dem angegebenen {@link TagFormatDetector}.
+     * Erstellt einen neuen {@code MetadataManager} mit dem angegebenen Detektor und Standard-Parsing-Factory.
      *
      * @param detector der zu verwendende TagFormatDetector; darf nicht {@code null} sein
      * @throws NullPointerException wenn {@code detector} null ist
      */
     public MetadataManager(TagFormatDetector detector) {
+        this(detector, new TagParsingStrategyFactory());
+    }
+
+    /**
+     * Erstellt einen neuen {@code MetadataManager} mit voller Dependency Injection.
+     *
+     * @param detector        der zu verwendende TagFormatDetector; darf nicht {@code null} sein
+     * @param parsingFactory  die zu verwendende Parsing-Factory; darf nicht {@code null} sein
+     * @throws NullPointerException wenn ein Parameter {@code null} ist
+     */
+    public MetadataManager(TagFormatDetector detector, TagParsingStrategyFactory parsingFactory) {
         this.detector = Objects.requireNonNull(detector, "detector must not be null");
+        this.parsingFactory = Objects.requireNonNull(parsingFactory, "parsingFactory must not be null");
     }
 
     // ================================
@@ -93,12 +106,18 @@ public class MetadataManager {
     public List<Metadata> readFromFile(String filePath, ScanConfiguration config) throws IOException {
         Objects.requireNonNull(filePath, "filePath must not be null");
         Objects.requireNonNull(config, "config must not be null");
-        List<TagInfo> detectedTags = switch (config.getMode()) {
-            case FULL_SCAN -> detector.fullScan(filePath);
-            case COMFORT_SCAN -> detector.comfortScan(filePath);
-            case CUSTOM_SCAN -> detector.customScan(filePath, config.getCustomFormats().toArray(new TagFormat[0]));
-        };
-        return parseTags(filePath, detectedTags);
+        Path normalizedPath = validateFilePath(filePath);
+        try (SeekableDataSource source = SeekableDataSources.forPath(normalizedPath)) {
+            return readFromSource(source, config);
+        }
+    }
+
+    private Path validateFilePath(String filePath) throws IOException {
+        Path path = Path.of(filePath).toAbsolutePath().normalize();
+        if (!path.startsWith(Path.of("/"))) {
+            throw new IOException("Invalid file path (must be absolute): " + filePath);
+        }
+        return path;
     }
 
     /**
@@ -129,12 +148,9 @@ public class MetadataManager {
     public List<Metadata> readFromFile(Path path, ScanConfiguration config) throws IOException {
         Objects.requireNonNull(path, "path must not be null");
         Objects.requireNonNull(config, "config must not be null");
-        List<TagInfo> detectedTags = switch (config.getMode()) {
-            case FULL_SCAN -> detector.fullScan(path);
-            case COMFORT_SCAN -> detector.comfortScan(path);
-            case CUSTOM_SCAN -> detector.customScan(path, config.getCustomFormats().toArray(new TagFormat[0]));
-        };
-        return parseTags(path.toString(), detectedTags);
+        try (SeekableDataSource source = SeekableDataSources.forPath(path)) {
+            return readFromSource(source, config);
+        }
     }
 
     // ================================
@@ -299,8 +315,7 @@ public class MetadataManager {
         if (validPaths.size() == 1) {
             String filePath = validPaths.getFirst();
             try {
-                List<TagInfo> detected = detectFromFile(filePath, config);
-                return Map.of(filePath, parseTags(filePath, detected));
+                return Map.of(filePath, readFromFile(filePath, config));
             } catch (IOException e) {
                 LOG.error("Error processing file {}: {}", filePath, e.getMessage());
                 return Map.of(filePath, List.of());
@@ -313,8 +328,7 @@ public class MetadataManager {
             for (String filePath : validPaths) {
                 tasks.put(filePath, scope.fork(() -> {
                     try {
-                        List<TagInfo> detected = detectFromFile(filePath, config);
-                        return parseTags(filePath, detected);
+                        return readFromFile(filePath, config);
                     } catch (IOException e) {
                         LOG.error("Error processing file {}: {}", filePath, e.getMessage());
                         return List.<Metadata>of();
@@ -352,59 +366,22 @@ public class MetadataManager {
         };
     }
 
-    private List<TagInfo> detectFromFile(String filePath, ScanConfiguration config) throws IOException {
-        return switch (config.getMode()) {
-            case FULL_SCAN -> detector.fullScan(filePath);
-            case COMFORT_SCAN -> detector.comfortScan(filePath);
-            case CUSTOM_SCAN -> detector.customScan(filePath, config.getCustomFormats().toArray(new TagFormat[0]));
-        };
-    }
-
-    private List<Metadata> parseTags(String filePath, List<TagInfo> tagInfos) {
-        List<Metadata> metadataList = new ArrayList<>();
-
-        try (RandomAccessFile raf = new RandomAccessFile(filePath, "r")) {
-            for (TagInfo tagInfo : tagInfos) {
-                TagParsingStrategy strategy = TagParsingStrategyFactory.getStrategyForFormat(tagInfo.getFormat());
-                if (strategy != null) {
-                    try {
-                        Metadata metadata = strategy.parseTag(
-                                tagInfo.getFormat(), raf, tagInfo.getOffset(), tagInfo.getSize());
-                        metadataList.add(metadata);
-                    } catch (IOException e) {
-                        LOG.warn("Error parsing tag {} in {}: {}", tagInfo.getFormat(), filePath, e.getMessage());
-                    }
-                } else {
-                    LOG.debug("No parser available for format: {}", tagInfo.getFormat());
-                }
-            }
-        } catch (IOException e) {
-            LOG.error("Cannot read file {}: {}", filePath, e.getMessage());
-        }
-
-        return metadataList;
-    }
-
     private List<Metadata> parseTagsFromSource(SeekableDataSource source, List<TagInfo> tagInfos) {
         List<Metadata> metadataList = new ArrayList<>();
 
-        try (RandomAccessFile raf = new RandomAccessFile(source.name(), "r")) {
-            for (TagInfo tagInfo : tagInfos) {
-                TagParsingStrategy strategy = TagParsingStrategyFactory.getStrategyForFormat(tagInfo.getFormat());
-                if (strategy != null) {
-                    try {
-                        Metadata metadata = strategy.parseTag(
-                                tagInfo.getFormat(), raf, tagInfo.getOffset(), tagInfo.getSize());
-                        metadataList.add(metadata);
-                    } catch (IOException e) {
-                        LOG.warn("Error parsing tag {} in {}: {}", tagInfo.getFormat(), source.name(), e.getMessage());
-                    }
-                } else {
-                    LOG.debug("No parser available for format: {}", tagInfo.getFormat());
+        for (TagInfo tagInfo : tagInfos) {
+            TagParsingStrategy strategy = parsingFactory.getStrategyForFormat(tagInfo.getFormat());
+            if (strategy != null) {
+                try {
+                    Metadata metadata = strategy.parseTag(
+                            tagInfo.getFormat(), source, tagInfo.getOffset(), tagInfo.getSize());
+                    metadataList.add(metadata);
+                } catch (IOException e) {
+                    LOG.warn("Error parsing tag {} in {}: {}", tagInfo.getFormat(), source.name(), e.getMessage());
                 }
+            } else {
+                LOG.debug("No parser available for format: {}", tagInfo.getFormat());
             }
-        } catch (IOException e) {
-            LOG.error("Cannot read source {}: {}", source.name(), e.getMessage());
         }
 
         return metadataList;

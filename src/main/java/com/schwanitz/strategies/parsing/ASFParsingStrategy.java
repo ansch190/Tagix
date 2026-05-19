@@ -1,9 +1,7 @@
 package com.schwanitz.strategies.parsing;
 
-import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
-import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
@@ -11,8 +9,9 @@ import com.schwanitz.tagging.TagFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SourceReader;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,7 +40,7 @@ import java.util.Map;
  *
  * @see TagParsingStrategy
  */
-public class ASFParsingStrategy implements TagParsingStrategy {
+public class ASFParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(ASFParsingStrategy.class);
 
@@ -111,13 +110,14 @@ public class ASFParsingStrategy implements TagParsingStrategy {
         KNOWN_EXT_CONTENT_FIELDS.put("WM/UserWebURL", "UserWebURL");
     }
 
-    private final Map<String, FieldHandler<?>> handlers = new HashMap<>();
+
 
     /**
      * Erzeugt eine neue ASF-Parsing-Strategie mit Standard-Handlern für Content Description
      * und Extended Content Description-Felder.
      */
     public ASFParsingStrategy() {
+        super("ASF");
         initializeDefaultHandlers();
     }
 
@@ -131,17 +131,6 @@ public class ASFParsingStrategy implements TagParsingStrategy {
     }
 
     /**
-     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
-     *
-     * @param format das zu prüfende Tag-Format
-     * @return {@code true} für ASF_CONTENT_DESC und ASF_EXT_CONTENT_DESC
-     */
-    @Override
-    public boolean canHandle(TagFormat format) {
-        return format == TagFormat.ASF_CONTENT_DESC || format == TagFormat.ASF_EXT_CONTENT_DESC;
-    }
-
-    /**
      * Parst ASF-Metadaten aus der angegebenen Datei.
      *
      * <p>Erkennt anhand der GUID am Offset, ob es sich um ein Content Description Object,
@@ -149,38 +138,38 @@ public class ASFParsingStrategy implements TagParsingStrategy {
      * und delegiert an die entsprechende Parse-Methode.</p>
      *
      * @param format das ASF-Format
-     * @param file   die Datei, aus der gelesen wird
+     * @param source die Datenquelle, aus der gelesen wird
      * @param offset der Start-Offset des ASF-Objekts
      * @param size   die Größe des Objekts in Bytes
      * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültigem ASF-Format
      */
     @Override
-    public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
+    public Metadata parseTag(TagFormat format, SeekableDataSource source, long offset, long size) throws IOException {
         GenericMetadata metadata = new GenericMetadata(format);
 
-        file.seek(offset);
-
         byte[] guid = new byte[GUID_SIZE];
-        file.read(guid);
+        source.readFully(offset, guid);
+
+        SourceReader reader = new SourceReader(source, offset);
 
         if (java.util.Arrays.equals(guid, CONTENT_DESC_GUID)) {
-            parseContentDescription(file, metadata, offset, size);
+            parseContentDescription(reader, metadata, offset, size);
         } else if (java.util.Arrays.equals(guid, EXT_CONTENT_DESC_GUID)) {
-            parseExtendedContentDescription(file, metadata, offset, size);
+            parseExtendedContentDescription(reader, metadata, offset, size);
         } else if (java.util.Arrays.equals(guid, METADATA_GUID) || java.util.Arrays.equals(guid, METADATA_LIBRARY_GUID)) {
-            parseMetadataObject(file, metadata, offset, size);
+            parseMetadataObject(reader, metadata, offset, size);
         }
 
         return metadata;
     }
 
-    private void parseContentDescription(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
+    private void parseContentDescription(SourceReader reader, GenericMetadata metadata, long offset, long size)
             throws IOException {
-        file.seek(offset + GUID_SIZE + 8);
+        reader.seek(offset + GUID_SIZE + 8);
 
         byte[] lengths = new byte[10];
-        file.read(lengths);
+        reader.readFully(lengths);
 
         int titleLen = BinaryDataReader.readLittleEndianInt16(lengths, TITLE_LENGTH_OFFSET);
         int authorLen = BinaryDataReader.readLittleEndianInt16(lengths, AUTHOR_LENGTH_OFFSET);
@@ -190,77 +179,77 @@ public class ASFParsingStrategy implements TagParsingStrategy {
 
         if (titleLen > 0) {
             byte[] titleBytes = new byte[titleLen];
-            file.read(titleBytes);
-            addField(metadata, "Title", decodeASFString(titleBytes));
+            reader.readFully(titleBytes);
+            addField(metadata, "Title", decodeASFString(titleBytes), true, false, false);
         }
         if (authorLen > 0) {
             byte[] authorBytes = new byte[authorLen];
-            file.read(authorBytes);
-            addField(metadata, "Artist", decodeASFString(authorBytes));
+            reader.readFully(authorBytes);
+            addField(metadata, "Artist", decodeASFString(authorBytes), true, false, false);
         }
         if (copyrightLen > 0) {
             byte[] copyrightBytes = new byte[copyrightLen];
-            file.read(copyrightBytes);
-            addField(metadata, "Copyright", decodeASFString(copyrightBytes));
+            reader.readFully(copyrightBytes);
+            addField(metadata, "Copyright", decodeASFString(copyrightBytes), true, false, false);
         }
         if (descLen > 0) {
             byte[] descBytes = new byte[descLen];
-            file.read(descBytes);
-            addField(metadata, "Description", decodeASFString(descBytes));
+            reader.readFully(descBytes);
+            addField(metadata, "Description", decodeASFString(descBytes), true, false, false);
         }
         if (ratingLen > 0) {
             byte[] ratingBytes = new byte[ratingLen];
-            file.read(ratingBytes);
-            addField(metadata, "Rating", decodeASFString(ratingBytes));
+            reader.readFully(ratingBytes);
+            addField(metadata, "Rating", decodeASFString(ratingBytes), true, false, false);
         }
     }
 
-    private void parseExtendedContentDescription(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
+    private void parseExtendedContentDescription(SourceReader reader, GenericMetadata metadata, long offset, long size)
             throws IOException {
-        file.seek(offset + GUID_SIZE + 8);
+        reader.seek(offset + GUID_SIZE + 8);
 
-        int count = BinaryDataReader.readLittleEndianInt16(file);
+        int count = BinaryDataReader.readLittleEndianInt16(reader);
 
         for (int i = 0; i < count; i++) {
-            int nameLen = BinaryDataReader.readLittleEndianInt16(file);
+            int nameLen = BinaryDataReader.readLittleEndianInt16(reader);
             if (nameLen <= 0 || nameLen > 65536) break;
 
             byte[] nameBytes = new byte[nameLen];
-            file.read(nameBytes);
+            reader.readFully(nameBytes);
             String name = decodeASFString(nameBytes);
 
-            int dataType = BinaryDataReader.readLittleEndianInt16(file);
-            int dataLen = BinaryDataReader.readLittleEndianInt16(file);
+            int dataType = BinaryDataReader.readLittleEndianInt16(reader);
+            int dataLen = BinaryDataReader.readLittleEndianInt16(reader);
 
             if (dataLen <= 0 || dataLen > 65536) break;
 
             byte[] data = new byte[dataLen];
-            file.read(data);
+            reader.readFully(data);
 
             String fieldName = KNOWN_EXT_CONTENT_FIELDS.getOrDefault(name, name);
 
             switch (dataType) {
                 case ASF_TYPE_STRING:
-                    addField(metadata, fieldName, decodeASFString(data));
+                    addField(metadata, fieldName, decodeASFString(data), true, false, false);
                     break;
                 case ASF_TYPE_DWORD:
                     if (data.length >= 4) {
-                        addField(metadata, fieldName, String.valueOf(BinaryDataReader.readLittleEndianInt32(data, 0)));
+                        addField(metadata, fieldName, String.valueOf(BinaryDataReader.readLittleEndianInt32(data, 0)), true, false, false);
                     }
                     break;
                 case ASF_TYPE_QWORD:
                     if (data.length >= 8) {
-                        addField(metadata, fieldName, String.valueOf(BinaryDataReader.readLittleEndianInt64(data, 0)));
+                        addField(metadata, fieldName, String.valueOf(BinaryDataReader.readLittleEndianInt64(data, 0)), true, false, false);
                     }
                     break;
                 case ASF_TYPE_WORD:
                     if (data.length >= 2) {
-                        addField(metadata, fieldName, String.valueOf(BinaryDataReader.readLittleEndianInt16(data, 0)));
+                        addField(metadata, fieldName, String.valueOf(BinaryDataReader.readLittleEndianInt16(data, 0)), true, false, false);
                     }
                     break;
                 case ASF_TYPE_BOOL:
                     if (data.length >= 4) {
-                        addField(metadata, fieldName, Boolean.toString(BinaryDataReader.readLittleEndianInt32(data, 0) != 0));
+                        addField(metadata, fieldName, Boolean.toString(BinaryDataReader.readLittleEndianInt32(data, 0) != 0), true, false, false);
                     }
                     break;
                 default:
@@ -270,9 +259,9 @@ public class ASFParsingStrategy implements TagParsingStrategy {
         }
     }
 
-    private void parseMetadataObject(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
+    private void parseMetadataObject(SourceReader reader, GenericMetadata metadata, long offset, long size)
             throws IOException {
-        parseExtendedContentDescription(file, metadata, offset, size);
+        parseExtendedContentDescription(reader, metadata, offset, size);
     }
 
     private String decodeASFString(byte[] data) {
@@ -282,25 +271,6 @@ public class ASFParsingStrategy implements TagParsingStrategy {
         return nullIdx >= 0 ? raw.substring(0, nullIdx).trim() : raw.trim();
     }
 
-    @SuppressWarnings("unchecked")
-    private void addField(GenericMetadata metadata, String key, String value) {
-        if (value == null || value.isEmpty()) return;
-        FieldHandler<?> handler = handlers.get(key);
-        if (handler != null) {
-            metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
-        } else {
-            metadata.addField(new MetadataField<>(key, value, new TextFieldHandler(key)));
-        }
-    }
 
-    /**
-     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes ASF-Feld.
-     *
-     * @param key     der Feldname, für den der Handler registriert werden soll
-     * @param handler der zu registrierende Handler
-     */
-    public void registerHandler(String key, FieldHandler<?> handler) {
-        handlers.put(key, handler);
-    }
 
 }

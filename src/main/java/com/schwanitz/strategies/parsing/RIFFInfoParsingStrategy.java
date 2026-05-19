@@ -1,16 +1,14 @@
 package com.schwanitz.strategies.parsing;
 
-import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
-import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -35,7 +33,7 @@ import org.slf4j.LoggerFactory;
  *
  * @see TagParsingStrategy
  */
-public class RIFFInfoParsingStrategy implements TagParsingStrategy {
+public class RIFFInfoParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(RIFFInfoParsingStrategy.class);
 
@@ -85,13 +83,13 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
         INFO_CHUNKS.put("IDOS", "DOSName");          // DOS Name (veraltet)
     }
 
-    private final Map<String, FieldHandler<?>> handlers;
+
 
     /**
      * Erzeugt eine neue RIFF-INFO-Parsing-Strategie mit Standard-Handlern.
      */
     public RIFFInfoParsingStrategy() {
-        this.handlers = new HashMap<>();
+        super("RIFF");
         initializeDefaultHandlers();
     }
 
@@ -103,40 +101,30 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
     }
 
     /**
-     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
-     *
-     * @param format das zu prüfende Tag-Format
-     * @return {@code true} für {@link TagFormat#RIFF_INFO}
-     */
-    @Override
-    public boolean canHandle(TagFormat format) {
-        return format == TagFormat.RIFF_INFO;
-    }
-
-    /**
      * Parst einen RIFF-INFO-Chunk aus der angegebenen Datei.
      *
      * @param format das RIFF_INFO-Format
-     * @param file   die Datei, aus der gelesen wird
+     * @param source die Datenquelle, aus der gelesen wird
      * @param offset der Start-Offset des LIST-Chunks
      * @param size   die Größe des Chunks in Bytes
      * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder wenn der Chunk keine gültige INFO-Struktur enthält
      */
     @Override
-    public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
+    public Metadata parseTag(TagFormat format, SeekableDataSource source, long offset, long size) throws IOException {
         GenericMetadata metadata = new GenericMetadata(TagFormat.RIFF_INFO);
-        parseRIFFInfoChunk(file, metadata, offset, size);
+        parseRIFFInfoChunk(source, metadata, offset, size);
         return metadata;
     }
 
-    private void parseRIFFInfoChunk(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
+    private void parseRIFFInfoChunk(SeekableDataSource source, GenericMetadata metadata, long offset, long size)
             throws IOException {
-        file.seek(offset);
+        long pos = offset;
 
         // LIST Chunk Header lesen
         byte[] listHeader = new byte[8];
-        file.read(listHeader);
+        source.readFully(pos, listHeader);
+        pos += listHeader.length;
 
         String chunkId = new String(listHeader, 0, 4, StandardCharsets.US_ASCII);
         if (!"LIST".equals(chunkId)) {
@@ -150,7 +138,8 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
 
         // INFO Identifier lesen
         byte[] infoId = new byte[4];
-        file.read(infoId);
+        source.readFully(pos, infoId);
+        pos += infoId.length;
         String infoType = new String(infoId, StandardCharsets.US_ASCII);
 
         if (!"INFO".equals(infoType)) {
@@ -165,13 +154,11 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
 
         int fieldCount = 0;
         while (currentPos < endPos - 8) { // Mindestens 8 Bytes für Sub-Chunk Header
-            file.seek(currentPos);
+            pos = currentPos;
 
             byte[] subChunkHeader = new byte[8];
-            int bytesRead = file.read(subChunkHeader);
-            if (bytesRead != 8) {
-                break;
-            }
+            source.readFully(pos, subChunkHeader);
+            pos += subChunkHeader.length;
 
             String subChunkId = new String(subChunkHeader, 0, 4, StandardCharsets.US_ASCII);
             int subChunkSize = BinaryDataReader.readLittleEndianInt32(subChunkHeader, 4);
@@ -184,7 +171,8 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
             // Sub-Chunk Daten lesen
             if (subChunkSize > 0) {
                 byte[] subChunkData = new byte[subChunkSize];
-                file.read(subChunkData);
+                source.readFully(pos, subChunkData);
+                pos += subChunkData.length;
 
                 // Null-terminated String parsen
                 String value = parseNullTerminatedString(subChunkData);
@@ -195,7 +183,7 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
                     fieldCount++;
 
                     if (LOG.isDebugEnabled()) {
-                        String displayValue = value.length() > 50 ? value.substring(0, 50) + "..." : value;
+                        String displayValue = truncateForDisplay(value, 50);
                         LOG.debug("Parsed RIFF INFO field: {} ({}) = {}", subChunkId, fieldName, displayValue);
                     }
                 }
@@ -247,35 +235,13 @@ public class RIFFInfoParsingStrategy implements TagParsingStrategy {
 
     private boolean isValidString(String str) {
         // Einfache Heuristik: String sollte druckbare Zeichen enthalten
-        for (char c : str.toCharArray()) {
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
             if (c < 32 && c != 9 && c != 10 && c != 13) { // Kontrollzeichen außer Tab, LF, CR
                 return false;
             }
         }
         return true;
-    }
-
-    @SuppressWarnings("unchecked")
-    private void addField(GenericMetadata metadata, String key, String value) {
-        FieldHandler<?> handler = handlers.get(key);
-        if (handler != null) {
-            metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
-        } else {
-            // Fallback: TextFieldHandler für unbekannte Felder
-            TextFieldHandler textHandler = new TextFieldHandler(key);
-            metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOG.debug("Created fallback handler for unknown RIFF INFO field: {}", key);
-        }
-    }
-
-    /**
-     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes RIFF-INFO-Feld.
-     *
-     * @param key     der Feldname, für den der Handler registriert werden soll
-     * @param handler der zu registrierende Handler
-     */
-    public void registerHandler(String key, FieldHandler<?> handler) {
-        handlers.put(key, handler);
     }
 
 }

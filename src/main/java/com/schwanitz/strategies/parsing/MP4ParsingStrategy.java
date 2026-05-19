@@ -1,16 +1,16 @@
 package com.schwanitz.strategies.parsing;
 
-import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
-import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SourceReader;
+
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -36,9 +36,11 @@ import org.slf4j.LoggerFactory;
  *
  * @see TagParsingStrategy
  */
-public class MP4ParsingStrategy implements TagParsingStrategy {
+public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(MP4ParsingStrategy.class);
+
+    private static final double MIN_PRINTABLE_RATIO = 0.8;
 
     // MP4 Atom Types für Metadaten
     private static final String MOOV_ATOM = "moov";
@@ -181,13 +183,13 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         KNOWN_ATOMS.put("xid ", "XID");                // XID (Cross-reference ID)
     }
 
-    private final Map<String, FieldHandler<?>> handlers;
+
 
     /**
      * Erzeugt eine neue MP4-Parsing-Strategie mit Standard-Handlern für alle bekannten iTunes-Atom-Felder.
      */
     public MP4ParsingStrategy() {
-        this.handlers = new HashMap<>();
+        super("MP4");
         initializeDefaultHandlers();
     }
 
@@ -199,115 +201,105 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
     }
 
     /**
-     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
-     *
-     * @param format das zu prüfende Tag-Format
-     * @return {@code true} für {@link TagFormat#MP4}
-     */
-    @Override
-    public boolean canHandle(TagFormat format) {
-        return format == TagFormat.MP4;
-    }
-
-    /**
      * Parst MP4-Metadaten aus der angegebenen Datei.
      *
      * @param format das MP4-Format
-     * @param file   die Datei, aus der gelesen wird
+     * @param source die Datenquelle, aus der gelesen wird
      * @param offset der Start-Offset des moov-Atoms
      * @param size   die Größe des zu lesenden Bereichs in Bytes
      * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder wenn kein moov-Atom gefunden wird
      */
     @Override
-    public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
+    public Metadata parseTag(TagFormat format, SeekableDataSource source, long offset, long size) throws IOException {
         GenericMetadata metadata = new GenericMetadata(TagFormat.MP4);
-        parseMP4Atoms(file, metadata, offset, size);
+        SourceReader reader = new SourceReader(source, offset);
+        parseMP4Atoms(reader, metadata, offset, size);
         return metadata;
     }
 
-    private void parseMP4Atoms(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
+    private void parseMP4Atoms(SourceReader reader, GenericMetadata metadata, long offset, long size)
             throws IOException {
         // Navigiere zum moov Atom
-        long moovOffset = findAtom(file, offset, size, MOOV_ATOM);
+        long moovOffset = findAtom(reader, offset, size, MOOV_ATOM);
         if (moovOffset == -1) {
             throw new IOException("No moov atom found in MP4 file");
         }
 
-        file.seek(moovOffset);
-        long moovSize = BinaryDataReader.readBigEndianUInt32(file);
+        reader.seek(moovOffset);
+        long moovSize = BinaryDataReader.readBigEndianUInt32(reader);
 
         // Navigiere zu udta -> meta -> ilst
-        long udtaOffset = findAtom(file, moovOffset + 8, moovSize - 8, UDTA_ATOM);
+        long udtaOffset = findAtom(reader, moovOffset + 8, moovSize - 8, UDTA_ATOM);
         if (udtaOffset == -1) {
             LOG.debug("No udta atom found - no metadata available");
             return;
         }
 
-        file.seek(udtaOffset);
-        long udtaSize = BinaryDataReader.readBigEndianUInt32(file);
+        reader.seek(udtaOffset);
+        long udtaSize = BinaryDataReader.readBigEndianUInt32(reader);
 
-        long metaOffset = findAtom(file, udtaOffset + 8, udtaSize - 8, META_ATOM);
+        long metaOffset = findAtom(reader, udtaOffset + 8, udtaSize - 8, META_ATOM);
         if (metaOffset == -1) {
             LOG.debug("No meta atom found in udta");
             return;
         }
 
-        file.seek(metaOffset);
-        long metaSize = BinaryDataReader.readBigEndianUInt32(file);
-        file.skipBytes(4); // Skip meta version/flags
+        reader.seek(metaOffset);
+        long metaSize = BinaryDataReader.readBigEndianUInt32(reader);
+        reader.skipBytes(4); // Skip meta version/flags
 
-        long ilstOffset = findAtom(file, metaOffset + 12, metaSize - 12, ILST_ATOM);
+        long ilstOffset = findAtom(reader, metaOffset + 12, metaSize - 12, ILST_ATOM);
         if (ilstOffset == -1) {
             LOG.debug("No ilst atom found in meta");
             return;
         }
 
-        file.seek(ilstOffset);
-        long ilstSize = BinaryDataReader.readBigEndianUInt32(file);
+        reader.seek(ilstOffset);
+        long ilstSize = BinaryDataReader.readBigEndianUInt32(reader);
 
         // Parse metadata items in ilst
-        parseMetadataItems(file, metadata, ilstOffset + 8, ilstSize - 8);
+        parseMetadataItems(reader, metadata, ilstOffset + 8, ilstSize - 8);
 
         LOG.debug("Successfully parsed MP4 metadata");
     }
 
-    private void parseMetadataItems(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
+    private void parseMetadataItems(SourceReader reader, GenericMetadata metadata, long offset, long size)
             throws IOException {
         long currentPos = offset;
         long endPos = offset + size;
 
         while (currentPos < endPos - 8) {
-            file.seek(currentPos);
+            reader.seek(currentPos);
 
-            long itemSize = BinaryDataReader.readBigEndianUInt32(file);
+            long itemSize = BinaryDataReader.readBigEndianUInt32(reader);
             if (itemSize < 8 || itemSize > endPos - currentPos) {
                 break;
             }
 
             byte[] atomTypeBytes = new byte[4];
-            file.read(atomTypeBytes);
+            reader.readFully(atomTypeBytes);
             String atomType = new String(atomTypeBytes, StandardCharsets.ISO_8859_1);
 
             // Parse data within this metadata item
-            parseMetadataItem(file, metadata, atomType, currentPos + 8, itemSize - 8);
+            parseMetadataItem(reader, metadata, atomType, currentPos + 8, itemSize - 8);
 
             currentPos += itemSize;
         }
     }
 
-    private void parseMetadataItem(RandomAccessFile file, GenericMetadata metadata, String atomType,
+    private void parseMetadataItem(SourceReader reader, GenericMetadata metadata, String atomType,
                                    long offset, long size) throws IOException {
         // Suche nach 'data' Atom innerhalb des Metadata Items
-        long dataOffset = findAtom(file, offset, size, DATA_ATOM);
+        long dataOffset = findAtom(reader, offset, size, DATA_ATOM);
         if (dataOffset == -1) {
             LOG.debug("No data atom found for {}", atomType);
             return;
         }
 
-        file.seek(dataOffset);
-        long dataSize = BinaryDataReader.readBigEndianUInt32(file);
-        file.skipBytes(4); // Skip 'data'
+        reader.seek(dataOffset);
+        long dataSize = BinaryDataReader.readBigEndianUInt32(reader);
+        reader.skipBytes(4); // Skip 'data'
 
         if (dataSize < 16) { // 8 bytes header + 8 bytes minimal data header
             LOG.debug("Data atom too small for {}", atomType);
@@ -315,8 +307,8 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
         }
 
         // Data type and locale
-        int dataType = (int) BinaryDataReader.readBigEndianUInt32(file);
-        int locale = (int) BinaryDataReader.readBigEndianUInt32(file);
+        int dataType = (int) BinaryDataReader.readBigEndianUInt32(reader);
+        int locale = (int) BinaryDataReader.readBigEndianUInt32(reader);
 
         long valueSize = dataSize - 16; // Subtract atom header (8) + data header (8)
         if (valueSize <= 0 || valueSize > 65536) { // Sanity check
@@ -326,7 +318,7 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
 
         // Read value data
         byte[] valueData = new byte[(int) valueSize];
-        file.read(valueData);
+        reader.readFully(valueData);
 
         // Parse value based on data type
         String value = parseDataValue(valueData, dataType, atomType);
@@ -335,11 +327,40 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
             addField(metadata, fieldName, value);
 
             if (LOG.isDebugEnabled()) {
-                String displayValue = value.length() > 50 ? value.substring(0, 50) + "..." : value;
+                String displayValue = truncateForDisplay(value, 50);
                 LOG.debug("Parsed MP4 field: {} ({}) = {}", atomType, fieldName, displayValue);
             }
         }
     }
+
+    private long findAtom(SourceReader reader, long offset, long size, String atomType)
+            throws IOException {
+        long currentPos = offset;
+        long endPos = offset + size;
+
+        while (currentPos < endPos - 8) {
+            reader.seek(currentPos);
+
+            long atomSize = BinaryDataReader.readBigEndianUInt32(reader);
+            if (atomSize < 8 || atomSize > endPos - currentPos) {
+                break;
+            }
+
+            byte[] typeBytes = new byte[4];
+            reader.readFully(typeBytes);
+            String type = new String(typeBytes, StandardCharsets.ISO_8859_1);
+
+            if (atomType.equals(type)) {
+                return currentPos;
+            }
+
+            currentPos += atomSize;
+        }
+
+        return -1; // Not found
+    }
+
+
 
     private String parseDataValue(byte[] data, int dataType, String atomType) {
         switch (dataType) {
@@ -493,7 +514,8 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
     private boolean isValidText(String text) {
         // Simple heuristic: check if text contains mostly printable characters
         int printableCount = 0;
-        for (char c : text.toCharArray()) {
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
             if (c >= 32 && c <= 126) { // ASCII printable range
                 printableCount++;
             } else if (c >= 128) { // Unicode characters
@@ -502,57 +524,9 @@ public class MP4ParsingStrategy implements TagParsingStrategy {
                 printableCount++;
             }
         }
-        return printableCount > text.length() * 0.8; // At least 80% printable
+        return printableCount > text.length() * MIN_PRINTABLE_RATIO;
     }
 
-    private long findAtom(RandomAccessFile file, long offset, long size, String atomType)
-            throws IOException {
-        long currentPos = offset;
-        long endPos = offset + size;
 
-        while (currentPos < endPos - 8) {
-            file.seek(currentPos);
-
-            long atomSize = BinaryDataReader.readBigEndianUInt32(file);
-            if (atomSize < 8 || atomSize > endPos - currentPos) {
-                break;
-            }
-
-            byte[] typeBytes = new byte[4];
-            file.read(typeBytes);
-            String type = new String(typeBytes, StandardCharsets.ISO_8859_1);
-
-            if (atomType.equals(type)) {
-                return currentPos;
-            }
-
-            currentPos += atomSize;
-        }
-
-        return -1; // Not found
-    }
-
-    @SuppressWarnings("unchecked")
-    private void addField(GenericMetadata metadata, String key, String value) {
-        FieldHandler<?> handler = handlers.get(key);
-        if (handler != null) {
-            metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
-        } else {
-            // Fallback: TextFieldHandler für unbekannte Felder
-            TextFieldHandler textHandler = new TextFieldHandler(key);
-            metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOG.debug("Created fallback handler for unknown MP4 field: {}", key);
-        }
-    }
-
-    /**
-     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes MP4-Feld.
-     *
-     * @param key     der Feldname, für den der Handler registriert werden soll
-     * @param handler der zu registrierende Handler
-     */
-    public void registerHandler(String key, FieldHandler<?> handler) {
-        handlers.put(key, handler);
-    }
 
 }

@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SeekableDataSources;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -34,31 +37,17 @@ class APEParsingStrategyTest {
     private Metadata parseAPE(APEParsingStrategy strategy, byte[] tagData) throws IOException {
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.ape", tagData);
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            return strategy.parseTag(TagFormat.APEV2, raf, 0, tagData.length);
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
+            return strategy.parseTag(TagFormat.APEV2, source, 0, tagData.length);
         }
     }
 
     private Metadata parseAPE(APEParsingStrategy strategy, byte[] tagData, long offset, long size) throws IOException {
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.ape", tagData);
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            return strategy.parseTag(TagFormat.APEV2, raf, offset, size);
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
+            return strategy.parseTag(TagFormat.APEV2, source, offset, size);
         }
-    }
-
-    @Test
-    @DisplayName("canHandle returns true for APEV1 and APEV2")
-    void canHandle() {
-        assertTrue(strategy.canHandle(TagFormat.APEV1));
-        assertTrue(strategy.canHandle(TagFormat.APEV2));
-    }
-
-    @Test
-    @DisplayName("canHandle rejects other formats")
-    void canHandleRejectsOtherFormats() {
-        assertFalse(strategy.canHandle(TagFormat.ID3V1));
-        assertFalse(strategy.canHandle(TagFormat.ID3V2_3));
-        assertFalse(strategy.canHandle(TagFormat.VORBIS_COMMENT));
-        assertFalse(strategy.canHandle(TagFormat.MP4));
     }
 
     @Test
@@ -98,7 +87,8 @@ class APEParsingStrategyTest {
 
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "test.ape1", tagData);
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.APEV1, raf, 0, tagData.length);
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
+            Metadata metadata = strategy.parseTag(TagFormat.APEV1, source, 0, tagData.length);
             assertNotNull(metadata);
             assertEquals("APEv1 Title", ParsingTestHelper.findFieldValue(metadata, "Title"));
             assertEquals("APEv1 Artist", ParsingTestHelper.findFieldValue(metadata, "Artist"));
@@ -127,8 +117,9 @@ class APEParsingStrategyTest {
 
         File file = ParsingTestHelper.writeTempFile(tempDir.toFile(), "bad.ape", badData);
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
             assertThrows(IOException.class, () ->
-                    strategy.parseTag(TagFormat.APEV2, raf, 0, badData.length));
+                    strategy.parseTag(TagFormat.APEV2, source, 0, badData.length));
         }
     }
 

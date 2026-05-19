@@ -7,6 +7,9 @@ import com.schwanitz.tagging.TagFormat;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SeekableDataSources;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -29,22 +32,6 @@ class BWFParsingStrategyTest {
     }
 
     @Test
-    @DisplayName("canHandle returns true for BWF_V0, BWF_V1, BWF_V2")
-    void canHandle_BWF_true() {
-        assertTrue(strategy.canHandle(TagFormat.BWF_V0));
-        assertTrue(strategy.canHandle(TagFormat.BWF_V1));
-        assertTrue(strategy.canHandle(TagFormat.BWF_V2));
-    }
-
-    @Test
-    @DisplayName("canHandle returns false for non-BWF formats")
-    void canHandle_nonBWF_false() {
-        assertFalse(strategy.canHandle(TagFormat.MP4));
-        assertFalse(strategy.canHandle(TagFormat.RIFF_INFO));
-        assertFalse(strategy.canHandle(TagFormat.ID3V2_3));
-    }
-
-    @Test
     @DisplayName("parseBWFV0 extracts description, originator, originatorRef, date, time, timeReference, version=0")
     void parseBWFV0() throws IOException {
         byte[] data = buildBWFChunk("Test Description", "Test Originator", "REF001",
@@ -52,7 +39,8 @@ class BWFParsingStrategyTest {
         File file = writeTempFile(tempDir.toFile(), "test.bwf", data);
 
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.BWF_V0, raf, 0, data.length);
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
+            Metadata metadata = strategy.parseTag(TagFormat.BWF_V0, source, 0, data.length);
 
             assertEquals("Test Description", ParsingTestHelper.findFieldValue(metadata, "Description"));
             assertEquals("Test Originator", ParsingTestHelper.findFieldValue(metadata, "Originator"));
@@ -72,7 +60,8 @@ class BWFParsingStrategyTest {
         File file = writeTempFile(tempDir.toFile(), "test.bwf", data);
 
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.BWF_V1, raf, 0, data.length);
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
+            Metadata metadata = strategy.parseTag(TagFormat.BWF_V1, source, 0, data.length);
 
             assertEquals("V1 Description", ParsingTestHelper.findFieldValue(metadata, "Description"));
             assertEquals("1", ParsingTestHelper.findFieldValue(metadata, "Version"));
@@ -95,7 +84,8 @@ class BWFParsingStrategyTest {
         File file = writeTempFile(tempDir.toFile(), "test.bwf", data);
 
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.BWF_V2, raf, 0, data.length);
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
+            Metadata metadata = strategy.parseTag(TagFormat.BWF_V2, source, 0, data.length);
 
             assertTrue(ParsingTestHelper.hasField(metadata, "LoudnessValue"));
             assertTrue(ParsingTestHelper.hasField(metadata, "LoudnessRange"));
@@ -114,7 +104,8 @@ class BWFParsingStrategyTest {
         File file = writeTempFile(tempDir.toFile(), "test.bwf", data);
 
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.BWF_V0, raf, 0, data.length);
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
+            Metadata metadata = strategy.parseTag(TagFormat.BWF_V0, source, 0, data.length);
 
             assertNull(ParsingTestHelper.findFieldValue(metadata, "Description"));
             assertNull(ParsingTestHelper.findFieldValue(metadata, "Originator"));
@@ -129,8 +120,9 @@ class BWFParsingStrategyTest {
         File file = writeTempFile(tempDir.toFile(), "test.bwf", data);
 
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
             assertThrows(IOException.class, () ->
-                    strategy.parseTag(TagFormat.BWF_V0, raf, 0, data.length));
+                    strategy.parseTag(TagFormat.BWF_V0, source, 0, data.length));
         }
     }
 
@@ -141,8 +133,9 @@ class BWFParsingStrategyTest {
         File file = writeTempFile(tempDir.toFile(), "test.bwf", data);
 
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf);
             assertThrows(IOException.class, () ->
-                    strategy.parseTag(TagFormat.BWF_V0, raf, 0, data.length));
+                    strategy.parseTag(TagFormat.BWF_V0, source, 0, data.length));
         }
     }
 }

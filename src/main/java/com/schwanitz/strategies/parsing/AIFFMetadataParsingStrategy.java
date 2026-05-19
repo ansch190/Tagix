@@ -1,16 +1,14 @@
 package com.schwanitz.strategies.parsing;
 
-import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
-import com.schwanitz.metadata.MetadataField;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,7 +34,7 @@ import org.slf4j.LoggerFactory;
  * @see TagParsingStrategy
  * @see ID3ParsingStrategy
  */
-public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
+public class AIFFMetadataParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(AIFFMetadataParsingStrategy.class);
 
@@ -56,13 +54,13 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
         AIFF_CHUNKS.put("ID3 ", "ID3");          // ID3 Tag (handled separately)
     }
 
-    private final Map<String, FieldHandler<?>> handlers;
+
 
     /**
      * Erzeugt eine neue AIFF-Parsing-Strategie mit Standard-Handlern.
      */
     public AIFFMetadataParsingStrategy() {
-        this.handlers = new HashMap<>();
+        super("AIFF");
         initializeDefaultHandlers();
     }
 
@@ -76,40 +74,30 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
     }
 
     /**
-     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
-     *
-     * @param format das zu prüfende Tag-Format
-     * @return {@code true} für {@link TagFormat#AIFF_METADATA}
-     */
-    @Override
-    public boolean canHandle(TagFormat format) {
-        return format == TagFormat.AIFF_METADATA;
-    }
-
-    /**
      * Parst AIFF-Metadaten aus der angegebenen Datei.
      *
      * @param format das AIFF_METADATA-Format
-     * @param file   die Datei, aus der gelesen wird
+     * @param source die Datenquelle, aus der gelesen wird
      * @param offset der Start-Offset des AIFF-Chunks
      * @param size   die Größe des Chunks in Bytes
      * @return die extrahierten {@link GenericMetadata}
      * @throws IOException bei I/O-Fehlern oder ungültigem Chunk-Format
      */
     @Override
-    public Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException {
+    public Metadata parseTag(TagFormat format, SeekableDataSource source, long offset, long size) throws IOException {
         GenericMetadata metadata = new GenericMetadata(TagFormat.AIFF_METADATA);
-        parseAIFFMetadataChunk(file, metadata, offset, size);
+        parseAIFFMetadataChunk(source, metadata, offset, size);
         return metadata;
     }
 
-    private void parseAIFFMetadataChunk(RandomAccessFile file, GenericMetadata metadata, long offset, long size)
+    private void parseAIFFMetadataChunk(SeekableDataSource source, GenericMetadata metadata, long offset, long size)
             throws IOException {
-        file.seek(offset);
+        long pos = offset;
 
         // AIFF Chunk Header lesen (8 bytes)
         byte[] chunkHeader = new byte[8];
-        file.read(chunkHeader);
+        source.readFully(pos, chunkHeader);
+        pos += chunkHeader.length;
 
         String chunkType = new String(chunkHeader, 0, 4, StandardCharsets.US_ASCII);
         int chunkSize = BinaryDataReader.readBigEndianInt32(chunkHeader, 4);
@@ -126,15 +114,15 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
             case "AUTH":
             case "(c) ":
             case "ANNO":
-                parseTextChunk(file, metadata, chunkType, chunkSize);
+                parseTextChunk(source, metadata, chunkType, chunkSize, pos);
                 break;
 
             case "COMT":
-                parseCommentChunk(file, metadata, chunkSize);
+                parseCommentChunk(source, metadata, chunkSize, pos);
                 break;
 
             case "APPL":
-                parseApplicationChunk(file, metadata, chunkSize);
+                parseApplicationChunk(source, metadata, chunkSize, pos);
                 break;
 
             case "ID3 ":
@@ -145,7 +133,7 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
             default:
                 // Unbekannter Chunk - versuche als Text zu parsen
                 if (chunkSize > 0 && chunkSize < 8192) { // Reasonable size limit
-                    parseTextChunk(file, metadata, chunkType, chunkSize);
+                    parseTextChunk(source, metadata, chunkType, chunkSize, pos);
                 } else {
                     LOG.debug("Skipping unknown AIFF chunk: {}", chunkType);
                 }
@@ -155,14 +143,14 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
         LOG.debug("Successfully parsed AIFF metadata chunk: {}", chunkType);
     }
 
-    private void parseTextChunk(RandomAccessFile file, GenericMetadata metadata, String chunkType, int chunkSize)
+    private void parseTextChunk(SeekableDataSource source, GenericMetadata metadata, String chunkType, int chunkSize, long pos)
             throws IOException {
         if (chunkSize <= 0) {
             return;
         }
 
         byte[] textData = new byte[chunkSize];
-        file.read(textData);
+        source.readFully(pos, textData);
 
         // Text parsen (normalerweise US-ASCII oder UTF-8)
         String text = parseTextData(textData);
@@ -172,20 +160,21 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
             addField(metadata, fieldName, text);
 
             if (LOG.isDebugEnabled()) {
-                String displayText = text.length() > 50 ? text.substring(0, 50) + "..." : text;
+                String displayText = truncateForDisplay(text, 50);
                 LOG.debug("Parsed AIFF text field: {} ({}) = {}", chunkType, fieldName, displayText);
             }
         }
     }
 
-    private void parseCommentChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize)
+    private void parseCommentChunk(SeekableDataSource source, GenericMetadata metadata, int chunkSize, long pos)
             throws IOException {
         if (chunkSize < 2) {
             return;
         }
 
         // Comment Chunk hat strukturiertes Format
-        int numComments = BinaryDataReader.readBigEndianInt16(file);
+        int numComments = BinaryDataReader.readBigEndianInt16(source, pos);
+        pos += 2;
         int bytesRead = 2;
 
         for (int i = 0; i < numComments && bytesRead < chunkSize; i++) {
@@ -194,14 +183,18 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
             }
 
             // Comment Entry: timeStamp (4) + marker (2) + count (2) + text (count)
-            int timeStamp = BinaryDataReader.readBigEndianInt32(file);
-            int marker = BinaryDataReader.readBigEndianInt16(file);
-            int count = BinaryDataReader.readBigEndianInt16(file);
+            int timeStamp = BinaryDataReader.readBigEndianInt32(source, pos);
+            pos += 4;
+            int marker = BinaryDataReader.readBigEndianInt16(source, pos);
+            pos += 2;
+            int count = BinaryDataReader.readBigEndianInt16(source, pos);
+            pos += 2;
             bytesRead += 8;
 
             if (count > 0 && bytesRead + count <= chunkSize) {
                 byte[] commentText = new byte[count];
-                file.read(commentText);
+                source.readFully(pos, commentText);
+                pos += count;
                 bytesRead += count;
 
                 String text = parseTextData(commentText);
@@ -213,13 +206,13 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
 
             // Padding für gerade Byte-Grenze
             if (count % 2 != 0 && bytesRead < chunkSize) {
-                file.skipBytes(1);
+                pos += 1;
                 bytesRead++;
             }
         }
     }
 
-    private void parseApplicationChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize)
+    private void parseApplicationChunk(SeekableDataSource source, GenericMetadata metadata, int chunkSize, long pos)
             throws IOException {
         if (chunkSize < 4) {
             return;
@@ -227,7 +220,8 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
 
         // Application Signature (4 bytes)
         byte[] signature = new byte[4];
-        file.read(signature);
+        source.readFully(pos, signature);
+        pos += 4;
         String appSignature = new String(signature, StandardCharsets.US_ASCII);
 
         // Application Data (rest of chunk)
@@ -237,7 +231,8 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
             if ("pdos".equals(appSignature) || "stoc".equals(appSignature)) {
                 // ProTools oder andere DAW-spezifische Daten
                 byte[] appData = new byte[Math.min(dataSize, 256)]; // Limit for safety
-                file.read(appData);
+                source.readFully(pos, appData);
+                pos += appData.length;
 
                 String appDataText = parseTextData(appData);
                 if (!appDataText.isEmpty()) {
@@ -246,7 +241,7 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
             } else {
                 // Unbekannte Application
                 addField(metadata, "Application", appSignature + " [" + dataSize + " bytes]");
-                file.skipBytes(dataSize);
+                pos += dataSize;
             }
         }
     }
@@ -288,7 +283,8 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
 
     private boolean isValidText(String text) {
         // Einfache Heuristik für gültigen Text
-        for (char c : text.toCharArray()) {
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
             if (c < 32 && c != 9 && c != 10 && c != 13) { // Kontrollzeichen außer Tab, LF, CR
                 return false;
             }
@@ -296,26 +292,6 @@ public class AIFFMetadataParsingStrategy implements TagParsingStrategy {
         return true;
     }
 
-    @SuppressWarnings("unchecked")
-    private void addField(GenericMetadata metadata, String key, String value) {
-        FieldHandler<?> handler = handlers.get(key);
-        if (handler != null) {
-            metadata.addField(new MetadataField<>(key, value, (FieldHandler<String>) handler));
-        } else {
-            TextFieldHandler textHandler = new TextFieldHandler(key);
-            metadata.addField(new MetadataField<>(key, value, textHandler));
-            LOG.debug("Created fallback handler for unknown AIFF field: {}", key);
-        }
-    }
 
-    /**
-     * Registriert einen benutzerdefinierten {@link FieldHandler} für ein bestimmtes AIFF-Feld.
-     *
-     * @param key     der Feldname, für den der Handler registriert werden soll
-     * @param handler der zu registrierende Handler
-     */
-    public void registerHandler(String key, FieldHandler<?> handler) {
-        handlers.put(key, handler);
-    }
 
 }

@@ -10,6 +10,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import com.schwanitz.io.SeekableDataSource;
+import com.schwanitz.io.SeekableDataSources;
 import java.nio.file.Path;
 
 import static com.schwanitz.strategies.parsing.ParsingTestHelper.*;
@@ -29,29 +31,15 @@ class FLACApplicationParsingStrategyTest {
     }
 
     @Test
-    @DisplayName("canHandle returns true for FLAC_APPLICATION")
-    void canHandle_returnsTrueForFLAC_APPLICATION() {
-        assertTrue(strategy.canHandle(TagFormat.FLAC_APPLICATION));
-    }
-
-    @Test
-    @DisplayName("canHandle returns false for other formats")
-    void canHandle_returnsFalseForOtherFormats() {
-        assertFalse(strategy.canHandle(TagFormat.ID3V2_3));
-        assertFalse(strategy.canHandle(TagFormat.MP4));
-        assertFalse(strategy.canHandle(TagFormat.VORBIS_COMMENT));
-        assertFalse(strategy.canHandle(TagFormat.WAVPACK_NATIVE));
-    }
-
-    @Test
     @DisplayName("parseKnownApplicationId returns app name")
     void parseKnownApplicationId_returnsAppName() throws IOException {
         byte[] appData = new byte[]{0x01, 0x02, 0x03, 0x04};
         byte[] block = buildFLACApplicationBlock("ATCH", appData, false);
         File file = writeTempFile(tempDir.toFile(), "test.flac", block);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.FLAC_APPLICATION, raf, 0, block.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.FLAC_APPLICATION, source, 0, block.length);
 
             String fieldValue = ParsingTestHelper.findFieldValue(metadata, "ApplicationId");
             assertNotNull(fieldValue);
@@ -66,8 +54,9 @@ class FLACApplicationParsingStrategyTest {
         byte[] block = buildFLACApplicationBlock("ZZZZ", appData, false);
         File file = writeTempFile(tempDir.toFile(), "test.flac", block);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.FLAC_APPLICATION, raf, 0, block.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.FLAC_APPLICATION, source, 0, block.length);
 
             String fieldValue = ParsingTestHelper.findFieldValue(metadata, "ApplicationId");
             assertNotNull(fieldValue);
@@ -86,8 +75,9 @@ class FLACApplicationParsingStrategyTest {
         System.arraycopy(ascii("ATCH"), 0, block, 4, 4);
         File file = writeTempFile(tempDir.toFile(), "test.flac", block);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.FLAC_APPLICATION, raf, 0, block.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.FLAC_APPLICATION, source, 0, block.length);
 
             assertNotNull(metadata);
             assertEquals(0, metadata.getFields().size());
@@ -104,8 +94,9 @@ class FLACApplicationParsingStrategyTest {
         block[3] = 0x02;
         File file = writeTempFile(tempDir.toFile(), "test.flac", block);
 
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            Metadata metadata = strategy.parseTag(TagFormat.FLAC_APPLICATION, raf, 0, block.length);
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+             SeekableDataSource source = SeekableDataSources.forRandomAccessFile(raf)) {
+            Metadata metadata = strategy.parseTag(TagFormat.FLAC_APPLICATION, source, 0, block.length);
 
             assertNotNull(metadata);
             assertEquals(0, metadata.getFields().size());

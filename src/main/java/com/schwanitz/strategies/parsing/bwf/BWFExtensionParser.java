@@ -7,7 +7,7 @@ import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.interfaces.FieldHandler;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import com.schwanitz.io.SourceReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -25,13 +25,23 @@ public class BWFExtensionParser {
     private static final String BEXT_AXML = "axml";
     private static final String BEXT_LINK = "link";
 
+    private static final Pattern[] IXML_PATTERNS = {
+            Pattern.compile("PROJECT=\"([^\"]+)\""),
+            Pattern.compile("SCENE=\"([^\"]+)\""),
+            Pattern.compile("TAPE=\"([^\"]+)\""),
+            Pattern.compile("TAKE=\"([^\"]+)\""),
+            Pattern.compile("NOTE=\"([^\"]+)\""),
+            Pattern.compile("SOUND_ROLL=\"([^\"]+)\""),
+    };
+    private static final String[] IXML_FIELD_NAMES = {"Project", "Scene", "Tape", "Take", "Note", "SoundRoll"};
+
     private final Map<String, FieldHandler<?>> handlers;
 
     public BWFExtensionParser(Map<String, FieldHandler<?>> handlers) {
         this.handlers = handlers;
     }
 
-    public void parseBWFExtensions(RandomAccessFile file, GenericMetadata metadata, long offset, long size) {
+    public void parseBWFExtensions(SourceReader reader, GenericMetadata metadata, long offset, long size) {
         long currentPos = offset;
         long endPos = offset + size;
 
@@ -39,13 +49,10 @@ public class BWFExtensionParser {
 
         while (currentPos + 8 < endPos) {
             try {
-                file.seek(currentPos);
+                reader.seek(currentPos);
 
                 byte[] chunkHeader = new byte[8];
-                int bytesRead = file.read(chunkHeader);
-                if (bytesRead != 8) {
-                    break;
-                }
+                reader.readFully(chunkHeader);
 
                 String chunkId = new String(chunkHeader, 0, 4, StandardCharsets.US_ASCII);
                 int chunkSize = BinaryDataReader.readLittleEndianInt32(chunkHeader, 4);
@@ -57,35 +64,35 @@ public class BWFExtensionParser {
 
                 switch (chunkId) {
                     case BEXT_CUE_LIST:
-                        parseCueListChunk(file, metadata, chunkSize);
+                        parseCueListChunk(reader, metadata, chunkSize);
                         break;
 
                     case BEXT_PEAK_ENVELOPE:
-                        parsePeakEnvelopeChunk(file, metadata, chunkSize);
+                        parsePeakEnvelopeChunk(reader, metadata, chunkSize);
                         break;
 
                     case BEXT_IXML:
-                        parseIXMLChunk(file, metadata, chunkSize);
+                        parseIXMLChunk(reader, metadata, chunkSize);
                         break;
 
                     case BEXT_AXML:
-                        parseAdobeXMLChunk(file, metadata, chunkSize);
+                        parseAdobeXMLChunk(reader, metadata, chunkSize);
                         break;
 
                     case BEXT_LINK:
-                        parseLinkChunk(file, metadata, chunkSize);
+                        parseLinkChunk(reader, metadata, chunkSize);
                         break;
 
                     default:
                         LOG.debug("Unknown BWF extension chunk: {}", chunkId);
-                        file.skipBytes(chunkSize);
+                        reader.skipBytes(chunkSize);
                         break;
                 }
 
                 currentPos += 8 + chunkSize;
 
                 if (chunkSize % 2 != 0 && currentPos < endPos) {
-                    file.skipBytes(1);
+                    reader.skipBytes(1);
                     currentPos++;
                 }
 
@@ -96,24 +103,24 @@ public class BWFExtensionParser {
         }
     }
 
-    private void parseCueListChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize) throws IOException {
+    private void parseCueListChunk(SourceReader reader, GenericMetadata metadata, int chunkSize) throws IOException {
         if (chunkSize < 4) {
             return;
         }
 
-        int numCues = BinaryDataReader.readLittleEndianInt32(file);
+        int numCues = BinaryDataReader.readLittleEndianInt32(reader);
 
         StringBuilder cueInfo = new StringBuilder();
         cueInfo.append("Cue Points: ").append(numCues);
 
         int bytesRead = 4;
         for (int i = 0; i < numCues && bytesRead + 24 <= chunkSize; i++) {
-            int cueId = BinaryDataReader.readLittleEndianInt32(file);
-            int position = BinaryDataReader.readLittleEndianInt32(file);
+            int cueId = BinaryDataReader.readLittleEndianInt32(reader);
+            int position = BinaryDataReader.readLittleEndianInt32(reader);
 
-            file.skipBytes(12);
+            reader.skipBytes(12);
 
-            int sampleOffset = BinaryDataReader.readLittleEndianInt32(file);
+            int sampleOffset = BinaryDataReader.readLittleEndianInt32(reader);
             bytesRead += 24;
 
             cueInfo.append("; Cue").append(i + 1).append(":ID=").append(cueId)
@@ -124,16 +131,16 @@ public class BWFExtensionParser {
         LOG.debug("Parsed BWF Cue List with {} cue points", numCues);
     }
 
-    private void parsePeakEnvelopeChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize) throws IOException {
+    private void parsePeakEnvelopeChunk(SourceReader reader, GenericMetadata metadata, int chunkSize) throws IOException {
         if (chunkSize < 20) {
             return;
         }
 
-        int version = BinaryDataReader.readLittleEndianInt32(file);
-        int format = BinaryDataReader.readLittleEndianInt32(file);
-        int pointsPerValue = BinaryDataReader.readLittleEndianInt32(file);
-        int blockSize = BinaryDataReader.readLittleEndianInt32(file);
-        int channels = BinaryDataReader.readLittleEndianInt32(file);
+        int version = BinaryDataReader.readLittleEndianInt32(reader);
+        int format = BinaryDataReader.readLittleEndianInt32(reader);
+        int pointsPerValue = BinaryDataReader.readLittleEndianInt32(reader);
+        int blockSize = BinaryDataReader.readLittleEndianInt32(reader);
+        int channels = BinaryDataReader.readLittleEndianInt32(reader);
 
         int numFrames = (chunkSize - 20) / (channels * 4);
 
@@ -143,18 +150,18 @@ public class BWFExtensionParser {
 
         addField(metadata, "PeakEnvelope", peakInfo);
 
-        file.skipBytes(chunkSize - 20);
+        reader.skipBytes(chunkSize - 20);
 
         LOG.debug("Parsed BWF Peak Envelope: {} channels, {} frames", channels, numFrames);
     }
 
-    private void parseIXMLChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize) throws IOException {
+    private void parseIXMLChunk(SourceReader reader, GenericMetadata metadata, int chunkSize) throws IOException {
         if (chunkSize <= 0) {
             return;
         }
 
         byte[] xmlData = new byte[chunkSize];
-        file.read(xmlData);
+        reader.readFully(xmlData);
 
         String xmlContent = new String(xmlData, StandardCharsets.UTF_8).trim();
 
@@ -167,13 +174,13 @@ public class BWFExtensionParser {
         }
     }
 
-    private void parseAdobeXMLChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize) throws IOException {
+    private void parseAdobeXMLChunk(SourceReader reader, GenericMetadata metadata, int chunkSize) throws IOException {
         if (chunkSize <= 0) {
             return;
         }
 
         byte[] xmlData = new byte[chunkSize];
-        file.read(xmlData);
+        reader.readFully(xmlData);
 
         String xmlContent = new String(xmlData, StandardCharsets.UTF_8).trim();
 
@@ -186,13 +193,13 @@ public class BWFExtensionParser {
         }
     }
 
-    private void parseLinkChunk(RandomAccessFile file, GenericMetadata metadata, int chunkSize) throws IOException {
+    private void parseLinkChunk(SourceReader reader, GenericMetadata metadata, int chunkSize) throws IOException {
         if (chunkSize <= 0) {
             return;
         }
 
         byte[] linkData = new byte[chunkSize];
-        file.read(linkData);
+        reader.readFully(linkData);
 
         String linkContent = new String(linkData, StandardCharsets.UTF_8).trim();
 
@@ -206,19 +213,11 @@ public class BWFExtensionParser {
         StringBuilder info = new StringBuilder();
         info.append("iXML: ");
 
-        String[] patterns = {
-                "PROJECT=\"([^\"]+)\"", "SCENE=\"([^\"]+)\"", "TAPE=\"([^\"]+)\"",
-                "TAKE=\"([^\"]+)\"", "NOTE=\"([^\"]+)\"", "SOUND_ROLL=\"([^\"]+)\""
-        };
-
-        String[] fieldNames = {"Project", "Scene", "Tape", "Take", "Note", "SoundRoll"};
-
-        for (int i = 0; i < patterns.length; i++) {
-            Pattern pattern = Pattern.compile(patterns[i]);
-            Matcher matcher = pattern.matcher(xmlContent);
+        for (int i = 0; i < IXML_PATTERNS.length; i++) {
+            Matcher matcher = IXML_PATTERNS[i].matcher(xmlContent);
             if (matcher.find()) {
                 if (info.length() > 6) info.append(", ");
-                info.append(fieldNames[i]).append("=").append(matcher.group(1));
+                info.append(IXML_FIELD_NAMES[i]).append("=").append(matcher.group(1));
             }
         }
 

@@ -1,10 +1,10 @@
 package com.schwanitz.strategies.parsing.context;
 
 import com.schwanitz.interfaces.Metadata;
+import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.tagging.TagFormat;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 
 /**
  * Strategie-Schnittstelle für das Parsen von Audio-Metadaten-Tags.
@@ -20,26 +20,19 @@ import java.io.RandomAccessFile;
  * @see com.schwanitz.strategies.parsing.factory.TagParsingStrategyFactory
  * @see TagFormat
  * @see Metadata
+ * @see SeekableDataSource
  */
 public interface TagParsingStrategy {
 
     /**
-     * Prüft, ob diese Strategie das angegebene Tag-Format verarbeiten kann.
-     *
-     * @param format das zu prüfende Tag-Format
-     * @return {@code true}, wenn diese Strategie das Format unterstützt, sonst {@code false}
-     */
-    boolean canHandle(TagFormat format);
-
-    /**
-     * Parst das Tag am angegebenen Offset in der Datei und liefert die extrahierten Metadaten.
+     * Parst das Tag am angegebenen Offset in der Datenquelle und liefert die extrahierten Metadaten.
      *
      * @param format das Tag-Format, das gelesen werden soll
-     * @param file   die {@link RandomAccessFile}, aus der gelesen wird
-     * @param offset der Start-Offset des Tags in der Datei
+     * @param source die {@link SeekableDataSource}, aus der gelesen wird
+     * @param offset der Start-Offset des Tags in der Datenquelle
      * @param size   die Größe des Tags in Bytes
      * @return die extrahierten {@link Metadata}
      * @throws IOException wenn ein I/O-Fehler beim Lesen auftritt oder das Tag-Format ungültig ist
      */
-    Metadata parseTag(TagFormat format, RandomAccessFile file, long offset, long size) throws IOException;
+    Metadata parseTag(TagFormat format, SeekableDataSource source, long offset, long size) throws IOException;
 }
