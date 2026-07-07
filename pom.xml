@@ -7,7 +7,7 @@
 
     <groupId>com.schwanitz</groupId>
     <artifactId>Tagix</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
 
 <dependencies>
     <!-- SLF4J API -->
