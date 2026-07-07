@@ -4,6 +4,8 @@ import com.schwanitz.interfaces.FieldHandler;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.MetadataField;
+import com.schwanitz.metadata.PictureData;
+import com.schwanitz.metadata.PictureFieldHandler;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
@@ -13,7 +15,10 @@ import java.io.IOException;
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.io.SourceReader;
 
+import com.schwanitz.strategies.parsing.id3.ID3FrameParsingUtils;
+
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -288,6 +293,12 @@ public class VorbisParsingStrategy extends AbstractTagParsingStrategy {
             return;
         }
 
+        // Spezialbehandlung für METADATA_BLOCK_PICTURE
+        if ("METADATA_BLOCK_PICTURE".equals(fieldName)) {
+            parseVorbisPicture(metadata, fieldValue);
+            return;
+        }
+
         // Validierung des Feldnamens (nur ASCII-Zeichen 0x20-0x7D außer 0x3D)
         if (!isValidFieldName(fieldName)) {
             LOG.debug("Invalid field name: {}", fieldName);
@@ -307,6 +318,60 @@ public class VorbisParsingStrategy extends AbstractTagParsingStrategy {
         if (LOG.isDebugEnabled()) {
             String displayValue = truncateForDisplay(fieldValue, 50);
             LOG.debug("Parsed comment: {} = {}", fieldName, displayValue);
+        }
+    }
+
+    private void parseVorbisPicture(GenericMetadata metadata, String base64Value) {
+        try {
+            byte[] rawData = Base64.getDecoder().decode(base64Value);
+            if (rawData.length < 32) return;
+
+            int pos = 0;
+            int pictureType = ((rawData[pos] & 0xFF) << 24) | ((rawData[pos + 1] & 0xFF) << 16)
+                | ((rawData[pos + 2] & 0xFF) << 8) | (rawData[pos + 3] & 0xFF);
+            pos += 4;
+
+            int mimeEnd = pos;
+            while (mimeEnd < rawData.length && rawData[mimeEnd] != 0) mimeEnd++;
+            if (mimeEnd >= rawData.length) return;
+            String mimeType = new String(rawData, pos, mimeEnd - pos, StandardCharsets.UTF_8);
+            pos = mimeEnd + 1;
+
+            int descEnd = pos;
+            while (descEnd < rawData.length && rawData[descEnd] != 0) descEnd++;
+            String description = "";
+            if (descEnd > pos) {
+                description = new String(rawData, pos, descEnd - pos, StandardCharsets.UTF_8);
+            }
+            if (descEnd < rawData.length) pos = descEnd + 1;
+            else return;
+
+            if (pos + 16 > rawData.length) return;
+            int width = ((rawData[pos] & 0xFF) << 24) | ((rawData[pos + 1] & 0xFF) << 16)
+                | ((rawData[pos + 2] & 0xFF) << 8) | (rawData[pos + 3] & 0xFF);
+            pos += 4;
+            int height = ((rawData[pos] & 0xFF) << 24) | ((rawData[pos + 1] & 0xFF) << 16)
+                | ((rawData[pos + 2] & 0xFF) << 8) | (rawData[pos + 3] & 0xFF);
+            pos += 4;
+            int colorDepth = ((rawData[pos] & 0xFF) << 24) | ((rawData[pos + 1] & 0xFF) << 16)
+                | ((rawData[pos + 2] & 0xFF) << 8) | (rawData[pos + 3] & 0xFF);
+            pos += 4;
+            pos += 4; // Colors Used überspringen
+
+            if (pos >= rawData.length) return;
+            int pictureDataSize = rawData.length - pos;
+            byte[] imageData = new byte[pictureDataSize];
+            System.arraycopy(rawData, pos, imageData, 0, pictureDataSize);
+
+            String picTypeName = ID3FrameParsingUtils.getPictureTypeDescription(pictureType);
+            PictureData pd = new PictureData(mimeType, imageData, description,
+                pictureType, picTypeName, width, height, colorDepth);
+            addField(metadata, "METADATA_BLOCK_PICTURE", pd, new PictureFieldHandler("METADATA_BLOCK_PICTURE"));
+
+            LOG.debug("Parsed METADATA_BLOCK_PICTURE: {} {}x{} ({} bytes)",
+                mimeType, width, height, pictureDataSize);
+        } catch (Exception e) {
+            LOG.warn("Failed to parse METADATA_BLOCK_PICTURE: {}", e.getMessage());
         }
     }
 

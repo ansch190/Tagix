@@ -1,6 +1,8 @@
 package com.schwanitz.interfaces;
 
 import com.schwanitz.metadata.MetadataField;
+import com.schwanitz.metadata.PictureData;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -47,4 +49,14 @@ public interface Metadata {
      * @throws IllegalArgumentException wenn {@code field} {@code null} ist
      */
     void addField(MetadataField<?> field);
+
+    default List<PictureData> getPictures() {
+        List<PictureData> pictures = new ArrayList<>();
+        for (MetadataField<?> field : getFields()) {
+            if (field.getValue() instanceof PictureData pd) {
+                pictures.add(pd);
+            }
+        }
+        return pictures;
+    }
 }

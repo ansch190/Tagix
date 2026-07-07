@@ -6,9 +6,11 @@ import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.io.SourceReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
+import com.schwanitz.metadata.PictureFieldHandler;
 import com.schwanitz.strategies.parsing.id3.ID3FrameParser;
 import com.schwanitz.strategies.parsing.id3.ID3FrameParserRegistry;
 import com.schwanitz.strategies.parsing.id3.ID3FrameParsingUtils;
+import com.schwanitz.strategies.parsing.id3.PictureFrameParser;
 import com.schwanitz.tagging.TagFormat;
 import com.schwanitz.tagging.TagInfo;
 import org.slf4j.Logger;
@@ -232,9 +234,14 @@ public class ID3ParsingStrategy extends AbstractTagParsingStrategy {
                 if (!value.isEmpty()) {
                     addField(metadata, frameId, value);
                 }
+                if (parser instanceof PictureFrameParser pfp) {
+                    var pictureData = pfp.parsePictureData(frameData, frameId, majorVersion);
+                    if (pictureData != null) {
+                        addField(metadata, frameId, pictureData, new PictureFieldHandler(frameId));
+                    }
+                }
             } else {
                 LOG.debug("Unhandled frame type: {}", frameId);
-                // Fallback: als Text-Frame behandeln
                 ID3FrameParser textParser = frameParserRegistry.getParser("TIT2");
                 if (textParser != null) {
                     String text = textParser.parse(frameData, frameId, majorVersion);

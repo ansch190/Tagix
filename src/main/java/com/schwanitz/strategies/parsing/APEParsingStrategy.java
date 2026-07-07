@@ -2,6 +2,8 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
+import com.schwanitz.metadata.PictureData;
+import com.schwanitz.metadata.PictureFieldHandler;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
@@ -366,8 +368,16 @@ public class APEParsingStrategy extends AbstractTagParsingStrategy {
                 break;
 
             case APE_ITEM_TYPE_BINARY:
-                // Binäre Daten - verbesserte Behandlung
                 value = processBinaryItem(normalizedKey, valueData);
+                if (isCoverArtKey(normalizedKey)) {
+                    String mimeType = detectImageFormat(valueData);
+                    String picTypeName = key.toLowerCase().contains("back") ? "Cover (back)" : "Cover (front)";
+                    PictureData pd = new PictureData(
+                        "image/" + mimeType.toLowerCase(),
+                        valueData, "", key.toLowerCase().contains("back") ? 4 : 3,
+                        picTypeName);
+                    addField(metadata, "PICTURE_" + normalizedKey, pd, new PictureFieldHandler("PICTURE_" + normalizedKey));
+                }
                 LOG.debug("Binary APE item: {} ({} bytes)", normalizedKey, valueSize);
                 break;
 
@@ -422,11 +432,14 @@ public class APEParsingStrategy extends AbstractTagParsingStrategy {
         return values.isEmpty() ? "" : String.join("; ", values);
     }
 
+    private boolean isCoverArtKey(String key) {
+        return "Cover Art (Front)".equalsIgnoreCase(key)
+            || "Cover Art (Back)".equalsIgnoreCase(key)
+            || key.toLowerCase().contains("cover");
+    }
+
     private String processBinaryItem(String key, byte[] valueData) {
-        // Spezielle Behandlung für bekannte Binary-Felder
-        if ("Cover Art (Front)".equalsIgnoreCase(key) ||
-                "Cover Art (Back)".equalsIgnoreCase(key) ||
-                key.toLowerCase().contains("cover")) {
+        if (isCoverArtKey(key)) {
 
             // Bildformat erkennen
             String format = detectImageFormat(valueData);

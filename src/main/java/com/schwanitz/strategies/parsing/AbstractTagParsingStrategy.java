@@ -85,6 +85,11 @@ public abstract class AbstractTagParsingStrategy implements TagParsingStrategy {
         }
     }
 
+    protected <T> void addField(Metadata metadata, String key, T value, FieldHandler<T> handler) {
+        if (value == null) return;
+        metadata.addField(new MetadataField<>(key, value, handler));
+    }
+
     /**
      * Registriert einen benutzerdefinierten {@link FieldHandler} für einen bestimmten Schlüssel.
      *

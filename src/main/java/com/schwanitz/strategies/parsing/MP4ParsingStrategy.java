@@ -2,6 +2,8 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
+import com.schwanitz.metadata.PictureData;
+import com.schwanitz.metadata.PictureFieldHandler;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
@@ -331,6 +333,23 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
                 LOG.debug("Parsed MP4 field: {} ({}) = {}", atomType, fieldName, displayValue);
             }
         }
+
+        // Für covr-Atoms zusätzlich PictureData hinzufügen
+        if ("covr".equals(atomType) && isImageDataType(dataType)) {
+            String mimeType = switch (dataType) {
+                case 13 -> "image/jpeg";
+                case 14 -> "image/png";
+                case 15 -> "image/gif";
+                default -> "application/octet-stream";
+            };
+            PictureData pd = new PictureData(mimeType, valueData, "",
+                3, "Cover (front)");
+            addField(metadata, "CoverArt", pd, new PictureFieldHandler("CoverArt"));
+        }
+    }
+
+    private static boolean isImageDataType(int dataType) {
+        return dataType == 13 || dataType == 14 || dataType == 15;
     }
 
     private long findAtom(SourceReader reader, long offset, long size, String atomType)

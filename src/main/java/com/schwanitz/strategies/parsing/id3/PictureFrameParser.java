@@ -1,5 +1,7 @@
 package com.schwanitz.strategies.parsing.id3;
 
+import com.schwanitz.metadata.PictureData;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
@@ -100,6 +102,93 @@ public class PictureFrameParser implements ID3FrameParser {
         }
 
         return "[PICTURE:" + data.length + " bytes]";
+    }
+
+    /**
+     * Parst die Rohdaten eines Bild-Frames und gibt ein {@link PictureData}-Objekt zurück.
+     *
+     * @param data         Roh-Frame-Daten inklusive Kodierungsbyte
+     * @param frameId      Die Frame-ID ("APIC" für ID3v2.3/4 oder "PIC" für ID3v2.2)
+     * @param majorVersion ID3v2 Hauptversion (2, 3 oder 4)
+     * @return das geparste {@link PictureData}-Objekt, oder {@code null} bei Fehlern
+     */
+    public PictureData parsePictureData(byte[] data, String frameId, int majorVersion) {
+        if (data.length < 2) {
+            return null;
+        }
+
+        try {
+            int pos = 0;
+            int encoding = data[pos++] & 0xFF;
+
+            if ("APIC".equals(frameId)) {
+                int mimeEnd = ID3FrameParsingUtils.findNullTerminator(data, pos, ID3FrameParsingUtils.ISO_8859_1);
+                if (mimeEnd == -1) return null;
+
+                String mimeType = new String(data, pos, mimeEnd - pos, StandardCharsets.ISO_8859_1);
+                pos = mimeEnd + 1;
+                if (pos >= data.length) return null;
+
+                int pictureType = data[pos++] & 0xFF;
+                String pictureTypeStr = ID3FrameParsingUtils.getPictureTypeDescription(pictureType);
+
+                int descEnd = ID3FrameParsingUtils.findNullTerminator(data, pos, encoding);
+                String description = "";
+                if (descEnd != -1) {
+                    byte[] descData = new byte[descEnd - pos];
+                    System.arraycopy(data, pos, descData, 0, descData.length);
+                    description = ID3FrameParsingUtils.decodeText(descData, encoding, majorVersion);
+                    pos = descEnd + ID3FrameParsingUtils.getNullTerminatorSize(encoding);
+                }
+
+                int pictureDataSize = data.length - pos;
+                if (pictureDataSize <= 0) return null;
+
+                byte[] imageData = new byte[pictureDataSize];
+                System.arraycopy(data, pos, imageData, 0, pictureDataSize);
+                return new PictureData(mimeType, imageData, description, pictureType, pictureTypeStr);
+
+            } else if ("PIC".equals(frameId)) {
+                if (data.length < 5) return null;
+
+                String imageFormat = new String(data, pos, 3, StandardCharsets.ISO_8859_1);
+                pos += 3;
+
+                int pictureType = data[pos++] & 0xFF;
+                String pictureTypeStr = ID3FrameParsingUtils.getPictureTypeDescription(pictureType);
+
+                int descEnd = ID3FrameParsingUtils.findNullTerminator(data, pos, encoding);
+                String description = "";
+                if (descEnd != -1) {
+                    byte[] descData = new byte[descEnd - pos];
+                    System.arraycopy(data, pos, descData, 0, descData.length);
+                    description = ID3FrameParsingUtils.decodeText(descData, encoding, majorVersion);
+                    pos = descEnd + ID3FrameParsingUtils.getNullTerminatorSize(encoding);
+                }
+
+                int pictureDataSize = data.length - pos;
+                if (pictureDataSize <= 0) return null;
+
+                byte[] imageData = new byte[pictureDataSize];
+                System.arraycopy(data, pos, imageData, 0, pictureDataSize);
+                String mimeType = mapPicFormatToMime(imageFormat);
+                return new PictureData(mimeType, imageData, description, pictureType, pictureTypeStr);
+            }
+        } catch (Exception e) {
+            // silent
+        }
+
+        return null;
+    }
+
+    private static String mapPicFormatToMime(String format) {
+        return switch (format.toUpperCase()) {
+            case "JPG" -> "image/jpeg";
+            case "PNG" -> "image/png";
+            case "GIF" -> "image/gif";
+            case "BMP" -> "image/bmp";
+            default -> "image/" + format.toLowerCase();
+        };
     }
 
     /**

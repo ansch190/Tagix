@@ -2,9 +2,12 @@ package com.schwanitz.strategies.parsing;
 
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
+import com.schwanitz.metadata.PictureData;
+import com.schwanitz.metadata.PictureFieldHandler;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
+import com.schwanitz.strategies.parsing.id3.ID3FrameParsingUtils;
 import com.schwanitz.tagging.TagFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +43,7 @@ public class FLACApplicationParsingStrategy extends AbstractTagParsingStrategy {
     private static final int FLAC_BLOCK_HEADER_SIZE = 4;
     private static final int FLAC_APPLICATION_ID_SIZE = 4;
     private static final int FLAC_APPLICATION_BLOCK_TYPE = 2;
+    private static final int FLAC_PICTURE_BLOCK_TYPE = 6;
     private static final int FLAC_SIGNATURE_LENGTH = 4;
     private static final int FLAC_LAST_BLOCK_FLAG = 0x80;
     private static final int FLAC_BLOCK_TYPE_MASK = 0x7F;
@@ -84,8 +88,12 @@ public class FLACApplicationParsingStrategy extends AbstractTagParsingStrategy {
                 ((blockHeader[2] & 0xFF) << 8) |
                 (blockHeader[3] & 0xFF);
 
+        if (blockType == FLAC_PICTURE_BLOCK_TYPE) {
+            return parsePictureBlock(metadata, source, offset, blockLength);
+        }
+
         if (blockType != FLAC_APPLICATION_BLOCK_TYPE) {
-            LOG.debug("Not a FLAC APPLICATION block at offset {}", offset);
+            LOG.debug("Not a FLAC APPLICATION/PICTURE block at offset {}", offset);
             return metadata;
         }
 
@@ -116,5 +124,64 @@ public class FLACApplicationParsingStrategy extends AbstractTagParsingStrategy {
         return metadata;
     }
 
+    private Metadata parsePictureBlock(GenericMetadata metadata, SeekableDataSource source,
+                                       long offset, int blockLength) throws IOException {
+        byte[] blockData = new byte[blockLength];
+        source.readFully(offset + FLAC_BLOCK_HEADER_SIZE, blockData);
+
+        if (blockData.length < 32) return metadata;
+
+        LOG.debug("Parsing FLAC PICTURE block: {} bytes", blockLength);
+
+        try {
+            int pos = 0;
+            int pictureType = ((blockData[pos] & 0xFF) << 24) | ((blockData[pos + 1] & 0xFF) << 16)
+                | ((blockData[pos + 2] & 0xFF) << 8) | (blockData[pos + 3] & 0xFF);
+            pos += 4;
+
+            int mimeEnd = pos;
+            while (mimeEnd < blockData.length && blockData[mimeEnd] != 0) mimeEnd++;
+            if (mimeEnd >= blockData.length) return metadata;
+            String mimeType = new String(blockData, pos, mimeEnd - pos, StandardCharsets.UTF_8);
+            pos = mimeEnd + 1;
+
+            int descEnd = pos;
+            while (descEnd < blockData.length && blockData[descEnd] != 0) descEnd++;
+            String description = "";
+            if (descEnd > pos) {
+                description = new String(blockData, pos, descEnd - pos, StandardCharsets.UTF_8);
+            }
+            if (descEnd < blockData.length) pos = descEnd + 1;
+            else return metadata;
+
+            if (pos + 16 > blockData.length) return metadata;
+            int width = ((blockData[pos] & 0xFF) << 24) | ((blockData[pos + 1] & 0xFF) << 16)
+                | ((blockData[pos + 2] & 0xFF) << 8) | (blockData[pos + 3] & 0xFF);
+            pos += 4;
+            int height = ((blockData[pos] & 0xFF) << 24) | ((blockData[pos + 1] & 0xFF) << 16)
+                | ((blockData[pos + 2] & 0xFF) << 8) | (blockData[pos + 3] & 0xFF);
+            pos += 4;
+            int colorDepth = ((blockData[pos] & 0xFF) << 24) | ((blockData[pos + 1] & 0xFF) << 16)
+                | ((blockData[pos + 2] & 0xFF) << 8) | (blockData[pos + 3] & 0xFF);
+            pos += 4;
+            pos += 4;
+
+            if (pos >= blockData.length) return metadata;
+            int imageDataSize = blockData.length - pos;
+            byte[] imageData = new byte[imageDataSize];
+            System.arraycopy(blockData, pos, imageData, 0, imageDataSize);
+
+            String picTypeName = ID3FrameParsingUtils.getPictureTypeDescription(pictureType);
+            PictureData pd = new PictureData(mimeType, imageData, description,
+                pictureType, picTypeName, width, height, colorDepth);
+            addField(metadata, "FLAC_PICTURE", pd, new PictureFieldHandler("FLAC_PICTURE"));
+
+            LOG.debug("Parsed FLAC PICTURE: {} {}x{} ({} bytes)", mimeType, width, height, imageDataSize);
+        } catch (Exception e) {
+            LOG.warn("Failed to parse FLAC PICTURE block: {}", e.getMessage());
+        }
+
+        return metadata;
+    }
 
 }

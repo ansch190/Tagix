@@ -3,6 +3,7 @@ package com.schwanitz.api;
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.io.SeekableDataSources;
 import com.schwanitz.interfaces.Metadata;
+import com.schwanitz.metadata.PictureData;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.strategies.parsing.factory.TagParsingStrategyFactory;
 import com.schwanitz.tagging.*;
@@ -354,6 +355,64 @@ public class MetadataManager {
         }
 
         return results;
+    }
+
+    // ================================
+    // PICTURE METHODS
+    // ================================
+
+    /**
+     * Extrahiert alle Cover-Bilder aus einer Datei.
+     *
+     * @param filePath der Dateipfad der zu lesenden Audiodatei
+     * @return eine Liste der gefundenen {@link com.schwanitz.metadata.PictureData}-Objekte
+     * @throws IOException wenn die Datei nicht gelesen werden kann
+     */
+    public List<PictureData> readPictures(String filePath) throws IOException {
+        return readPictures(filePath, ScanConfiguration.fullScan());
+    }
+
+    /**
+     * Extrahiert alle Cover-Bilder aus einer Datei mit der angegebenen Scan-Konfiguration.
+     *
+     * @param filePath der Dateipfad der zu lesenden Audiodatei
+     * @param config   die Scan-Konfiguration
+     * @return eine Liste der gefundenen {@link com.schwanitz.metadata.PictureData}-Objekte
+     * @throws IOException wenn die Datei nicht gelesen werden kann
+     */
+    public List<PictureData> readPictures(String filePath, ScanConfiguration config) throws IOException {
+        return collectPictures(readFromFile(filePath, config));
+    }
+
+    /**
+     * Extrahiert alle Cover-Bilder aus einer {@link SeekableDataSource}.
+     *
+     * @param source die Datenquelle mit wahlfreiem Zugriff
+     * @return eine Liste der gefundenen {@link com.schwanitz.metadata.PictureData}-Objekte
+     * @throws IOException wenn die Datenquelle nicht gelesen werden kann
+     */
+    public List<PictureData> readPictures(SeekableDataSource source) throws IOException {
+        return readPictures(source, ScanConfiguration.fullScan());
+    }
+
+    /**
+     * Extrahiert alle Cover-Bilder aus einer {@link SeekableDataSource} mit der angegebenen Konfiguration.
+     *
+     * @param source die Datenquelle mit wahlfreiem Zugriff
+     * @param config die Scan-Konfiguration
+     * @return eine Liste der gefundenen {@link com.schwanitz.metadata.PictureData}-Objekte
+     * @throws IOException wenn die Datenquelle nicht gelesen werden kann
+     */
+    public List<PictureData> readPictures(SeekableDataSource source, ScanConfiguration config) throws IOException {
+        return collectPictures(readFromSource(source, config));
+    }
+
+    private List<PictureData> collectPictures(List<Metadata> metadataList) {
+        List<PictureData> pictures = new ArrayList<>();
+        for (Metadata metadata : metadataList) {
+            pictures.addAll(metadata.getPictures());
+        }
+        return pictures;
     }
 
     // ================================
