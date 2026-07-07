@@ -10,7 +10,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.StructuredTaskScope;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Öffentliche API zur Erkennung von Tag-Formaten in Audiodateien.
@@ -403,7 +405,7 @@ public class TagFormatDetector {
     /**
      * Erkennt Tag-Formate in mehreren Dateien parallel.
      * <p>
-     * Verwendet {@link StructuredTaskScope} zur parallelen Verarbeitung.
+     * Verwendet einen Thread-Pool ({@link ExecutorService}) zur parallelen Verarbeitung.
      * Bei Einzeldateien wird die Verarbeitung sequenziell durchgeführt.
      * Dateien, die nicht verarbeitet werden können, werden mit einer leeren
      * {@link TagInfo}-Liste im Ergebnis erfasst.
@@ -423,7 +425,7 @@ public class TagFormatDetector {
         }
 
         if (validPaths.size() == 1) {
-            String filePath = validPaths.getFirst();
+            String filePath = validPaths.get(0);
             try (SeekableDataSource source = SeekableDataSources.forPath(Path.of(filePath))) {
                 results.put(filePath, detectionContext.detectTags(source, config));
             } catch (IOException e) {
@@ -433,32 +435,36 @@ public class TagFormatDetector {
             return results;
         }
 
-        try (var scope = StructuredTaskScope.open(StructuredTaskScope.Joiner.awaitAll())) {
-            Map<String, StructuredTaskScope.Subtask<List<TagInfo>>> tasks = new LinkedHashMap<>();
+        ExecutorService executor = Executors.newCachedThreadPool();
+        try {
+            Map<String, CompletableFuture<List<TagInfo>>> tasks = new LinkedHashMap<>();
             for (String filePath : validPaths) {
-                tasks.put(filePath, scope.fork(() -> {
+                tasks.put(filePath, CompletableFuture.supplyAsync(() -> {
                     try (SeekableDataSource source = SeekableDataSources.forPath(Path.of(filePath))) {
                         return detectionContext.detectTags(source, config);
                     } catch (IOException e) {
                         LOG.error("Error processing file {}: {}", filePath, e.getMessage());
                         return List.<TagInfo>of();
                     }
-                }));
+                }, executor));
             }
-            scope.join();
+
+            CompletableFuture.allOf(
+                tasks.values().toArray(new CompletableFuture[0])
+            ).join();
 
             for (var entry : tasks.entrySet()) {
-                var subtask = entry.getValue();
-                if (subtask.state() == StructuredTaskScope.Subtask.State.SUCCESS) {
-                    results.put(entry.getKey(), subtask.get());
-                } else {
-                    LOG.error("Error processing file {}: {}", entry.getKey(), subtask.exception());
+                try {
+                    results.put(entry.getKey(), entry.getValue().get());
+                } catch (Exception e) {
+                    Throwable cause = e.getCause();
+                    LOG.error("Error processing file {}: {}", entry.getKey(),
+                        cause != null ? cause.getMessage() : e.getMessage());
                     results.put(entry.getKey(), List.of());
                 }
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            LOG.warn("Batch processing interrupted");
+        } finally {
+            executor.shutdown();
         }
 
         return results;

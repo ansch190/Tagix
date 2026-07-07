@@ -16,11 +16,12 @@
         <artifactId>slf4j-api</artifactId>
         <version>2.0.18</version>
     </dependency>
-    <!-- Logback Implementation -->
+    <!-- Logback Implementation (nur für Tests) -->
     <dependency>
         <groupId>ch.qos.logback</groupId>
         <artifactId>logback-classic</artifactId>
         <version>1.5.32</version>
+        <scope>test</scope>
     </dependency>
     <!-- JUnit 5 Jupiter-->
     <dependency>
@@ -60,24 +61,21 @@
 </dependencies>
 
 <properties>
-    <maven.compiler.source>25</maven.compiler.source>
-    <maven.compiler.target>25</maven.compiler.target>
-    <maven.compiler.release>25</maven.compiler.release>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 </properties>
 
     <build>
         <plugins>
-            <!-- Maven Compiler Plugin mit JDK 25 und Preview-Features -->
+            <!-- Maven Compiler Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.15.0</version>
                 <configuration>
-                    <release>25</release>
-                    <compilerArgs>
-                        <arg>--enable-preview</arg>
-                    </compilerArgs>
+                    <release>17</release>
                 </configuration>
             </plugin>
             <!-- Maven Surefire Plugin für Test-Ausführung -->
@@ -86,7 +84,6 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.5</version>
                 <configuration>
-                    <argLine>${argLine} --enable-preview</argLine>
                     <includes>
                         <include>**/*Test.java</include>
                         <include>**/*TestSuite.java</include>

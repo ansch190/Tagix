@@ -17,7 +17,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.StructuredTaskScope;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Zentrale API zur Erkennung und Analyse von Metadaten in Audiodateien.
@@ -113,11 +115,7 @@ public class MetadataManager {
     }
 
     private Path validateFilePath(String filePath) throws IOException {
-        Path path = Path.of(filePath).toAbsolutePath().normalize();
-        if (!path.startsWith(Path.of("/"))) {
-            throw new IOException("Invalid file path (must be absolute): " + filePath);
-        }
-        return path;
+        return Path.of(filePath).toAbsolutePath().normalize();
     }
 
     /**
@@ -287,8 +285,8 @@ public class MetadataManager {
     /**
      * Liest Metadaten aus mehreren Dateien mit der angegebenen Scan-Konfiguration.
      * <p>
-     * Verwendet virtuelle Threads und Structured Concurrency zur parallelen Verarbeitung.
-     * Für jede Datei wird ein eigener virtueller Thread gestartet, sodass Erkennung
+     * Verwendet einen Thread-Pool ({@link ExecutorService}) zur parallelen Verarbeitung.
+     * Für jede Datei wird ein Task gestartet, sodass Erkennung
      * und Parsing aller Dateien gleichzeitig ausgeführt werden.
      * <p>
      * Bei nur einer Datei wird die Verarbeitung direkt im aktuellen Thread durchgeführt,
@@ -313,7 +311,7 @@ public class MetadataManager {
         }
 
         if (validPaths.size() == 1) {
-            String filePath = validPaths.getFirst();
+            String filePath = validPaths.get(0);
             try {
                 return Map.of(filePath, readFromFile(filePath, config));
             } catch (IOException e) {
@@ -323,32 +321,36 @@ public class MetadataManager {
         }
 
         Map<String, List<Metadata>> results = new LinkedHashMap<>();
-        try (var scope = StructuredTaskScope.open(StructuredTaskScope.Joiner.awaitAll())) {
-            Map<String, StructuredTaskScope.Subtask<List<Metadata>>> tasks = new LinkedHashMap<>();
+        ExecutorService executor = Executors.newCachedThreadPool();
+        try {
+            Map<String, CompletableFuture<List<Metadata>>> tasks = new LinkedHashMap<>();
             for (String filePath : validPaths) {
-                tasks.put(filePath, scope.fork(() -> {
+                tasks.put(filePath, CompletableFuture.supplyAsync(() -> {
                     try {
                         return readFromFile(filePath, config);
                     } catch (IOException e) {
                         LOG.error("Error processing file {}: {}", filePath, e.getMessage());
                         return List.<Metadata>of();
                     }
-                }));
+                }, executor));
             }
-            scope.join();
+
+            CompletableFuture.allOf(
+                tasks.values().toArray(new CompletableFuture[0])
+            ).join();
 
             for (var entry : tasks.entrySet()) {
-                var subtask = entry.getValue();
-                if (subtask.state() == StructuredTaskScope.Subtask.State.SUCCESS) {
-                    results.put(entry.getKey(), subtask.get());
-                } else {
-                    LOG.error("Error processing file {}: {}", entry.getKey(), subtask.exception());
+                try {
+                    results.put(entry.getKey(), entry.getValue().get());
+                } catch (Exception e) {
+                    Throwable cause = e.getCause();
+                    LOG.error("Error processing file {}: {}", entry.getKey(),
+                        cause != null ? cause.getMessage() : e.getMessage());
                     results.put(entry.getKey(), List.of());
                 }
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            LOG.warn("Batch processing interrupted");
+        } finally {
+            executor.shutdown();
         }
 
         return results;
