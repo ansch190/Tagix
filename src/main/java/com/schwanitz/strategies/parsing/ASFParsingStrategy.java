@@ -177,27 +177,27 @@ public class ASFParsingStrategy extends AbstractTagParsingStrategy {
         int descLen = BinaryDataReader.readLittleEndianInt16(lengths, DESCRIPTION_LENGTH_OFFSET);
         int ratingLen = BinaryDataReader.readLittleEndianInt16(lengths, RATING_LENGTH_OFFSET);
 
-        if (titleLen > 0) {
+        if (titleLen > 0 && titleLen <= 65536) {
             byte[] titleBytes = new byte[titleLen];
             reader.readFully(titleBytes);
             addField(metadata, "Title", decodeASFString(titleBytes), true, false, false);
         }
-        if (authorLen > 0) {
+        if (authorLen > 0 && authorLen <= 65536) {
             byte[] authorBytes = new byte[authorLen];
             reader.readFully(authorBytes);
             addField(metadata, "Artist", decodeASFString(authorBytes), true, false, false);
         }
-        if (copyrightLen > 0) {
+        if (copyrightLen > 0 && copyrightLen <= 65536) {
             byte[] copyrightBytes = new byte[copyrightLen];
             reader.readFully(copyrightBytes);
             addField(metadata, "Copyright", decodeASFString(copyrightBytes), true, false, false);
         }
-        if (descLen > 0) {
+        if (descLen > 0 && descLen <= 65536) {
             byte[] descBytes = new byte[descLen];
             reader.readFully(descBytes);
             addField(metadata, "Description", decodeASFString(descBytes), true, false, false);
         }
-        if (ratingLen > 0) {
+        if (ratingLen > 0 && ratingLen <= 65536) {
             byte[] ratingBytes = new byte[ratingLen];
             reader.readFully(ratingBytes);
             addField(metadata, "Rating", decodeASFString(ratingBytes), true, false, false);

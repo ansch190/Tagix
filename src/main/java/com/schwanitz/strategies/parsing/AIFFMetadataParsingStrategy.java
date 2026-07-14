@@ -47,6 +47,7 @@ public class AIFFMetadataParsingStrategy extends AbstractTagParsingStrategy {
     private static final int MAX_APP_DATA_READ_SIZE = 256;
     private static final int MAX_UNKNOWN_CHUNK_SIZE = 8192;
     private static final int DISPLAY_TRUNCATION_LENGTH = 50;
+    private static final int MAX_TEXT_CHUNK_SIZE = 1_000_000; // 1 MB
 
     // Encoding-Fallback-Reihenfolge (AIFF-Standard: US-ASCII vor ISO-8859-1)
     private static final Charset[] ENCODINGS = {
@@ -163,6 +164,10 @@ public class AIFFMetadataParsingStrategy extends AbstractTagParsingStrategy {
     private void parseTextChunk(SeekableDataSource source, GenericMetadata metadata, String chunkType, int chunkSize, long pos)
             throws IOException {
         if (chunkSize <= 0) {
+            return;
+        }
+        if (chunkSize > MAX_TEXT_CHUNK_SIZE) {
+            LOG.warn("AIFF text chunk too large: {} bytes, skipping", chunkSize);
             return;
         }
 

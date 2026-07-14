@@ -25,6 +25,8 @@ public class BWFExtensionParser {
     private static final String BEXT_AXML = "axml";
     private static final String BEXT_LINK = "link";
 
+    private static final int MAX_BWF_EXTENSION_SIZE = 10_000_000; // 10 MB
+
     private static final Pattern[] IXML_PATTERNS = {
             Pattern.compile("PROJECT=\"([^\"]+)\""),
             Pattern.compile("SCENE=\"([^\"]+)\""),
@@ -159,6 +161,11 @@ public class BWFExtensionParser {
         if (chunkSize <= 0) {
             return;
         }
+        if (chunkSize > MAX_BWF_EXTENSION_SIZE) {
+            LOG.warn("BWF iXML chunk too large: {} bytes, skipping", chunkSize);
+            reader.seek(reader.getFilePointer() + chunkSize);
+            return;
+        }
 
         byte[] xmlData = new byte[chunkSize];
         reader.readFully(xmlData);
@@ -178,6 +185,11 @@ public class BWFExtensionParser {
         if (chunkSize <= 0) {
             return;
         }
+        if (chunkSize > MAX_BWF_EXTENSION_SIZE) {
+            LOG.warn("BWF Adobe XML chunk too large: {} bytes, skipping", chunkSize);
+            reader.seek(reader.getFilePointer() + chunkSize);
+            return;
+        }
 
         byte[] xmlData = new byte[chunkSize];
         reader.readFully(xmlData);
@@ -195,6 +207,11 @@ public class BWFExtensionParser {
 
     private void parseLinkChunk(SourceReader reader, GenericMetadata metadata, int chunkSize) throws IOException {
         if (chunkSize <= 0) {
+            return;
+        }
+        if (chunkSize > MAX_BWF_EXTENSION_SIZE) {
+            LOG.warn("BWF Link chunk too large: {} bytes, skipping", chunkSize);
+            reader.seek(reader.getFilePointer() + chunkSize);
             return;
         }
 

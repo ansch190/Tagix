@@ -53,6 +53,8 @@ public class BWFParsingStrategy extends AbstractTagParsingStrategy {
     private static final int BWF_UMID_SIZE = 64;
     private static final int BWF_LOUDNESS_SIZE = 180;
 
+    private static final int MAX_CODING_HISTORY_SIZE = 1_000_000; // 1 MB
+
     private static final int BWF_LOUDNESS_SENTINEL = -32768;
     private static final int BWF_DEFAULT_SAMPLE_RATE = 48000;
 
@@ -184,7 +186,9 @@ public class BWFParsingStrategy extends AbstractTagParsingStrategy {
             codingHistorySize -= BWF_LOUDNESS_SIZE;
         }
 
-        if (codingHistorySize > 0) {
+        if (codingHistorySize > MAX_CODING_HISTORY_SIZE) {
+            LOG.warn("BWF coding history too large: {} bytes, skipping", codingHistorySize);
+        } else if (codingHistorySize > 0) {
             byte[] codingHistoryBytes = new byte[codingHistorySize];
             reader.readFully(codingHistoryBytes);
             String codingHistory = new String(codingHistoryBytes, StandardCharsets.UTF_8).trim();
