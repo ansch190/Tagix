@@ -5,6 +5,7 @@ import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
+import com.schwanitz.utils.EncodingUtils;
 
 import java.io.IOException;
 import com.schwanitz.io.SeekableDataSource;
@@ -41,6 +42,14 @@ public class Lyrics3ParsingStrategy extends AbstractTagParsingStrategy {
     private static final Pattern CRC_HEX_PATTERN = Pattern.compile("[0-9A-F]+");
     private static final Pattern IMAGE_EXT_PATTERN = Pattern.compile(".*\\.(jpg|jpeg|png|gif|bmp)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern CRC_VALIDATION_PATTERN = Pattern.compile("[0-9A-Fa-f]+");
+
+    // Encoding-Fallback-Reihenfolge (Lyrics3: ISO-8859-1 → Windows-1252 → UTF-8 → US-ASCII)
+    private static final Charset[] ENCODINGS = {
+            StandardCharsets.ISO_8859_1,
+            Charset.forName("windows-1252"),
+            StandardCharsets.UTF_8,
+            StandardCharsets.US_ASCII
+    };
 
 
 
@@ -181,45 +190,7 @@ public class Lyrics3ParsingStrategy extends AbstractTagParsingStrategy {
     }
 
     private String parseTagContent(byte[] data) {
-        // Versuche verschiedene Encodings für bessere Real-World-Kompatibilität
-
-        // 1. Standard: ISO-8859-1 (nach Lyrics3 Spec)
-        try {
-            String iso = new String(data, StandardCharsets.ISO_8859_1);
-            if (isValidLyrics3Text(iso)) {
-                LOG.debug("Using ISO-8859-1 encoding for Lyrics3 tag");
-                return iso;
-            }
-        } catch (Exception e) {
-            LOG.debug("ISO-8859-1 encoding failed: {}", e.getMessage());
-        }
-
-        // 2. Real-World: Windows-1252/CP1252 (häufig verwendet)
-        try {
-            Charset cp1252 = Charset.forName("windows-1252");
-            String cp1252Text = new String(data, cp1252);
-            if (isValidLyrics3Text(cp1252Text)) {
-                LOG.debug("Using Windows-1252 encoding for Lyrics3 tag");
-                return cp1252Text;
-            }
-        } catch (Exception e) {
-            LOG.debug("Windows-1252 encoding failed: {}", e.getMessage());
-        }
-
-        // 3. Fallback: UTF-8 (für moderne Tags)
-        try {
-            String utf8 = new String(data, StandardCharsets.UTF_8);
-            if (isValidLyrics3Text(utf8)) {
-                LOG.debug("Using UTF-8 encoding for Lyrics3 tag");
-                return utf8;
-            }
-        } catch (Exception e) {
-            LOG.debug("UTF-8 encoding failed: {}", e.getMessage());
-        }
-
-        // 4. Last resort: US-ASCII
-        LOG.warn("All preferred encodings failed, using US-ASCII as last resort");
-        return new String(data, StandardCharsets.US_ASCII);
+        return EncodingUtils.decodeWithFallback(data, ENCODINGS, this::isValidLyrics3Text);
     }
 
     private boolean isValidLyrics3Text(String text) {

@@ -6,9 +6,11 @@ import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
+import com.schwanitz.utils.EncodingUtils;
 
 import java.io.IOException;
 import com.schwanitz.io.SeekableDataSource;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -82,6 +84,13 @@ public class RIFFInfoParsingStrategy extends AbstractTagParsingStrategy {
         // Veraltete Chunks (für Kompatibilität beibehalten)
         INFO_CHUNKS.put("IDOS", "DOSName");          // DOS Name (veraltet)
     }
+
+    // Encoding-Fallback-Reihenfolge (RIFF-Standard: ISO-8859-1 vor US-ASCII)
+    private static final Charset[] ENCODINGS = {
+            StandardCharsets.UTF_8,
+            StandardCharsets.ISO_8859_1,
+            StandardCharsets.US_ASCII
+    };
 
 
 
@@ -213,35 +222,7 @@ public class RIFFInfoParsingStrategy extends AbstractTagParsingStrategy {
             return "";
         }
 
-        // Versuche verschiedene Encodings
-        try {
-            // Versuche UTF-8
-            String utf8 = new String(data, 0, length, StandardCharsets.UTF_8);
-            if (isValidString(utf8)) {
-                return utf8.trim();
-            }
-        } catch (Exception e) {
-            // Fallback zu ISO-8859-1
-        }
-
-        try {
-            // Fallback zu ISO-8859-1 (Windows-1252 ähnlich)
-            return new String(data, 0, length, StandardCharsets.ISO_8859_1).trim();
-        } catch (Exception e) {
-            // Als letzter Ausweg: US-ASCII
-            return new String(data, 0, length, StandardCharsets.US_ASCII).trim();
-        }
-    }
-
-    private boolean isValidString(String str) {
-        // Einfache Heuristik: String sollte druckbare Zeichen enthalten
-        for (int i = 0; i < str.length(); i++) {
-            char c = str.charAt(i);
-            if (c < 32 && c != 9 && c != 10 && c != 13) { // Kontrollzeichen außer Tab, LF, CR
-                return false;
-            }
-        }
-        return true;
+        return EncodingUtils.decodeWithFallback(data, 0, length, ENCODINGS, EncodingUtils::isValidText);
     }
 
 }

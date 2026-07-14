@@ -6,9 +6,11 @@ import com.schwanitz.metadata.TextFieldHandler;
 import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
+import com.schwanitz.utils.EncodingUtils;
 
 import java.io.IOException;
 import com.schwanitz.io.SeekableDataSource;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,6 +47,13 @@ public class AIFFMetadataParsingStrategy extends AbstractTagParsingStrategy {
     private static final int MAX_APP_DATA_READ_SIZE = 256;
     private static final int MAX_UNKNOWN_CHUNK_SIZE = 8192;
     private static final int DISPLAY_TRUNCATION_LENGTH = 50;
+
+    // Encoding-Fallback-Reihenfolge (AIFF-Standard: US-ASCII vor ISO-8859-1)
+    private static final Charset[] ENCODINGS = {
+            StandardCharsets.UTF_8,
+            StandardCharsets.US_ASCII,
+            StandardCharsets.ISO_8859_1
+    };
 
     // AIFF Metadata Chunk Types
     private static final Map<String, String> AIFF_CHUNKS = new HashMap<>();
@@ -269,37 +278,8 @@ public class AIFFMetadataParsingStrategy extends AbstractTagParsingStrategy {
             return "";
         }
 
-        // Versuche verschiedene Encodings
-        try {
-            // Versuche UTF-8
-            String utf8 = new String(data, 0, length, StandardCharsets.UTF_8);
-            if (isValidText(utf8)) {
-                return utf8.trim();
-            }
-        } catch (Exception e) {
-            // Fallback
-        }
-
-        // Fallback zu US-ASCII (AIFF Standard)
-        try {
-            return new String(data, 0, length, StandardCharsets.US_ASCII).trim();
-        } catch (Exception e) {
-            // Als letzter Ausweg: ISO-8859-1
-            return new String(data, 0, length, StandardCharsets.ISO_8859_1).trim();
-        }
+        return EncodingUtils.decodeWithFallback(data, 0, length, ENCODINGS, EncodingUtils::isValidText);
     }
-
-    private boolean isValidText(String text) {
-        // Einfache Heuristik für gültigen Text
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c < 32 && c != 9 && c != 10 && c != 13) { // Kontrollzeichen außer Tab, LF, CR
-                return false;
-            }
-        }
-        return true;
-    }
-
 
 
 }
