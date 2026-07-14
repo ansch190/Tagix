@@ -177,11 +177,12 @@ public class Lyrics3DetectionStrategy extends TagDetectionStrategy {
         int scanRead = source.read(searchFrom, scanBuf, 0, scanBuf.length);
         if (scanRead < LYRICS3_BEGIN_TAG_LENGTH) return tags;
 
+        byte[] lyricsBegin = "LYRICSBEGIN".getBytes(StandardCharsets.US_ASCII);
         int beginOffset = -1;
         for (int i = scanRead - LYRICS3_BEGIN_TAG_LENGTH; i >= 0; i--) {
             boolean match = true;
             for (int j = 0; j < LYRICS3_BEGIN_TAG_LENGTH; j++) {
-                if (scanBuf[i + j] != "LYRICSBEGIN".getBytes(StandardCharsets.US_ASCII)[j]) {
+                if (scanBuf[i + j] != lyricsBegin[j]) {
                     match = false;
                     break;
                 }
