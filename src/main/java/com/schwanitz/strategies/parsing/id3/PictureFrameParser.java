@@ -1,5 +1,8 @@
 package com.schwanitz.strategies.parsing.id3;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
@@ -14,6 +17,8 @@ import java.util.Base64;
  * Für PIC-Frames (ID3v2.2) wird das Bildformat als 3-Zeichen-String gelesen.</p>
  */
 public class PictureFrameParser implements ID3FrameParser {
+
+    private static final Logger LOG = LoggerFactory.getLogger(PictureFrameParser.class);
 
     /**
      * Parst die Rohdaten eines Bild-Frames und gibt eine formatierte Bildinformation zurück.
@@ -42,61 +47,44 @@ public class PictureFrameParser implements ID3FrameParser {
         try {
             int pos = 0;
             int encoding = data[pos++] & 0xFF;
+            String format;
 
             if ("APIC".equals(frameId)) {
                 int mimeEnd = ID3FrameParsingUtils.findNullTerminator(data, pos, ID3FrameParsingUtils.ISO_8859_1);
                 if (mimeEnd == -1) {
                     return "[PICTURE: Invalid MIME type]";
                 }
-
-                String mimeType = new String(data, pos, mimeEnd - pos, StandardCharsets.ISO_8859_1);
+                format = new String(data, pos, mimeEnd - pos, StandardCharsets.ISO_8859_1);
                 pos = mimeEnd + 1;
-
                 if (pos >= data.length) {
-                    return "[PICTURE:" + mimeType + "]";
+                    return "[PICTURE:" + format + "]";
                 }
-
-                int pictureType = data[pos++] & 0xFF;
-                String pictureTypeStr = ID3FrameParsingUtils.getPictureTypeDescription(pictureType);
-
-                int descEnd = ID3FrameParsingUtils.findNullTerminator(data, pos, encoding);
-                String description = "";
-                if (descEnd != -1) {
-                    byte[] descData = new byte[descEnd - pos];
-                    System.arraycopy(data, pos, descData, 0, descData.length);
-                    description = ID3FrameParsingUtils.decodeText(descData, encoding, majorVersion);
-                    pos = descEnd + ID3FrameParsingUtils.getNullTerminatorSize(encoding);
-                }
-
-                int pictureDataSize = data.length - pos;
-                return buildPictureInfo(mimeType, pictureTypeStr, description, pictureDataSize, data, pos);
-
             } else if ("PIC".equals(frameId)) {
                 if (data.length < 5) {
                     return "[PICTURE: Invalid PIC frame]";
                 }
-
-                String imageFormat = new String(data, pos, 3, StandardCharsets.ISO_8859_1);
+                format = new String(data, pos, 3, StandardCharsets.ISO_8859_1);
                 pos += 3;
-
-                int pictureType = data[pos++] & 0xFF;
-                String pictureTypeStr = ID3FrameParsingUtils.getPictureTypeDescription(pictureType);
-
-                int descEnd = ID3FrameParsingUtils.findNullTerminator(data, pos, encoding);
-                String description = "";
-                if (descEnd != -1) {
-                    byte[] descData = new byte[descEnd - pos];
-                    System.arraycopy(data, pos, descData, 0, descData.length);
-                    description = ID3FrameParsingUtils.decodeText(descData, encoding, majorVersion);
-                    pos = descEnd + ID3FrameParsingUtils.getNullTerminatorSize(encoding);
-                }
-
-                int pictureDataSize = data.length - pos;
-                return buildPictureInfo(imageFormat, pictureTypeStr, description, pictureDataSize, data, pos);
+            } else {
+                return "[PICTURE:" + data.length + " bytes]";
             }
+
+            int pictureType = data[pos++] & 0xFF;
+            String pictureTypeStr = ID3FrameParsingUtils.getPictureTypeDescription(pictureType);
+
+            int descEnd = ID3FrameParsingUtils.findNullTerminator(data, pos, encoding);
+            String description = "";
+            if (descEnd != -1) {
+                byte[] descData = new byte[descEnd - pos];
+                System.arraycopy(data, pos, descData, 0, descData.length);
+                description = ID3FrameParsingUtils.decodeText(descData, encoding, majorVersion);
+                pos = descEnd + ID3FrameParsingUtils.getNullTerminatorSize(encoding);
+            }
+
+            int pictureDataSize = data.length - pos;
+            return buildPictureInfo(format, pictureTypeStr, description, pictureDataSize, data, pos);
         } catch (Exception e) {
-            // Log.warn würde hier stehen, aber wir wollen keine Dependency auf slf4j in jedem Parser
-            // Falls nötig, kann das später ergänzt werden
+            LOG.warn("Failed to parse picture frame ({} bytes)", data.length, e);
         }
 
         return "[PICTURE:" + data.length + " bytes]";
