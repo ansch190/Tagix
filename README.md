@@ -1,6 +1,6 @@
 # Tagix
 
-Eine umfassende, hochperformante Java-Bibliothek zur Erkennung, Analyse und Verarbeitung von Audio-Tag-Formaten.
+Eine umfassende, hochperformante Java-Bibliothek zur Erkennung, Analyse, Verarbeitung und **Verwaltung** von Audio-Tag-Formaten – vollständiges Lesen und Schreiben.
 
 ## Voraussetzungen
 
@@ -9,43 +9,39 @@ Eine umfassende, hochperformante Java-Bibliothek zur Erkennung, Analyse und Vera
 
 ## Unterstützte Tag-Formate
 
-| Format | Erkennung | Parsing |
-|--------|-----------|---------|
-| ID3v1 / ID3v1.1 | ✓ | ✓ |
-| ID3v2.2 / ID3v2.3 / ID3v2.4 | ✓ | ✓ |
-| APEv1 / APEv2 | ✓ | ✓ |
-| Vorbis Comment | ✓ | ✓ |
-| MP4 / iTunes | ✓ | ✓ |
-| RIFF-INFO | ✓ | ✓ |
-| BWF (v0, v1, v2) | ✓ | ✓ |
-| AIFF | ✓ | ✓ |
-| Lyrics3 (v1, v2) | ✓ | ✓ |
-| ASF Content Description / Extended Content Description | ✓ | ✓ |
-| DSF Metadata | ✓ | ✓ |
-| DFF Metadata (DSDIFF) | ✓ | ✓ |
-| FLAC Application Blocks | ✓ | ✓ |
-| Matroska Tags | ✓ | ✓ |
-| WebM Tags | ✓ | ✓ |
-| WavPack Native | ✓ | ✓ |
-| TrueAudio | ✓ | — |
+| Format | Erkennung | Parsing | Schreiben |
+|--------|-----------|---------|-----------|
+| ID3v1 / ID3v1.1 | ✓ | ✓ | ✓ |
+| ID3v2.2 / ID3v2.3 / ID3v2.4 | ✓ | ✓ | ✓ |
+| APEv1 / APEv2 | ✓ | ✓ | ✓ |
+| Vorbis Comment (OGG, FLAC) | ✓ | ✓ | ✓ |
+| MP4 / iTunes | ✓ | ✓ | ✓ |
+| RIFF-INFO | ✓ | ✓ | ✓ |
+| BWF (v0, v1, v2) | ✓ | ✓ | ✓ |
+| AIFF | ✓ | ✓ | ✓ |
+| Lyrics3 (v1, v2) | ✓ | ✓ | ✓ |
+| ASF Content/Extended Description | ✓ | ✓ | ✓ |
+| DSF Metadata | ✓ | ✓ | ✓ |
+| DFF Metadata (DSDIFF) | ✓ | ✓ | ✓ |
+| FLAC Application Blocks | ✓ | ✓ | ✓ |
+| Matroska Tags | ✓ | ✓ | ✓ |
+| WebM Tags | ✓ | ✓ | ✓ |
+| WavPack Native | ✓ | ✓ | ✓ |
+| TrueAudio | ✓ | — | — |
 
 ## Architektur
 
 ```
 com.schwanitz
-├── api                     ─ Zentrale API (MetadataManager)
-├── io                      ─ Abstraktion für Datenquellen (SeekableDataSource)
+├── api                     ─ Zentrale API (MetadataManager, TagWriter)
+├── io                      ─ Abstraktion für Datenquellen/Senken
 ├── interfaces              ─ Gemeinsame Schnittstellen (Metadata, FieldHandler)
 ├── metadata                ─ Metadaten-Modelle und Field-Handler
-├── tagging                 ─ Tag-Formate, Erkennung, Scan-Konfiguration
+├── tagging                 ─ Tag-Formate, Erkennung, Scan-Konfiguration, Schreib-Konfiguration
 └── strategies
     ├── detection           ─ Erkennungsstrategien (je Format)
-    │   ├── context         ─ Erkennungskontext und Basisklasse
-    │   └── factory         ─ Strategie-Factory
-    └── parsing             ─ Parsing-Strategien (je Format)
-        ├── context         ─ Parser-Schnittstelle
-        ├── factory         ─ Parser-Factory
-        └── id3             ─ ID3-Frame-Parser (Text, Bild, Kommentar u.a.)
+    ├── parsing             ─ Parsing-Strategien (je Format)
+    └── writing             ─ Schreib-Strategien (je Format)
 ```
 
 ### Schnellstart
@@ -90,16 +86,55 @@ Map<String, List<Metadata>> results = manager.readFromFiles(
     List.of("file1.mp3", "file2.flac", "file3.wav"));
 ```
 
-#### Scan-Konfiguration
+#### Tags schreiben
 
 ```java
-// Komfort-Scan für mehrere Dateien
-Map<String, List<Metadata>> results = manager.readFromFiles(
-    filePaths, ScanConfiguration.comfortScan());
+TagWriter writer = new TagWriter();
+Metadata metadata = new GenericMetadata();
 
-// Benutzerdefinierter Scan
-Map<String, List<Metadata>> results = manager.readFromFiles(
-    filePaths, ScanConfiguration.customScan(TagFormat.ID3V2_3, TagFormat.ID3V2_4));
+// Metadaten befüllen
+metadata.setField(MetadataField.TITLE, "Mein Song");
+metadata.setField(MetadataField.ARTIST, "Künstler");
+metadata.setField(MetadataField.ALBUM, "Mein Album");
+metadata.setField(MetadataField.YEAR, "2026");
+
+// Metadaten schreiben (Standard: UPDATE_EXISTING, ID3v2.4)
+WriteResult result = writer.writeTags("audio.mp3", metadata);
+
+// Einzelnes Feld aktualisieren
+WriteResult result = writer.updateField("audio.mp3", MetadataField.TITLE, "Neuer Titel");
+
+// Tags entfernen
+WriteResult result = writer.removeTags("audio.mp3", TagFormat.ID3V2_4);
+
+// Batch-Schreiben (parallel)
+Map<String, WriteResult> results = writer.writeTags(
+    Map.of("file1.mp3", metadata1, "file2.flac", metadata2));
+```
+
+#### Schreib-Konfiguration
+
+```java
+// Standard: UPDATE_EXISTING, ID3v2.4, UTF-8
+WriteConfiguration config = WriteConfiguration.defaults();
+
+// In-Place-Schreiben
+WriteConfiguration config = WriteConfiguration.forInPlace();
+
+// In-Place mit ID3v2.3
+WriteConfiguration config = WriteConfiguration.inPlaceId3v23();
+
+// Alle Tags vollständig ersetzen
+WriteConfiguration config = WriteConfiguration.replaceAll();
+
+// Nur neue Tags erstellen
+WriteConfiguration config = WriteConfiguration.createNew();
+
+// Tags entfernen
+WriteConfiguration config = WriteConfiguration.remove();
+
+// Schreibmodi
+WriteResult result = writer.writeTags("audio.mp3", metadata, config);
 ```
 
 ### Datenquellen
@@ -124,7 +159,7 @@ Alle Implementierungen sind `AutoCloseable` und sollten mit try-with-resources v
 
 ## Batch-Verarbeitung
 
-Die Batch-Methoden (`TagFormatDetector.fullScan(filePaths)`, `MetadataManager.readFromFiles(...)`) nutzen **Java 25 Structured Concurrency** mit virtuellen Threads:
+Die Batch-Methoden (`TagFormatDetector.fullScan(filePaths)`, `MetadataManager.readFromFiles(...)`, `TagWriter.writeTags(...)`) nutzen **Java 25 Structured Concurrency** mit virtuellen Threads:
 
 - Jede Datei wird in einem eigenen Virtual Thread verarbeitet
 - Fehler einer Datei beeinflussen nicht die Verarbeitung anderer Dateien
@@ -138,6 +173,15 @@ Die Batch-Methoden (`TagFormatDetector.fullScan(filePaths)`, `MetadataManager.re
 | `FULL_SCAN` | Prüft alle unterstützten Tag-Formate unabhängig von der Dateiendung |
 | `COMFORT_SCAN` | Prüft nur wahrscheinliche Formate basierend auf der Dateiendung |
 | `CUSTOM_SCAN` | Prüft nur die vom Benutzer angegebenen Formate |
+
+## Schreib-Modi
+
+| Modus | Beschreibung |
+|-------|-------------|
+| `CREATE_NEW` | Nur neue Tags schreiben, keine bestehenden einbeziehen |
+| `UPDATE_EXISTING` | Bestehende Tags aktualisieren oder neue hinzufügen |
+| `REPLACE_ALL` | Alle Tags des angegebenen Formats vollständig ersetzen |
+| `REMOVE` | Tags des angegebenen Formats entfernen |
 
 ## Build
 
