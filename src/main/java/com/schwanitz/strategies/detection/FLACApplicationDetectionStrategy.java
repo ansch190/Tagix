@@ -122,7 +122,7 @@ public class FLACApplicationDetectionStrategy extends TagDetectionStrategy {
             LOG.debug("FLAC Application detection completed: found {} blocks", tags.size());
 
         } catch (IOException e) {
-            LOG.error("Error detecting FLAC Application blocks in {}: {}", source.name(), e.getMessage());
+            LOG.error("Error detecting FLAC Application blocks in {}", source.name(), e);
             throw e;
         }
 

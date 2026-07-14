@@ -210,7 +210,7 @@ public class VorbisParsingStrategy extends AbstractTagParsingStrategy {
                 }
 
             } catch (IOException e) {
-                LOG.warn("Error reading comment {}: {}", i + 1, e.getMessage());
+                LOG.warn("Error reading comment {}", i + 1, e);
                 break;
             }
         }

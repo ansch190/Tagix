@@ -332,7 +332,7 @@ public class Lyrics3ParsingStrategy extends AbstractTagParsingStrategy {
                         fieldId, processedValue.length() > 50 ? processedValue.substring(0, 50) + "..." : processedValue);
 
             } catch (Exception e) {
-                LOG.warn("Error parsing field at position {}: {}", position, e.getMessage());
+                LOG.warn("Error parsing field at position {}", position, e);
                 break;
             }
         }
@@ -498,7 +498,7 @@ public class Lyrics3ParsingStrategy extends AbstractTagParsingStrategy {
                 LOG.warn("Invalid CRC format: {}", providedCRC);
             }
         } catch (Exception e) {
-            LOG.warn("Error validating CRC: {}", e.getMessage());
+            LOG.warn("Error validating CRC", e);
         }
     }
 

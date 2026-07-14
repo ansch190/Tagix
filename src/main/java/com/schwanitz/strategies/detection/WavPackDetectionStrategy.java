@@ -142,7 +142,7 @@ public class WavPackDetectionStrategy extends TagDetectionStrategy {
                     tags.size(), blockCount);
 
         } catch (IOException e) {
-            LOG.error("Error detecting WavPack metadata in {}: {}", source.name(), e.getMessage());
+            LOG.error("Error detecting WavPack metadata in {}", source.name(), e);
             throw e;
         }
 

@@ -97,7 +97,7 @@ public class BWFExtensionParser {
                 }
 
             } catch (Exception e) {
-                LOG.warn("Error parsing BWF extension at position {}: {}", currentPos, e.getMessage());
+                LOG.warn("Error parsing BWF extension at position {}", currentPos, e);
                 break;
             }
         }

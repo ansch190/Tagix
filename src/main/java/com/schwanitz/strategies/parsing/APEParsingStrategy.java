@@ -276,7 +276,7 @@ public class APEParsingStrategy extends AbstractTagParsingStrategy {
                 }
 
             } catch (IOException e) {
-                LOG.warn("Error parsing APE item {}: {}", i + 1, e.getMessage());
+                LOG.warn("Error parsing APE item {}", i + 1, e);
                 break;
             }
         }

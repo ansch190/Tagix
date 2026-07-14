@@ -128,7 +128,7 @@ public class ASFDetectionStrategy extends TagDetectionStrategy {
             LOG.debug("ASF detection completed: found {} metadata objects", tags.size());
 
         } catch (IOException e) {
-            LOG.error("Error detecting ASF tags in {}: {}", source.name(), e.getMessage());
+            LOG.error("Error detecting ASF tags in {}", source.name(), e);
             throw e;
         }
 

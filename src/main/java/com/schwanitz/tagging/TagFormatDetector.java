@@ -427,7 +427,7 @@ public class TagFormatDetector {
             try (SeekableDataSource source = SeekableDataSources.forPath(Path.of(filePath))) {
                 results.put(filePath, detectionContext.detectTags(source, config));
             } catch (IOException e) {
-                LOG.error("Error processing file {}: {}", filePath, e.getMessage());
+                LOG.error("Error processing file {}", filePath, e);
                 results.put(filePath, List.of());
             }
             return results;
@@ -440,7 +440,7 @@ public class TagFormatDetector {
                     try (SeekableDataSource source = SeekableDataSources.forPath(Path.of(filePath))) {
                         return detectionContext.detectTags(source, config);
                     } catch (IOException e) {
-                        LOG.error("Error processing file {}: {}", filePath, e.getMessage());
+                        LOG.error("Error processing file {}", filePath, e);
                         return List.<TagInfo>of();
                     }
                 }));
@@ -452,7 +452,7 @@ public class TagFormatDetector {
                 if (subtask.state() == StructuredTaskScope.Subtask.State.SUCCESS) {
                     results.put(entry.getKey(), subtask.get());
                 } else {
-                    LOG.error("Error processing file {}: {}", entry.getKey(), subtask.exception());
+                    LOG.error("Error processing file {}", entry.getKey(), subtask.exception());
                     results.put(entry.getKey(), List.of());
                 }
             }

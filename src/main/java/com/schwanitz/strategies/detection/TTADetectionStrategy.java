@@ -79,7 +79,7 @@ public class TTADetectionStrategy extends TagDetectionStrategy {
                     header.version, header.channels, header.sampleRate);
 
         } catch (IOException e) {
-            LOG.error("Error detecting TTA metadata in {}: {}", source.name(), e.getMessage());
+            LOG.error("Error detecting TTA metadata in {}", source.name(), e);
             throw e;
         }
 

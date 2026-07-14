@@ -142,7 +142,7 @@ public class FormatDetectionContext {
                     }
                 }
             } catch (Exception e) {
-                LOG.warn("Error in strategy {}: {}", strategy.getClass().getSimpleName(), e.getMessage());
+                LOG.warn("Error in strategy {}", strategy.getClass().getSimpleName(), e);
             }
         }
 

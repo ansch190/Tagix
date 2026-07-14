@@ -163,7 +163,7 @@ public class MatroskaDetectionStrategy extends TagDetectionStrategy {
             }
 
         } catch (IOException e) {
-            LOG.error("Error detecting Matroska/WebM tags in {}: {}", source.name(), e.getMessage());
+            LOG.error("Error detecting Matroska/WebM tags in {}", source.name(), e);
             throw e;
         }
 

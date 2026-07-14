@@ -113,11 +113,11 @@ public class MetadataManager {
     }
 
     private Path validateFilePath(String filePath) throws IOException {
-        Path path = Path.of(filePath).toAbsolutePath().normalize();
-        if (!path.startsWith(Path.of("/"))) {
+        Path path = Path.of(filePath);
+        if (!path.isAbsolute()) {
             throw new IOException("Invalid file path (must be absolute): " + filePath);
         }
-        return path;
+        return path.toAbsolutePath().normalize();
     }
 
     /**
@@ -317,7 +317,7 @@ public class MetadataManager {
             try {
                 return Map.of(filePath, readFromFile(filePath, config));
             } catch (IOException e) {
-                LOG.error("Error processing file {}: {}", filePath, e.getMessage());
+                LOG.error("Error processing file {}", filePath, e);
                 return Map.of(filePath, List.of());
             }
         }
@@ -330,7 +330,7 @@ public class MetadataManager {
                     try {
                         return readFromFile(filePath, config);
                     } catch (IOException e) {
-                        LOG.error("Error processing file {}: {}", filePath, e.getMessage());
+                        LOG.error("Error processing file {}", filePath, e);
                         return List.<Metadata>of();
                     }
                 }));
@@ -342,7 +342,7 @@ public class MetadataManager {
                 if (subtask.state() == StructuredTaskScope.Subtask.State.SUCCESS) {
                     results.put(entry.getKey(), subtask.get());
                 } else {
-                    LOG.error("Error processing file {}: {}", entry.getKey(), subtask.exception());
+                    LOG.error("Error processing file {}", entry.getKey(), subtask.exception());
                     results.put(entry.getKey(), List.of());
                 }
             }
@@ -377,7 +377,7 @@ public class MetadataManager {
                             tagInfo.getFormat(), source, tagInfo.getOffset(), tagInfo.getSize());
                     metadataList.add(metadata);
                 } catch (IOException e) {
-                    LOG.warn("Error parsing tag {} in {}: {}", tagInfo.getFormat(), source.name(), e.getMessage());
+                    LOG.warn("Error parsing tag {} in {}", tagInfo.getFormat(), source.name(), e);
                 }
             } else {
                 LOG.debug("No parser available for format: {}", tagInfo.getFormat());

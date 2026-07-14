@@ -149,7 +149,7 @@ public class WAVDetectionStrategy extends TagDetectionStrategy {
             }
 
         } catch (IOException e) {
-            LOG.error("Error detecting WAV metadata in {}: {}", source.name(), e.getMessage());
+            LOG.error("Error detecting WAV metadata in {}", source.name(), e);
             throw e;
         }
 

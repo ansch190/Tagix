@@ -124,7 +124,7 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
             }
 
         } catch (IOException e) {
-            LOG.error("Error detecting DSF tags in {}: {}", source.name(), e.getMessage());
+            LOG.error("Error detecting DSF tags in {}", source.name(), e);
             throw e;
         }
 
@@ -186,7 +186,7 @@ public class DSDDetectionStrategy extends TagDetectionStrategy {
             }
 
         } catch (IOException e) {
-            LOG.error("Error detecting DFF tags in {}: {}", source.name(), e.getMessage());
+            LOG.error("Error detecting DFF tags in {}", source.name(), e);
             throw e;
         }
 

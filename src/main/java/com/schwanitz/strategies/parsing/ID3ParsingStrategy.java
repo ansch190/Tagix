@@ -245,7 +245,7 @@ public class ID3ParsingStrategy extends AbstractTagParsingStrategy {
                 }
             }
         } catch (Exception e) {
-            LOG.warn("Error parsing frame {}: {}", frameId, e.getMessage());
+            LOG.warn("Error parsing frame {}", frameId, e);
         }
     }
 
