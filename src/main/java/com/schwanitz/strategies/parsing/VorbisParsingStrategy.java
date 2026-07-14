@@ -37,6 +37,21 @@ public class VorbisParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(VorbisParsingStrategy.class);
 
+    // Vorbis Comment Header-Konstanten
+    private static final int VORBIS_COMMENT_PACKET_TYPE = 0x03;
+    private static final int VORBIS_MAGIC_STRING_LENGTH = 6;
+    private static final int LENGTH_PREFIX_SIZE = 4;
+
+    // Limits
+    private static final int MAX_VORBIS_COMMENT_COUNT = 10000;
+    private static final int MAX_VENDOR_STRING_LENGTH = 8192;
+    private static final int DISPLAY_TRUNCATION_LENGTH = 50;
+
+    // ASCII-Validierung für Feldnamen
+    private static final char VORBIS_FIELD_NAME_MIN_CHAR = 0x20;
+    private static final char VORBIS_FIELD_NAME_MAX_CHAR = 0x7D;
+    private static final char VORBIS_FIELD_SEPARATOR = 0x3D;
+
 
 
     /**
@@ -159,14 +174,14 @@ public class VorbisParsingStrategy extends AbstractTagParsingStrategy {
         long currentOffset = offset + 1;
 
         // Prüfen ob es ein OGG Vorbis Comment Header ist (beginnt mit 0x03 + "vorbis")
-        if (firstByte[0] == 0x03) {
-            byte[] vorbisCheck = new byte[6];
+        if (firstByte[0] == VORBIS_COMMENT_PACKET_TYPE) {
+            byte[] vorbisCheck = new byte[VORBIS_MAGIC_STRING_LENGTH];
             reader.readFully(vorbisCheck);
             String vorbisString = new String(vorbisCheck, StandardCharsets.US_ASCII);
             if (!"vorbis".equals(vorbisString)) {
                 throw new IOException("Invalid Vorbis Comment header");
             }
-            currentOffset += 6;
+            currentOffset += VORBIS_MAGIC_STRING_LENGTH;
         } else {
             // Zurückspringen - könnte FLAC Vorbis Comment Block sein
             reader.seek(offset);
@@ -176,7 +191,7 @@ public class VorbisParsingStrategy extends AbstractTagParsingStrategy {
         // Vendor String lesen
         String vendor = readVendorString(reader);
         LOG.debug("Vorbis Comment Vendor: {}", vendor);
-        currentOffset += 4 + vendor.getBytes(StandardCharsets.UTF_8).length;
+        currentOffset += LENGTH_PREFIX_SIZE + vendor.getBytes(StandardCharsets.UTF_8).length;
 
         // Vendor String als Metadatum speichern falls vorhanden
         if (!vendor.isEmpty()) {
@@ -185,9 +200,9 @@ public class VorbisParsingStrategy extends AbstractTagParsingStrategy {
 
         // User Comment Count lesen (32-bit little-endian)
         long userCommentCount = BinaryDataReader.readLittleEndianUInt32(reader);
-        currentOffset += 4;
+        currentOffset += LENGTH_PREFIX_SIZE;
 
-        if (userCommentCount < 0 || userCommentCount > 10000) { // Sanity check
+        if (userCommentCount < 0 || userCommentCount > MAX_VORBIS_COMMENT_COUNT) { // Sanity check
             throw new IOException("Invalid user comment count: " + userCommentCount);
         }
 
@@ -197,7 +212,7 @@ public class VorbisParsingStrategy extends AbstractTagParsingStrategy {
         for (long i = 0; i < userCommentCount; i++) {
             try {
                 String comment = readUserComment(reader);
-                currentOffset += 4 + comment.getBytes(StandardCharsets.UTF_8).length;
+                currentOffset += LENGTH_PREFIX_SIZE + comment.getBytes(StandardCharsets.UTF_8).length;
 
                 if (!comment.isEmpty()) {
                     parseComment(metadata, comment);
@@ -234,7 +249,7 @@ public class VorbisParsingStrategy extends AbstractTagParsingStrategy {
     private String readVendorString(SourceReader reader) throws IOException {
         long vendorLength = BinaryDataReader.readLittleEndianUInt32(reader);
 
-        if (vendorLength < 0 || vendorLength > 8192) { // Sanity check
+        if (vendorLength < 0 || vendorLength > MAX_VENDOR_STRING_LENGTH) { // Sanity check
             throw new IOException("Invalid vendor string length: " + vendorLength);
         }
 
@@ -305,7 +320,7 @@ public class VorbisParsingStrategy extends AbstractTagParsingStrategy {
         addField(metadata, fieldName, fieldValue, false, true, true);
 
         if (LOG.isDebugEnabled()) {
-            String displayValue = truncateForDisplay(fieldValue, 50);
+            String displayValue = truncateForDisplay(fieldValue, DISPLAY_TRUNCATION_LENGTH);
             LOG.debug("Parsed comment: {} = {}", fieldName, displayValue);
         }
     }
@@ -324,7 +339,7 @@ public class VorbisParsingStrategy extends AbstractTagParsingStrategy {
     private boolean isValidFieldName(String fieldName) {
         for (int i = 0; i < fieldName.length(); i++) {
             char c = fieldName.charAt(i);
-            if (c < 0x20 || c > 0x7D || c == 0x3D) { // 0x3D ist '='
+            if (c < VORBIS_FIELD_NAME_MIN_CHAR || c > VORBIS_FIELD_NAME_MAX_CHAR || c == VORBIS_FIELD_SEPARATOR) { // 0x3D ist '='
                 return false;
             }
         }

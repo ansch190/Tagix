@@ -42,6 +42,28 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final double MIN_PRINTABLE_RATIO = 0.8;
 
+    // MP4 Atom Header-Größen
+    private static final int MP4_ATOM_HEADER_SIZE = 8;
+    private static final int META_ATOM_FULL_HEADER_SIZE = 12;
+    private static final int DATA_ATOM_FULL_HEADER_SIZE = 16;
+    private static final int MAX_MP4_DATA_VALUE_SIZE = 65536;
+
+    // MP4 Data Type Codes (ISO 14496-12)
+    private static final int MP4_DATA_TYPE_UTF8 = 1;
+    private static final int MP4_DATA_TYPE_UTF16 = 2;
+    private static final int MP4_DATA_TYPE_UTF16BE = 3;
+    private static final int MP4_DATA_TYPE_JPEG = 13;
+    private static final int MP4_DATA_TYPE_PNG = 14;
+    private static final int MP4_DATA_TYPE_GIF = 15;
+    private static final int MP4_DATA_TYPE_SIGNED_INT = 21;
+    private static final int MP4_DATA_TYPE_UNSIGNED_INT = 22;
+    private static final int MP4_DATA_TYPE_FLOAT32 = 23;
+    private static final int MP4_DATA_TYPE_FLOAT64 = 24;
+
+    // Anzeige-Limits
+    private static final int DISPLAY_TRUNCATION_LENGTH = 50;
+    private static final int BASE64_PREVIEW_MAX_LENGTH = 100;
+
     // MP4 Atom Types für Metadaten
     private static final String MOOV_ATOM = "moov";
     private static final String UDTA_ATOM = "udta";
@@ -230,7 +252,7 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
         long moovSize = BinaryDataReader.readBigEndianUInt32(reader);
 
         // Navigiere zu udta -> meta -> ilst
-        long udtaOffset = findAtom(reader, moovOffset + 8, moovSize - 8, UDTA_ATOM);
+        long udtaOffset = findAtom(reader, moovOffset + MP4_ATOM_HEADER_SIZE, moovSize - MP4_ATOM_HEADER_SIZE, UDTA_ATOM);
         if (udtaOffset == -1) {
             LOG.debug("No udta atom found - no metadata available");
             return;
@@ -239,7 +261,7 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
         reader.seek(udtaOffset);
         long udtaSize = BinaryDataReader.readBigEndianUInt32(reader);
 
-        long metaOffset = findAtom(reader, udtaOffset + 8, udtaSize - 8, META_ATOM);
+        long metaOffset = findAtom(reader, udtaOffset + MP4_ATOM_HEADER_SIZE, udtaSize - MP4_ATOM_HEADER_SIZE, META_ATOM);
         if (metaOffset == -1) {
             LOG.debug("No meta atom found in udta");
             return;
@@ -249,7 +271,7 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
         long metaSize = BinaryDataReader.readBigEndianUInt32(reader);
         reader.skipBytes(4); // Skip meta version/flags
 
-        long ilstOffset = findAtom(reader, metaOffset + 12, metaSize - 12, ILST_ATOM);
+        long ilstOffset = findAtom(reader, metaOffset + META_ATOM_FULL_HEADER_SIZE, metaSize - META_ATOM_FULL_HEADER_SIZE, ILST_ATOM);
         if (ilstOffset == -1) {
             LOG.debug("No ilst atom found in meta");
             return;
@@ -259,7 +281,7 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
         long ilstSize = BinaryDataReader.readBigEndianUInt32(reader);
 
         // Parse metadata items in ilst
-        parseMetadataItems(reader, metadata, ilstOffset + 8, ilstSize - 8);
+        parseMetadataItems(reader, metadata, ilstOffset + MP4_ATOM_HEADER_SIZE, ilstSize - MP4_ATOM_HEADER_SIZE);
 
         LOG.debug("Successfully parsed MP4 metadata");
     }
@@ -269,11 +291,11 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
         long currentPos = offset;
         long endPos = offset + size;
 
-        while (currentPos < endPos - 8) {
+        while (currentPos < endPos - MP4_ATOM_HEADER_SIZE) {
             reader.seek(currentPos);
 
             long itemSize = BinaryDataReader.readBigEndianUInt32(reader);
-            if (itemSize < 8 || itemSize > endPos - currentPos) {
+            if (itemSize < MP4_ATOM_HEADER_SIZE || itemSize > endPos - currentPos) {
                 break;
             }
 
@@ -282,7 +304,7 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
             String atomType = new String(atomTypeBytes, StandardCharsets.ISO_8859_1);
 
             // Parse data within this metadata item
-            parseMetadataItem(reader, metadata, atomType, currentPos + 8, itemSize - 8);
+            parseMetadataItem(reader, metadata, atomType, currentPos + MP4_ATOM_HEADER_SIZE, itemSize - MP4_ATOM_HEADER_SIZE);
 
             currentPos += itemSize;
         }
@@ -301,7 +323,7 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
         long dataSize = BinaryDataReader.readBigEndianUInt32(reader);
         reader.skipBytes(4); // Skip 'data'
 
-        if (dataSize < 16) { // 8 bytes header + 8 bytes minimal data header
+        if (dataSize < DATA_ATOM_FULL_HEADER_SIZE) { // 8 bytes header + 8 bytes minimal data header
             LOG.debug("Data atom too small for {}", atomType);
             return;
         }
@@ -310,8 +332,8 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
         int dataType = (int) BinaryDataReader.readBigEndianUInt32(reader);
         int locale = (int) BinaryDataReader.readBigEndianUInt32(reader);
 
-        long valueSize = dataSize - 16; // Subtract atom header (8) + data header (8)
-        if (valueSize <= 0 || valueSize > 65536) { // Sanity check
+        long valueSize = dataSize - DATA_ATOM_FULL_HEADER_SIZE; // Subtract atom header (8) + data header (8)
+        if (valueSize <= 0 || valueSize > MAX_MP4_DATA_VALUE_SIZE) { // Sanity check
             LOG.debug("Invalid value size for {}: {}", atomType, valueSize);
             return;
         }
@@ -327,7 +349,7 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
             addField(metadata, fieldName, value);
 
             if (LOG.isDebugEnabled()) {
-                String displayValue = truncateForDisplay(value, 50);
+                String displayValue = truncateForDisplay(value, DISPLAY_TRUNCATION_LENGTH);
                 LOG.debug("Parsed MP4 field: {} ({}) = {}", atomType, fieldName, displayValue);
             }
         }
@@ -338,11 +360,11 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
         long currentPos = offset;
         long endPos = offset + size;
 
-        while (currentPos < endPos - 8) {
+        while (currentPos < endPos - MP4_ATOM_HEADER_SIZE) {
             reader.seek(currentPos);
 
             long atomSize = BinaryDataReader.readBigEndianUInt32(reader);
-            if (atomSize < 8 || atomSize > endPos - currentPos) {
+            if (atomSize < MP4_ATOM_HEADER_SIZE || atomSize > endPos - currentPos) {
                 break;
             }
 
@@ -364,42 +386,42 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
 
     private String parseDataValue(byte[] data, int dataType, String atomType) {
         switch (dataType) {
-            case 1: // UTF-8 text
+            case MP4_DATA_TYPE_UTF8: // UTF-8 text
                 return new String(data, StandardCharsets.UTF_8).trim();
 
-            case 2: // UTF-16 text (mit BOM)
+            case MP4_DATA_TYPE_UTF16: // UTF-16 text (mit BOM)
                 return new String(data, StandardCharsets.UTF_16).trim();
 
-            case 3: // UTF-16BE text (ohne BOM)
+            case MP4_DATA_TYPE_UTF16BE: // UTF-16BE text (ohne BOM)
                 return new String(data, StandardCharsets.UTF_16BE).trim();
 
-            case 13: // JPEG image
+            case MP4_DATA_TYPE_JPEG: // JPEG image
                 if ("covr".equals(atomType)) {
                     // Für Cover Art: Base64-Encoding für bessere Handhabung
                     String base64 = Base64.getEncoder().encodeToString(data);
                     return "[JPEG:" + data.length + " bytes,base64:" +
-                            (base64.length() > 100 ? base64.substring(0, 100) + "..." : base64) + "]";
+                            (base64.length() > BASE64_PREVIEW_MAX_LENGTH ? base64.substring(0, BASE64_PREVIEW_MAX_LENGTH) + "..." : base64) + "]";
                 }
                 return "[JPEG:" + data.length + " bytes]";
 
-            case 14: // PNG image
+            case MP4_DATA_TYPE_PNG: // PNG image
                 if ("covr".equals(atomType)) {
                     // Für Cover Art: Base64-Encoding für bessere Handhabung
                     String base64 = Base64.getEncoder().encodeToString(data);
                     return "[PNG:" + data.length + " bytes,base64:" +
-                            (base64.length() > 100 ? base64.substring(0, 100) + "..." : base64) + "]";
+                            (base64.length() > BASE64_PREVIEW_MAX_LENGTH ? base64.substring(0, BASE64_PREVIEW_MAX_LENGTH) + "..." : base64) + "]";
                 }
                 return "[PNG:" + data.length + " bytes]";
 
-            case 15: // GIF image
+            case MP4_DATA_TYPE_GIF: // GIF image
                 if ("covr".equals(atomType)) {
                     String base64 = Base64.getEncoder().encodeToString(data);
                     return "[GIF:" + data.length + " bytes,base64:" +
-                            (base64.length() > 100 ? base64.substring(0, 100) + "..." : base64) + "]";
+                            (base64.length() > BASE64_PREVIEW_MAX_LENGTH ? base64.substring(0, BASE64_PREVIEW_MAX_LENGTH) + "..." : base64) + "]";
                 }
                 return "[GIF:" + data.length + " bytes]";
 
-            case 21: // Signed integer (big-endian)
+            case MP4_DATA_TYPE_SIGNED_INT: // Signed integer (big-endian)
                 if (data.length == 1) {
                     return String.valueOf(data[0]);
                 } else if (data.length == 2) {
@@ -417,7 +439,7 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
                 }
                 break;
 
-            case 22: // Unsigned integer (big-endian)
+            case MP4_DATA_TYPE_UNSIGNED_INT: // Unsigned integer (big-endian)
                 if (data.length == 1) {
                     return String.valueOf(data[0] & 0xFF);
                 } else if (data.length == 2) {
@@ -436,7 +458,7 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
                 }
                 break;
 
-            case 23: // 32-bit Float (big-endian)
+            case MP4_DATA_TYPE_FLOAT32: // 32-bit Float (big-endian)
                 if (data.length == 4) {
                     int intBits = ((data[0] & 0xFF) << 24) | ((data[1] & 0xFF) << 16) |
                             ((data[2] & 0xFF) << 8) | (data[3] & 0xFF);
@@ -445,7 +467,7 @@ public class MP4ParsingStrategy extends AbstractTagParsingStrategy {
                 }
                 break;
 
-            case 24: // 64-bit Double (big-endian)
+            case MP4_DATA_TYPE_FLOAT64: // 64-bit Double (big-endian)
                 if (data.length == 8) {
                     long longBits = 0;
                     for (int i = 0; i < 8; i++) {

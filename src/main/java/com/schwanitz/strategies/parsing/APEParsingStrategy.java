@@ -51,6 +51,22 @@ public class APEParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final int APE_ITEM_READ_ONLY = 0x01;
 
+    // APE Tag Versionen
+    private static final int APE_VERSION_1 = 1000;
+    private static final int APE_VERSION_2 = 2000;
+
+    // APE Tag Flags
+    private static final int APE_TAG_FLAG_HAS_HEADER = 0x80000000;
+    private static final int APE_TAG_FLAG_HAS_FOOTER = 0x40000000;
+    private static final int APE_TAG_FLAG_IS_HEADER = 0x20000000;
+
+    // Limits
+    private static final int MAX_APE_ITEM_COUNT = 1000;
+    private static final int MAX_APE_ITEM_VALUE_SIZE = 1024 * 1024;
+    private static final int MAX_APE_KEY_LENGTH = 255;
+    private static final int DISPLAY_TRUNCATION_LENGTH = 50;
+    private static final int BASE64_PREVIEW_SIZE = 100;
+
     // Performance-Optimierung
     private static final int READ_BUFFER_SIZE = 8192;
 
@@ -190,7 +206,7 @@ public class APEParsingStrategy extends AbstractTagParsingStrategy {
 
         // Version prüfen (bytes 8-11, little-endian)
         int version = BinaryDataReader.readLittleEndianInt32(header, 8);
-        if (version != 1000 && version != 2000) {
+        if (version != APE_VERSION_1 && version != APE_VERSION_2) {
             throw new IOException("Unsupported APE version: " + version);
         }
 
@@ -203,9 +219,9 @@ public class APEParsingStrategy extends AbstractTagParsingStrategy {
         // Tag Flags (bytes 20-23, little-endian)
         int tagFlags = BinaryDataReader.readLittleEndianInt32(header, 20);
 
-        boolean hasHeader = (tagFlags & 0x80000000) != 0;
-        boolean hasFooter = (tagFlags & 0x40000000) != 0;
-        boolean isHeader = (tagFlags & 0x20000000) != 0;
+        boolean hasHeader = (tagFlags & APE_TAG_FLAG_HAS_HEADER) != 0;
+        boolean hasFooter = (tagFlags & APE_TAG_FLAG_HAS_FOOTER) != 0;
+        boolean isHeader = (tagFlags & APE_TAG_FLAG_IS_HEADER) != 0;
         boolean isReadOnly = (tagFlags & 0x00000001) != 0;
 
         // Erweiterte Logging-Informationen
@@ -214,7 +230,7 @@ public class APEParsingStrategy extends AbstractTagParsingStrategy {
                 hasHeader, hasFooter, isHeader, isReadOnly);
 
         // Sanity checks
-        if (itemCount < 0 || itemCount > 1000) {
+        if (itemCount < 0 || itemCount > MAX_APE_ITEM_COUNT) {
             throw new IOException("Invalid APE item count: " + itemCount);
         }
 
@@ -298,7 +314,7 @@ public class APEParsingStrategy extends AbstractTagParsingStrategy {
         // Item Flags (4 bytes, little-endian)
         int itemFlags = BinaryDataReader.readLittleEndianInt32(itemHeader, 4);
 
-        if (valueSize < 0 || valueSize > 1048576) { // 1MB limit
+        if (valueSize < 0 || valueSize > MAX_APE_ITEM_VALUE_SIZE) {
             throw new IOException("Invalid APE item value size: " + valueSize);
         }
 
@@ -320,7 +336,7 @@ public class APEParsingStrategy extends AbstractTagParsingStrategy {
 
             keyBuffer.write(b);
 
-            if (keyBuffer.size() > 255) {
+            if (keyBuffer.size() > MAX_APE_KEY_LENGTH) {
                 throw new IOException("APE item key too long");
             }
         }
@@ -386,7 +402,7 @@ public class APEParsingStrategy extends AbstractTagParsingStrategy {
         if (!value.isEmpty()) {
             addField(metadata, normalizedKey, value);
             if (LOG.isDebugEnabled()) {
-                String displayValue = truncateForDisplay(value, 50);
+                String displayValue = truncateForDisplay(value, DISPLAY_TRUNCATION_LENGTH);
                 LOG.debug("Parsed APE item: {} = {}{}", normalizedKey, displayValue,
                         isReadOnly ? " [read-only]" : "");
             }
@@ -434,7 +450,7 @@ public class APEParsingStrategy extends AbstractTagParsingStrategy {
 
             if (valueData.length > 0) {
                 // Base64 Preview für kleine Bilder
-                int previewSize = Math.min(valueData.length, 100);
+                int previewSize = Math.min(valueData.length, BASE64_PREVIEW_SIZE);
                 byte[] previewData = new byte[previewSize];
                 System.arraycopy(valueData, 0, previewData, 0, previewSize);
                 preview = Base64.getEncoder().encodeToString(previewData);
@@ -442,7 +458,7 @@ public class APEParsingStrategy extends AbstractTagParsingStrategy {
 
             return String.format("[IMAGE:%s,%d bytes,preview:%s%s]",
                     format, valueData.length, preview,
-                    valueData.length > 100 ? "..." : "");
+                    valueData.length > BASE64_PREVIEW_SIZE ? "..." : "");
         }
 
         return "[BINARY:" + valueData.length + " bytes]";
@@ -473,7 +489,7 @@ public class APEParsingStrategy extends AbstractTagParsingStrategy {
     }
 
     private boolean isValidAPEKey(String key) {
-        if (key == null || key.isEmpty() || key.length() > 255) {
+        if (key == null || key.isEmpty() || key.length() > MAX_APE_KEY_LENGTH) {
             return false;
         }
 

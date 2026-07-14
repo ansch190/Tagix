@@ -38,6 +38,14 @@ public class AIFFMetadataParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(AIFFMetadataParsingStrategy.class);
 
+    // AIFF Struct-Größen
+    private static final int AIFF_CHUNK_HEADER_SIZE = 8;
+    private static final int COMMENT_ENTRY_HEADER_SIZE = 8; // timeStamp(4) + marker(2) + count(2)
+    private static final int APP_SIGNATURE_SIZE = 4;
+    private static final int MAX_APP_DATA_READ_SIZE = 256;
+    private static final int MAX_UNKNOWN_CHUNK_SIZE = 8192;
+    private static final int DISPLAY_TRUNCATION_LENGTH = 50;
+
     // AIFF Metadata Chunk Types
     private static final Map<String, String> AIFF_CHUNKS = new HashMap<>();
 
@@ -95,7 +103,7 @@ public class AIFFMetadataParsingStrategy extends AbstractTagParsingStrategy {
         long pos = offset;
 
         // AIFF Chunk Header lesen (8 bytes)
-        byte[] chunkHeader = new byte[8];
+        byte[] chunkHeader = new byte[AIFF_CHUNK_HEADER_SIZE];
         source.readFully(pos, chunkHeader);
         pos += chunkHeader.length;
 
@@ -104,7 +112,7 @@ public class AIFFMetadataParsingStrategy extends AbstractTagParsingStrategy {
 
         LOG.debug("Parsing AIFF chunk: {} with size: {}", chunkType, chunkSize);
 
-        if (chunkSize < 0 || chunkSize > size - 8) {
+        if (chunkSize < 0 || chunkSize > size - AIFF_CHUNK_HEADER_SIZE) {
             throw new IOException("Invalid AIFF chunk size: " + chunkSize);
         }
 
@@ -132,7 +140,7 @@ public class AIFFMetadataParsingStrategy extends AbstractTagParsingStrategy {
 
             default:
                 // Unbekannter Chunk - versuche als Text zu parsen
-                if (chunkSize > 0 && chunkSize < 8192) { // Reasonable size limit
+                if (chunkSize > 0 && chunkSize < MAX_UNKNOWN_CHUNK_SIZE) { // Reasonable size limit
                     parseTextChunk(source, metadata, chunkType, chunkSize, pos);
                 } else {
                     LOG.debug("Skipping unknown AIFF chunk: {}", chunkType);
@@ -160,7 +168,7 @@ public class AIFFMetadataParsingStrategy extends AbstractTagParsingStrategy {
             addField(metadata, fieldName, text);
 
             if (LOG.isDebugEnabled()) {
-                String displayText = truncateForDisplay(text, 50);
+                String displayText = truncateForDisplay(text, DISPLAY_TRUNCATION_LENGTH);
                 LOG.debug("Parsed AIFF text field: {} ({}) = {}", chunkType, fieldName, displayText);
             }
         }
@@ -178,7 +186,7 @@ public class AIFFMetadataParsingStrategy extends AbstractTagParsingStrategy {
         int bytesRead = 2;
 
         for (int i = 0; i < numComments && bytesRead < chunkSize; i++) {
-            if (bytesRead + 8 > chunkSize) {
+            if (bytesRead + COMMENT_ENTRY_HEADER_SIZE > chunkSize) {
                 break;
             }
 
@@ -189,7 +197,7 @@ public class AIFFMetadataParsingStrategy extends AbstractTagParsingStrategy {
             pos += 2;
             int count = BinaryDataReader.readBigEndianInt16(source, pos);
             pos += 2;
-            bytesRead += 8;
+            bytesRead += COMMENT_ENTRY_HEADER_SIZE;
 
             if (count > 0 && bytesRead + count <= chunkSize) {
                 byte[] commentText = new byte[count];
@@ -219,18 +227,18 @@ public class AIFFMetadataParsingStrategy extends AbstractTagParsingStrategy {
         }
 
         // Application Signature (4 bytes)
-        byte[] signature = new byte[4];
+        byte[] signature = new byte[APP_SIGNATURE_SIZE];
         source.readFully(pos, signature);
         pos += 4;
         String appSignature = new String(signature, StandardCharsets.US_ASCII);
 
         // Application Data (rest of chunk)
-        int dataSize = chunkSize - 4;
+        int dataSize = chunkSize - APP_SIGNATURE_SIZE;
         if (dataSize > 0) {
             // Für bekannte Applications spezielle Behandlung
             if ("pdos".equals(appSignature) || "stoc".equals(appSignature)) {
                 // ProTools oder andere DAW-spezifische Daten
-                byte[] appData = new byte[Math.min(dataSize, 256)]; // Limit for safety
+                byte[] appData = new byte[Math.min(dataSize, MAX_APP_DATA_READ_SIZE)]; // Limit for safety
                 source.readFully(pos, appData);
                 pos += appData.length;
 
