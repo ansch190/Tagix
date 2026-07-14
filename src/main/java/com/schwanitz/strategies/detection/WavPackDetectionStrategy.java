@@ -1,5 +1,7 @@
 package com.schwanitz.strategies.detection;
 
+import static com.schwanitz.formats.wavpack.WavPackConstants.*;
+
 import com.schwanitz.io.BinaryDataReader;
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
@@ -47,17 +49,13 @@ import java.util.Map;
  */
 public class WavPackDetectionStrategy extends TagDetectionStrategy {
 
-    private static final byte[] WAVPACK_SIGNATURE = {'w', 'v', 'p', 'k'};
-
-    private static final int HEADER_SIZE = 32;
+    private static final int HEADER_SIZE = WAVPACK_HEADER_SIZE;
     private static final int SIGNATURE_OFFSET = 0;
     private static final int BLOCK_SIZE_OFFSET = 4;
     private static final int FLAGS_OFFSET = 24;
 
     private static final int FLAG_INITIAL_BLOCK = 0x02;
 
-    private static final int SUBBLOCK_LARGE_FLAG = 0x80;
-    private static final int SUBBLOCK_ID_MASK = 0x7F;
     private static final long UNSIGNED_INT_MASK = 0xFFFFFFFFL;
 
     private static final long MAX_REASONABLE_BLOCK_SIZE = 10L * 1024 * 1024;

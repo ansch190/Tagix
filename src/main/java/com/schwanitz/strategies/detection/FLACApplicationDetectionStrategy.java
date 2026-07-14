@@ -1,5 +1,7 @@
 package com.schwanitz.strategies.detection;
 
+import static com.schwanitz.formats.flac.FlacConstants.*;
+
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
@@ -29,13 +31,7 @@ public class FLACApplicationDetectionStrategy extends TagDetectionStrategy {
 
     private static final Map<Integer, String> KNOWN_APPLICATION_IDS = new HashMap<>();
 
-    private static final int FLAC_SIGNATURE_LENGTH = 4;
-    private static final int FLAC_BLOCK_HEADER_SIZE = 4;
-    private static final int FLAC_APPLICATION_BLOCK_TYPE = 2;
-    private static final int FLAC_APPLICATION_ID_SIZE = 4;
-    private static final int MAX_BLOCKS = 1000;
-    private static final int FLAC_LAST_BLOCK_FLAG = 0x80;
-    private static final int FLAC_BLOCK_TYPE_MASK = 0x7F;
+
 
     static {
         KNOWN_APPLICATION_IDS.put(0x41544348, "Audio Tag (ATCH)");

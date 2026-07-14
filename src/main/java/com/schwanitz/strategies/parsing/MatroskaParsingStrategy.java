@@ -3,6 +3,8 @@ package com.schwanitz.strategies.parsing;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.TextFieldHandler;
+import static com.schwanitz.formats.matroska.MatroskaConstants.*;
+
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.io.SourceReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
@@ -37,15 +39,6 @@ public class MatroskaParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(MatroskaParsingStrategy.class);
 
-    private static final byte[] EBML_HEADER = {0x1A, 0x45, (byte)0xDF, (byte)0xA3};
-    private static final byte[] SEGMENT_ID = {0x18, 0x53, (byte)0x80, 0x67};
-    private static final byte[] TAGS_ID = {0x12, 0x54, (byte)0xC3, 0x67};
-
-    // Element IDs
-    private static final long EBML_DOCTYPE_ID = 0x4282L;
-    private static final long EBML_TAGS_ELEMENT_ID = 0x1254C367L;
-
-    // Sub-element IDs within Tags/Tag
     private static final long TAG_ELEMENT_ID = 0x7373L;
     private static final long SIMPLE_TAG_ID = 0x67C8L;
     private static final long TAG_NAME_ID = 0x45A3L;
@@ -53,8 +46,6 @@ public class MatroskaParsingStrategy extends AbstractTagParsingStrategy {
     private static final long TAG_LANGUAGE_ID = 0x447AL;
     private static final long TAG_DEFAULT_ID = 0x4484L;
     private static final long TARGETS_ELEMENT_ID = 0x63C0L;
-
-    private static final int VLI_LEADING_BIT_MASK = 0x80;
 
     private static final Map<String, String> MATROSKA_FIELD_MAPPING = new HashMap<>();
 

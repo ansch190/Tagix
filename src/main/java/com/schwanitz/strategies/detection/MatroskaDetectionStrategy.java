@@ -1,5 +1,7 @@
 package com.schwanitz.strategies.detection;
 
+import static com.schwanitz.formats.matroska.MatroskaConstants.*;
+
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
@@ -45,24 +47,15 @@ import java.util.Map;
  */
 public class MatroskaDetectionStrategy extends TagDetectionStrategy {
 
-    private static final byte[] EBML_HEADER = {0x1A, 0x45, (byte)0xDF, (byte)0xA3};
-    private static final byte[] SEGMENT_ID = {0x18, 0x53, (byte)0x80, 0x67};
-    private static final byte[] TAGS_ID = {0x12, 0x54, (byte)0xC3, 0x67};
-
     private static final String DOCTYPE_MATROSKA = "matroska";
     private static final String DOCTYPE_WEBM = "webm";
 
-    private static final int EBML_HEADER_ID_SIZE = 4;
     private static final int ELEMENT_ID_SIZE = 4;
     private static final int MIN_ELEMENT_SIZE = 8;
     private static final long MAX_EBML_HEADER_SIZE = 1000;
 
-    private static final long EBML_DOCTYPE_ID = 0x4282L;
-    private static final long EBML_TAGS_ELEMENT_ID = 0x1254C367L;
     private static final long EBML_VOID_ID = 0xEC;
     private static final long EBML_CRC32_ID = 0xBF;
-
-    private static final int VLI_LEADING_BIT_MASK = 0x80;
 
     private static final int MAX_TOP_LEVEL_ELEMENTS = 50;
 

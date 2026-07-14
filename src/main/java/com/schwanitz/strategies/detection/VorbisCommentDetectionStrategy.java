@@ -1,5 +1,7 @@
 package com.schwanitz.strategies.detection;
 
+import static com.schwanitz.formats.flac.FlacConstants.*;
+
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.detection.context.TagDetectionStrategy;
 import com.schwanitz.tagging.TagFormat;
@@ -38,11 +40,7 @@ public class VorbisCommentDetectionStrategy extends TagDetectionStrategy {
     private static final int MAX_VENDOR_LENGTH = 1024 * 1024;
     private static final int MAX_COMMENT_COUNT = 10000;
 
-    private static final int FLAC_SIGNATURE_LENGTH = 4;
-    private static final int FLAC_BLOCK_HEADER_SIZE = 4;
-    private static final int FLAC_LAST_BLOCK_FLAG = 0x80;
-    private static final int FLAC_BLOCK_TYPE_MASK = 0x7F;
-    private static final int FLAC_VORBIS_COMMENT_BLOCK_TYPE = 4;
+
 
     private static final int OGG_SIGNATURE_LENGTH = 4;
     private static final int OGG_SEGMENT_COUNT_OFFSET = 26;

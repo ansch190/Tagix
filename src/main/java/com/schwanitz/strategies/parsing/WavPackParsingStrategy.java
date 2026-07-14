@@ -3,6 +3,8 @@ package com.schwanitz.strategies.parsing;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.TextFieldHandler;
+import static com.schwanitz.formats.wavpack.WavPackConstants.*;
+
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.io.SourceReader;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
@@ -33,10 +35,7 @@ public class WavPackParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(WavPackParsingStrategy.class);
 
-    private static final byte[] WAVPACK_SIGNATURE = {'w', 'v', 'p', 'k'};
-    private static final int WAVPACK_HEADER_SIZE = 32;
-    private static final int SUBBLOCK_LARGE_FLAG = 0x80;
-    private static final int SUBBLOCK_ID_MASK = 0x7F;
+
 
     private static final Map<Integer, String> METADATA_SUBBLOCKS = new HashMap<>();
 

@@ -3,6 +3,8 @@ package com.schwanitz.strategies.parsing;
 import com.schwanitz.interfaces.Metadata;
 import com.schwanitz.metadata.GenericMetadata;
 import com.schwanitz.metadata.TextFieldHandler;
+import static com.schwanitz.formats.flac.FlacConstants.*;
+
 import com.schwanitz.io.SeekableDataSource;
 import com.schwanitz.strategies.parsing.context.TagParsingStrategy;
 import com.schwanitz.tagging.TagFormat;
@@ -37,13 +39,7 @@ public class FLACApplicationParsingStrategy extends AbstractTagParsingStrategy {
 
     private static final Logger LOG = LoggerFactory.getLogger(FLACApplicationParsingStrategy.class);
 
-    private static final int FLAC_BLOCK_HEADER_SIZE = 4;
-    private static final int FLAC_APPLICATION_ID_SIZE = 4;
-    private static final int FLAC_APPLICATION_BLOCK_TYPE = 2;
-    private static final int FLAC_SIGNATURE_LENGTH = 4;
-    private static final int FLAC_LAST_BLOCK_FLAG = 0x80;
-    private static final int FLAC_BLOCK_TYPE_MASK = 0x7F;
-    private static final int MAX_BLOCKS = 1000;
+
 
     private static final Map<Integer, String> KNOWN_APPLICATION_IDS = new HashMap<>();
 
